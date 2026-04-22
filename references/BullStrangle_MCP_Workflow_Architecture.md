@@ -23,7 +23,15 @@ Deferred by design:
 - DCA holdings/account-state ingestion
 - final DCA executable allocation logic
 - tuned decision thresholds based on several live OS uploads
+- full Master Document strategy extraction and rule implementation
 - report persistence tables
+
+Master Document status:
+
+- `references/Bull Strangle Master Document - Version 8.pdf` is stored in the GitHub repo as the master strategy reference.
+- The current v1 decision logic has not fully encoded the Master Document.
+- Current strategy logic is based on newsletter appendix sections, Option Samurai integration artifacts, and workflow rules captured during implementation.
+- Before locking final DCA/Bull Strangle decisions, the Master Document should be studied and converted into structured rules, tests, and decision snapshots.
 
 New DCA/account rule captured:
 
@@ -1266,7 +1274,7 @@ Purpose:
 
 ## Next Steps
 
-1. Inspect the Option Samurai Excel workbook/template.
+1. Done: inspect the Option Samurai Excel workbook/template.
 2. Define the generated workbook contract:
    - sheets
    - headers
@@ -1284,13 +1292,14 @@ Purpose:
 9. Done: implement `decision_batches`.
 10. Done: implement `bull_strangle_decisions`.
 11. Done: implement `dca_decisions`.
-12. Tune weekend decision criteria after several daily OS uploads.
-13. Add DCA holdings/account input and single-account execution selection.
-14. Add reports:
+12. Extract Master Document strategy rules into structured implementation tasks.
+13. Tune weekend decision criteria after several daily OS uploads.
+14. Add DCA holdings/account input and single-account execution selection.
+15. Add reports:
    - daily OS deviation report
    - weekend Bull Strangle decision report
    - weekend DCA decision report
-15. Add report persistence:
+16. Add report persistence:
    - `report_templates`
    - `report_runs`
    - `generated_reports`

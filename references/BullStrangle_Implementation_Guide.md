@@ -157,6 +157,13 @@ Fallback design:
 
 ## Decision Logic Status
 
+Master Document status:
+
+- `references/Bull Strangle Master Document - Version 8.pdf` is included as the master strategy reference.
+- The full Master Document strategy has not yet been encoded into the decision engine.
+- Current v1 strategy logic is scaffolding based on newsletter appendix extraction, Option Samurai integration, and workflow/account rules captured so far.
+- The implementation plan for converting the Master Document into structured rules is in `references/BullStrangle_Master_Document_Implementation_Plan.md`.
+
 Bull Strangle v1:
 
 - `APPROVE` when market deployment is approved, weekly OS data is valid, total credit is positive, price deviation is under `8%`, and credit deviation is under `$2.50`.
@@ -256,6 +263,7 @@ Compile check:
 ## Known Deferred Work
 
 - Multi-day live OS validation after additional market-hours uploads.
+- Full Master Document strategy extraction and implementation.
 - Decision threshold tuning after real multi-day OS data exists.
 - DCA holdings/account-state ingestion with single-account execution selection.
 - Executable DCA allocation logic.
