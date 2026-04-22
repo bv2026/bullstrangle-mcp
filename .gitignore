@@ -15,9 +15,6 @@ data/
 outputs/
 reports/
 
-# Local Option Samurai source artifacts
-osamurai/
-
 # Local environment
 .env
 .env.*
