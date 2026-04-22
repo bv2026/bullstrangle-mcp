@@ -1,0 +1,32 @@
+[project]
+name = "bullstrangle-mcp"
+version = "0.1.0"
+description = "Bull Strangle newsletter ingestion tools"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=1.27",
+  "openpyxl>=3.1",
+  "pypdf>=4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+]
+excel = [
+  "openpyxl>=3.1",
+]
+
+[project.scripts]
+bullstrangle = "bullstrangle_mcp.cli:main"
+bullstrangle-mcp-server = "bullstrangle_mcp.mcp_server:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "unit: fast tests for isolated functions",
+  "integration: tests that parse PDFs or use SQLite",
+  "e2e: end-to-end tests that launch the MCP server over stdio",
+]

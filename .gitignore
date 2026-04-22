@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Local runtime data and generated artifacts
+data/
+outputs/
+reports/
+
+# Proprietary/reference source artifacts
+osamurai/
+references/*.pdf
+
+# Local environment
+.env
+.env.*
+
