@@ -15,11 +15,9 @@ data/
 outputs/
 reports/
 
-# Proprietary/reference source artifacts
+# Local Option Samurai source artifacts
 osamurai/
-references/*.pdf
 
 # Local environment
 .env
 .env.*
-
