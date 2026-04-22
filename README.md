@@ -45,7 +45,7 @@ bullstrangle --db data\bullstrangle.db show-newsletter 34
 bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
 bullstrangle --db data\bullstrangle.db prepare-os-workbook 2026-04-17
 bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
-bullstrangle --db data\bullstrangle.db ingest-os-workbook outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
 bullstrangle --db data\bullstrangle.db report-os-run 1 --output reports\2026-04-22\os_run_1.md
 bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-22\os_week_2026-04-17.md
 bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json

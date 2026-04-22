@@ -73,6 +73,7 @@ Inputs:
 Generated local data:
 
 - `data/bullstrangle.db`: SQLite database.
+- `data/os_uploads`: inbound Excel-refreshed OS workbooks ready for ingestion.
 - `outputs/os_workbooks`: generated OS workbooks for Excel/Option Samurai refresh.
 - `reports/YYYY-MM-DD`: generated Markdown reports.
 
@@ -123,7 +124,7 @@ Important design rule:
 
 1. PDF ingestion extracts newsletter metadata, watchlist, short lists, market environment, commentary, and strategy references.
 2. OS workbook generation calculates newsletter-average option selectors and writes an Excel workbook with Option Samurai formulas.
-3. User opens the workbook in Excel with Option Samurai enabled, refreshes formulas, saves it, and uploads/places the file for ingestion.
+3. User copies the generated workbook into `data/os_uploads`, opens it in Excel with Option Samurai enabled, refreshes formulas, saves it, and ingests that refreshed copy.
 4. OS ingestion reads the workbook, stores one run plus one evaluated row per symbol, and computes deviations against the newsletter baseline.
 5. Daily reporting summarizes one OS run.
 6. Weekly aggregation rolls up all OS runs for a newsletter date.

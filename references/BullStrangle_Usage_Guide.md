@@ -75,20 +75,32 @@ Current generated file:
 outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
 ```
 
+Inbound refreshed workbook folder:
+
+```text
+data\os_uploads
+```
+
+Keep generated templates and refreshed uploads separate:
+
+- `outputs\os_workbooks`: MCP-generated workbook templates.
+- `data\os_uploads`: Excel-refreshed workbooks ready for ingestion.
+
 ## Market-Hours Daily Workflow
 
 Use this after market opens and Option Samurai can return live data.
 
-1. Open the generated workbook in Excel.
-2. Make sure the Option Samurai add-in is enabled.
-3. Refresh/recalculate the workbook.
-4. Save the workbook.
-5. Ingest the saved workbook.
+1. Copy the generated workbook from `outputs\os_workbooks` into `data\os_uploads`.
+2. Open the copy in `data\os_uploads` in Excel.
+3. Make sure the Option Samurai add-in is enabled.
+4. Refresh/recalculate the workbook.
+5. Save the workbook.
+6. Ingest the saved workbook from `data\os_uploads`.
 
 Ingest command:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-os-workbook outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-23
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-23
 ```
 
 Use the actual trading date for `--trading-date`.
@@ -264,6 +276,12 @@ Generated workbook:
 outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
 ```
 
+Inbound OS upload folder:
+
+```text
+data\os_uploads
+```
+
 Generated reports:
 
 ```text
@@ -284,12 +302,13 @@ Current local April 17 status:
 
 When the market opens:
 
-1. Open `outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx`.
-2. Refresh Option Samurai formulas in Excel.
-3. Save the workbook.
-4. Run `ingest-os-workbook` with tomorrow's trading date.
-5. Run `report-os-run` for the new `run_id`.
-6. Run `aggregate-os-week`.
-7. Review missing values and largest deviations.
+1. Copy `outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx` to `data\os_uploads`.
+2. Open the copy in `data\os_uploads`.
+3. Refresh Option Samurai formulas in Excel.
+4. Save the workbook.
+5. Run `ingest-os-workbook` against the file in `data\os_uploads` with tomorrow's trading date.
+6. Run `report-os-run` for the new `run_id`.
+7. Run `aggregate-os-week`.
+8. Review missing values and largest deviations.
 
 Weekend decisions can wait until the week is complete.

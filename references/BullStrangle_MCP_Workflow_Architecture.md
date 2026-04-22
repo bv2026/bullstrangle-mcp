@@ -99,7 +99,7 @@ Planned output table:
 
 Input:
 
-- Refreshed Option Samurai Excel workbook uploaded by the user.
+- Refreshed Option Samurai Excel workbook uploaded by the user under `data/os_uploads`.
 
 Process:
 
@@ -111,6 +111,8 @@ Process:
 
 Important:
 
+- `outputs/os_workbooks` is for generated workbook templates.
+- `data/os_uploads` is for Excel-refreshed workbook uploads.
 - Daily uploads do not create final trade decisions.
 - Daily uploads only create OS snapshots and deviations.
 
@@ -761,7 +763,7 @@ Implemented fields:
 Current ingest command:
 
 ```powershell
-python -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-os-workbook outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
+python -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
 ```
 
 Current example run:
