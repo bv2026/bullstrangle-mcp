@@ -273,9 +273,15 @@ Available MCP tools:
 - `generate_os_workbook`
 - `ingest_os_workbook`
 - `ingest_positions`
+- `list_strategy_rules`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
+
+Use `list_strategy_rules` with `category="decision_threshold"` to inspect the
+numeric gates (max deviations, minimum credits) currently in use by the
+decision engine.  To change a threshold without a code deploy, update the
+`rule_parameters` JSON value in SQLite and re-run `generate_weekend_decisions`.
 
 MCP ingest safety:
 
@@ -294,7 +300,7 @@ pytest -q
 Current expected result:
 
 ```text
-12 passed
+30 passed
 ```
 
 Run by layer:

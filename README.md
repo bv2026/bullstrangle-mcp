@@ -93,6 +93,7 @@ Available MCP tools:
 - `generate_os_workbook`
 - `ingest_os_workbook`
 - `ingest_positions`
+- `list_strategy_rules`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
@@ -125,32 +126,32 @@ database.py       Schema (authoritative SCHEMA_SQL), versioned migrations, conne
 - `decisions.py` applies rules to stored facts. Call `compute_weekly_summary()` to re-evaluate decisions without re-ingesting a PDF.
 - `database.py` is the single source of truth for schema. Add new columns to `SCHEMA_SQL` and append a numbered migration to `_MIGRATIONS` — never use ad-hoc `ALTER TABLE` elsewhere.
 - The database uses WAL mode and a 5-second busy timeout for safe concurrent access.
+- Decision thresholds (max deviations, minimum credits) live in the `strategy_rules` table under `rule_category = 'decision_threshold'`. Edit them in the DB and re-run `generate_weekend_decisions` — no code change required. Use `list_strategy_rules` (MCP) or query SQLite directly to inspect current values.
 
 ## Tests
-
-Install test dependencies:
-
-```powershell
-$py = 'C:\Users\vsbra\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-& $py -m pip install -e ".[dev,excel]"
-```
 
 Run the full suite:
 
 ```powershell
-& $py -m pytest -q
+pytest -q
 ```
 
 Run by layer:
 
 ```powershell
-& $py -m pytest -q -m unit
-& $py -m pytest -q -m integration
-& $py -m pytest -q -m e2e
+pytest -q -m unit
+pytest -q -m integration
+pytest -q -m e2e
+```
+
+Compile check:
+
+```powershell
+python -m compileall -q src
 ```
 
 Current test layers:
 
-- Unit: selector rounding, ingestion safety (force flag), DB safety checks, position ingestion.
+- Unit: selector rounding, ingestion safety (force flag), DB WAL/index checks, position ingestion, parser fixtures (`parse_watchlist_option_prices`, `parse_market_environment`), strategy-context builder (`_build_strategy_context`). No PDF required.
 - Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation. *(requires newsletter PDF in `data/newsletters/`)*
 - E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`. *(requires newsletter PDF)*
