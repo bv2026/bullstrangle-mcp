@@ -173,6 +173,16 @@ Master Document status:
 - Current v1 strategy logic is scaffolding based on newsletter appendix extraction, Option Samurai integration, and workflow/account rules captured so far.
 - The implementation plan for converting the Master Document into structured rules is in `references/BullStrangle_Master_Document_Implementation_Plan.md`.
 
+Decision redesign direction:
+
+- Bull Strangle is the primary strategy decision.
+- DCA is not a prerequisite for Bull Strangle entry.
+- The next pass should compute a shared `strategy_score` first, then choose one action per symbol:
+  - `BULL_STRANGLE`
+  - `DCA`
+  - `WATCH`
+  - `SKIP`
+
 Bull Strangle v1:
 
 - `APPROVE` when market deployment is approved, weekly OS data is valid, total credit is positive, price deviation is under `8%`, and credit deviation is under `$2.50`.
@@ -195,8 +205,8 @@ Account-aware DCA rule:
 - Portfolio exposure can be viewed at consolidated symbol level.
 - Execution must be account-specific: one DCA or Bull Strangle action maps to one account only.
 - A DCA recommendation should target the account where the system is trying to build toward `100` shares.
-- A symbol becomes Bull Strangle eligible only when one account has at least `100` shares.
-- `100` shares split across multiple accounts should not be treated as Bull Strangle-ready.
+- Reaching `100` shares in one account enables stock-backed Bull Strangle implementations.
+- `100` shares split across multiple accounts should not be treated as stock-backed Bull Strangle-ready.
 
 Implemented position ingestion:
 
@@ -204,8 +214,15 @@ Implemented position ingestion:
 - Stores raw account-level rows in `account_positions`.
 - Stores consolidated awareness rollups in `symbol_position_rollups`.
 - Marks `bull_strangle_ready` only when a single account has at least `100` shares.
-- Weekend Bull Strangle decisions now require that single-account readiness when positions have been imported.
+- The current code still uses single-account readiness too aggressively for Bull Strangle; this is scheduled to change in the next decision-logic pass.
 - DCA decisions show selected account, account shares, consolidated shares, and shares needed to reach `100`.
+
+Target next-pass decision behavior:
+
+- compute a shared strategy score
+- choose Bull Strangle directly when strategy criteria are strong and direct entry is preferred
+- choose DCA only when the strategy still scores well but accumulation is preferred
+- use account context to pick one execution account
 
 ## MCP Tools
 

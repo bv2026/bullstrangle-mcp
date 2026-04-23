@@ -22,6 +22,7 @@ By default the database is written to `data/bullstrangle.db`.
 
 - [Workflow Architecture](references/BullStrangle_MCP_Workflow_Architecture.md)
 - [Implementation Guide](references/BullStrangle_Implementation_Guide.md)
+- [Decision Logic Design](references/BullStrangle_Decision_Logic_Design.md)
 - [Master Document Implementation Plan](references/BullStrangle_Master_Document_Implementation_Plan.md)
 - [Usage Guide](references/BullStrangle_Usage_Guide.md)
 

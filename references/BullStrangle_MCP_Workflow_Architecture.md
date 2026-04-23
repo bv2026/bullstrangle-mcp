@@ -38,9 +38,15 @@ New DCA/account rule captured:
 
 - Positions may be distributed across multiple accounts for portfolio awareness.
 - A DCA or Bull Strangle action must be deployed in exactly one account and cannot be split across accounts.
-- DCA target is to build the selected account position to `100` shares.
-- Once a symbol reaches `100` shares in a single account, it becomes eligible to be promoted from DCA to Bull Strangle evaluation.
+- DCA target is to build the selected account position toward `100` shares when DCA is the chosen action.
+- Reaching `100` shares in one account makes stock-backed Bull Strangle implementations possible, but DCA is not a prerequisite for Bull Strangle entry.
 - Consolidated symbol-level holdings can be used for exposure/risk awareness, but execution eligibility must be account-specific.
+
+Decision-logic correction captured:
+
+- Bull Strangle is the primary strategy decision, not something that always comes after DCA.
+- DCA is a qualified alternative entry path when the strategy setup still scores well but accumulation is preferred over direct Bull Strangle entry.
+- Weekend decisioning should first score the setup, then branch to one of: `BULL_STRANGLE`, `DCA`, `WATCH`, or `SKIP`.
 
 ## Purpose
 
@@ -141,8 +147,12 @@ Process:
 
 - Run once per newsletter cycle after the trading week ends.
 - Build one decision batch.
-- Generate DCA decisions.
-- Generate Bull Strangle decisions.
+- Calculate a shared strategy score per symbol.
+- Branch the symbol into the preferred action type:
+  - direct Bull Strangle
+  - DCA
+  - watch
+  - skip
 - Store decision rationale as JSON snapshots for auditability.
 
 Planned output tables:
@@ -1060,6 +1070,13 @@ Current v1 decision policy:
 - `WATCH` when the symbol has valid OS data and positive credit but at least one other v1 gate is not passed.
 - `SKIP` when required OS values are missing or credit is not usable.
 
+Target decision policy for the next pass:
+
+- Bull Strangle eligibility is determined from the shared strategy score plus strategy-specific gates.
+- Direct Bull Strangle entry is allowed when strategy criteria are met, even if the symbol is not already built through DCA.
+- Account selection remains required: one Bull Strangle action must map to one account.
+- Stock-backed Bull Strangle implementations may still require `100` shares in one account, but that is an implementation path, not the universal prerequisite for Bull Strangle approval.
+
 ### `dca_decisions`
 
 Final weekend DCA decisions. Implemented v1.
@@ -1103,15 +1120,85 @@ Current v1 decision policy:
 - `SKIP` when allocation, candidate score, or OS data is not usable.
 - Holdings/account state is not yet implemented, so DCA decisions are candidate decisions rather than executable allocation instructions.
 
-Required account-aware DCA behavior for the next implementation pass:
+Target decision policy for the next pass:
+
+- DCA is not the default path for symbols that are not currently held.
+- DCA is considered only when the shared strategy score is good enough, but accumulation is preferred over direct Bull Strangle entry.
+- DCA should favor acquiring shares at prices that support the later option structure, including buying below the desired strike context when possible.
+- DCA should choose one target account and track shares needed toward `100` in that account.
+- DCA and Bull Strangle should be treated as parallel action choices, not a mandatory sequence.
+
+Required account-aware DCA behavior:
 
 - Ingest positions by account and by symbol.
 - Also build a consolidated symbol view for exposure awareness.
 - Choose a single target account for each DCA recommendation.
 - Do not split a DCA recommendation across multiple accounts.
 - Calculate shares needed to reach `100` shares in the selected account.
-- Promote a symbol to Bull Strangle eligibility only when one account holds at least `100` shares.
-- Treat symbols with `100` total shares spread across multiple accounts as not yet Bull Strangle-ready unless a single account has `100` shares.
+- Treat symbols with `100` total shares spread across multiple accounts as not stock-backed Bull Strangle-ready unless a single account has `100` shares.
+
+## Decision Logic Redesign
+
+Next-pass decisioning should be driven by a shared strategy score and a separate action-selection step.
+
+### Shared Strategy Score
+
+Each symbol should receive a strategy score built from:
+
+- market regime and deployment state
+- newsletter/watchlist quality
+- short-list/favorite signals
+- live OS option premium quality
+- live OS validity and data completeness
+- weekly deviation profile
+- price attractiveness relative to the intended strike structure
+
+This score should produce:
+
+- `strategy_score`
+- `strategy_band`
+- rule pass/fail detail
+
+### Action Selection
+
+After the shared strategy score is computed, select one preferred action:
+
+- `BULL_STRANGLE`
+- `DCA`
+- `WATCH`
+- `SKIP`
+
+High-level branching:
+
+- choose `BULL_STRANGLE` when strategy score is strong and direct strategy entry is preferred
+- choose `DCA` when strategy score is still strong but accumulation is preferred
+- choose `WATCH` when the setup is interesting but not ready for action
+- choose `SKIP` when the setup is weak or invalid
+
+### DCA Intent
+
+DCA exists to accumulate stock when the setup is strategically attractive but buying shares first is the preferred entry method.
+
+DCA should therefore consider:
+
+- live price versus newsletter baseline
+- live price versus future strike context
+- current average cost in target account
+- whether adding now improves the eventual Bull Strangle setup
+- shares needed to reach `100` in the selected account
+
+### Bull Strangle Intent
+
+Bull Strangle should be treated as the primary strategy action, not as something that always comes after DCA.
+
+Bull Strangle should therefore consider:
+
+- direct entry viability
+- premium quality
+- market gate
+- strategy score
+- account suitability
+- whether the chosen Bull Strangle implementation requires stock ownership in that account
 
 Current weekend decision command:
 
@@ -1332,10 +1419,11 @@ Purpose:
 
 1. Exact OS Excel input/output columns.
 2. Workbook template format and formula zones.
-3. Whether DCA candidate ranking is explicit in the newsletter or inferred from favorites/short list.
-4. Account selection policy for DCA and Bull Strangle execution when positions are spread across accounts.
-5. Exact weekend aggregation policy: latest OS upload plus weekly max deviations is the recommended v1 default.
-6. Thresholds for acceptable deviation from newsletter baseline.
+3. Exact shared strategy score inputs and weighting.
+4. Action-selection rules for `BULL_STRANGLE` versus `DCA`.
+5. Account selection policy for DCA and Bull Strangle execution when positions are spread across accounts.
+6. Exact weekend aggregation policy: latest OS upload plus weekly max deviations is the recommended v1 default.
+7. Thresholds for acceptable deviation from newsletter baseline.
 7. Report template format and final output directory convention.
 8. Whether generated reports are stored only in DB or also written to files under `reports/`.
 
@@ -1360,13 +1448,14 @@ Purpose:
 10. Done: implement `bull_strangle_decisions`.
 11. Done: implement `dca_decisions`.
 12. Extract Master Document strategy rules into structured implementation tasks.
-13. Tune weekend decision criteria after several daily OS uploads.
-14. Done: add DCA holdings/account input and single-account execution selection.
-15. Add reports:
+13. Redesign decision logic around shared strategy scoring and action branching.
+14. Tune weekend decision criteria after several daily OS uploads.
+15. Done: add DCA holdings/account input and single-account execution selection.
+16. Add reports:
    - daily OS deviation report
    - weekend Bull Strangle decision report
    - weekend DCA decision report
-16. Add report persistence:
+17. Add report persistence:
    - `report_templates`
    - `report_runs`
    - `generated_reports`
@@ -1394,6 +1483,7 @@ The design now captures the core workflow requirements:
 - V1 weekend decision batch generation implemented.
 - V1 Bull Strangle decisions implemented.
 - V1 DCA candidate decisions implemented.
+- Decision-logic redesign target documented: shared strategy score plus action branching.
 - Claude-compatible MCP server implemented.
 - DCA and Bull Strangle decisions generated only once on the weekend.
 - Placeholder `watchlist_decisions` removed.
@@ -1421,6 +1511,7 @@ Implemented:
 
 Not yet implemented:
 
+- Shared strategy score and action-selection logic.
 - Tuned decision thresholds based on real multi-day OS uploads.
 - Holdings/account state for DCA executable allocation decisions.
 - Report persistence tables (`report_templates`, `report_runs`, `generated_reports`).

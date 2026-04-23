@@ -23,7 +23,7 @@ Already implemented:
 - Account-aware DCA rule documented:
   - one recommendation maps to one account
   - DCA target is `100` shares in that account
-  - Bull Strangle promotion requires `100` shares in one account
+  - `100` shares in one account enables stock-backed Bull Strangle implementations
 
 Not yet implemented:
 
@@ -39,8 +39,9 @@ Not yet implemented:
 2. Separate rules by strategy area:
    - market regime
    - watchlist eligibility
+   - shared strategy scoring
+   - action selection between Bull Strangle and DCA
    - DCA entry/add rules
-   - DCA promotion to Bull Strangle
    - Bull Strangle entry rules
    - position sizing
    - account selection
@@ -49,6 +50,7 @@ Not yet implemented:
 3. Store rules in database tables or versioned JSON snapshots.
 4. Make weekend decisions explain which rules passed, failed, or were not applicable.
 5. Add tests that lock expected behavior for representative cases.
+6. Ensure Bull Strangle and DCA are treated as parallel action choices, not a mandatory sequence.
 
 ## Simple Work Plan
 
@@ -144,11 +146,46 @@ Fields should include:
 
 Keep the initial implementation simple. JSON parameters are acceptable until rule logic stabilizes.
 
-### Step 5: Implement DCA Rules
+### Step 5: Implement Shared Strategy Score
+
+Before choosing Bull Strangle or DCA, compute a shared strategy score for each symbol.
+
+Score inputs should include:
+
+- market regime
+- newsletter/watchlist quality
+- short-list/favorite status
+- live option premium quality
+- data validity
+- weekly price/credit deviation
+- live price attractiveness relative to strike structure
+
+The output should include:
+
+- `strategy_score`
+- `strategy_band`
+- rule pass/fail detail
+
+### Step 6: Implement Action Selection
+
+After the strategy score is computed, select one preferred action:
+
+- `BULL_STRANGLE`
+- `DCA`
+- `WATCH`
+- `SKIP`
+
+Decision intent:
+
+- `BULL_STRANGLE`: direct strategy entry is preferred
+- `DCA`: setup still scores well, but accumulation is preferred
+- `WATCH`: setup is promising but not ready
+- `SKIP`: setup is weak or invalid
+
+### Step 7: Implement DCA Rules
 
 DCA should evaluate:
 
-- whether symbol is already held
 - which account is the target account
 - current shares in target account
 - shares needed to reach `100`
@@ -157,44 +194,43 @@ DCA should evaluate:
 - whether position is under target/max allocation
 - whether market regime permits adding
 - whether OS data is valid
+- whether the acquisition price supports the future strike structure
 
-Promotion rule:
-
-- Promote to Bull Strangle evaluation only when one account has at least `100` shares.
-
-### Step 6: Implement Bull Strangle Rules
+### Step 8: Implement Bull Strangle Rules
 
 Bull Strangle should evaluate:
 
 - market gate
 - watchlist eligibility
+- shared strategy score
 - OS validity
 - option credit quality
 - price/IV deviation from newsletter baseline
-- account has at least `100` shares of the symbol
-- shares are in one account
 - account is eligible for covered call/put deployment
 - no conflicting open options or pending orders
+- whether the chosen Bull Strangle implementation is direct-entry or stock-backed
 
-### Step 7: Explain Decisions
+### Step 9: Explain Decisions
 
 Every weekend decision row should include:
 
 - rules passed
 - rules failed
 - rules not applicable
+- selected action type
+- strategy score
 - source data snapshot
 - selected account
 - share count before action
 - share target after action
 - reason text suitable for a report
 
-### Step 8: Add Tests
+### Step 10: Add Tests
 
 Add unit tests for:
 
-- account-level 100-share promotion
-- 100 shares split across accounts does not qualify
+- Bull Strangle direct entry path without preexisting 100 shares
+- DCA chosen even though Bull Strangle setup also scores well
 - DCA shares-to-target calculation
 - account selection behavior
 - missing cash/buying power behavior
@@ -212,8 +248,9 @@ The Master Document implementation is ready when:
 
 - extracted rules are documented with source references
 - rule catalog exists in DB or versioned JSON
+- weekend decisions include a shared strategy score and one selected action type
 - DCA decisions include account, current shares, target shares, and shares needed
-- Bull Strangle decisions include account and 100-share eligibility
+- Bull Strangle decisions include account context and direct-entry versus stock-backed rationale
 - no DCA/Bull Strangle decision splits one action across accounts
 - decisions clearly explain rule pass/fail outcomes
 - unit and integration tests cover the account and promotion rules
