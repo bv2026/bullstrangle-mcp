@@ -24,7 +24,7 @@ from .tools import (
 )
 
 
-SERVER_NAME = "bullstrangle-newsletter"
+SERVER_NAME = "bullstrangle-mcp"
 
 
 def default_db_path() -> str:
@@ -42,17 +42,23 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-def ingest_newsletter(pdf_path: str, db_path: str | None = None) -> dict[str, Any]:
+def ingest_newsletter(
+    pdf_path: str,
+    db_path: str | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
     """Ingest one Bull Strangle weekly newsletter PDF into SQLite."""
-    return ingest_newsletter_tool(pdf_path, db_path or default_db_path())
+    return ingest_newsletter_tool(pdf_path, db_path or default_db_path(), force)
 
 
 @mcp.tool()
 def ingest_newsletter_directory(
-    directory: str = "data/newsletters", db_path: str | None = None
+    directory: str = "data/newsletters",
+    db_path: str | None = None,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Ingest all newsletter PDFs in a directory."""
-    return ingest_newsletter_directory_tool(directory, db_path or default_db_path())
+    return ingest_newsletter_directory_tool(directory, db_path or default_db_path(), force)
 
 
 @mcp.tool()

@@ -17,20 +17,29 @@ from .os_workbooks import (
 from .positions import ingest_positions
 
 
-def ingest_newsletter_tool(pdf_path: str, db_path: str = str(DEFAULT_DB_PATH)) -> dict[str, Any]:
+def ingest_newsletter_tool(
+    pdf_path: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    force: bool = False,
+) -> dict[str, Any]:
     """MCP-shaped tool function: ingest a single newsletter PDF."""
-    return ingest_newsletter(pdf_path=pdf_path, db_path=db_path)
+    return ingest_newsletter(pdf_path=pdf_path, db_path=db_path, force=force)
 
 
 def ingest_newsletter_directory_tool(
-    directory: str = "data/newsletters", db_path: str = str(DEFAULT_DB_PATH)
+    directory: str = "data/newsletters",
+    db_path: str = str(DEFAULT_DB_PATH),
+    force: bool = False,
 ) -> dict[str, Any]:
     """MCP-shaped tool function: ingest all newsletter PDFs in a directory."""
-    results = ingest_directory(directory=directory, db_path=db_path)
+    results = ingest_directory(directory=directory, db_path=db_path, force=force)
+    success_count = sum(1 for row in results if row.get("status") != "error")
+    error_count = sum(1 for row in results if row.get("status") == "error")
     return {
         "database_path": str(Path(db_path).resolve()),
         "directory": str(Path(directory).resolve()),
-        "ingested_count": len(results),
+        "ingested_count": success_count,
+        "error_count": error_count,
         "results": results,
     }
 

@@ -138,6 +138,14 @@ Important design rule:
 7. Positions ingestion stores account-level holdings and symbol rollups.
 8. Weekend decision generation creates one auditable decision batch and separate Bull Strangle/DCA outputs with preferred-action scoring diagnostics.
 
+Current ingestion safety behavior:
+
+- Newsletter re-ingestion is blocked by default for an already-ingested publication date.
+- Replacement requires an explicit `force` flag through CLI, tools, or MCP.
+- Directory ingestion now returns per-file errors and continues after a bad PDF.
+- SQLite connections now use WAL mode plus a busy timeout to reduce lock contention.
+- `os_evaluation_rows` now has a composite `(newsletter_id, symbol)` index for weekly/query workloads.
+
 ## Option Samurai Workbook Contract
 
 Generated workbook:
@@ -294,7 +302,7 @@ Run by layer:
 Current expected result:
 
 ```text
-9 passed
+12 passed
 ```
 
 Compile check:

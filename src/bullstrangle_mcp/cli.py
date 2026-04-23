@@ -31,9 +31,19 @@ def main(argv: list[str] | None = None) -> int:
 
     ingest_pdf = subparsers.add_parser("ingest-pdf", help="Ingest one newsletter PDF")
     ingest_pdf.add_argument("pdf_path")
+    ingest_pdf.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing newsletter for the same publication date",
+    )
 
     ingest_dir = subparsers.add_parser("ingest-dir", help="Ingest all PDFs in a directory")
     ingest_dir.add_argument("directory", nargs="?", default="data/newsletters")
+    ingest_dir.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace existing newsletters that share a publication date",
+    )
 
     subparsers.add_parser("list-newsletters", help="List ingested newsletters")
 
@@ -119,10 +129,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"database_path": str(Path(args.db).resolve()), "status": "ok"}, indent=2))
         return 0
     if args.command == "ingest-pdf":
-        print(json.dumps(ingest_newsletter_tool(args.pdf_path, args.db), indent=2))
+        print(json.dumps(ingest_newsletter_tool(args.pdf_path, args.db, args.force), indent=2))
         return 0
     if args.command == "ingest-dir":
-        print(json.dumps(ingest_newsletter_directory_tool(args.directory, args.db), indent=2))
+        print(json.dumps(ingest_newsletter_directory_tool(args.directory, args.db, args.force), indent=2))
         return 0
     if args.command == "list-newsletters":
         print(json.dumps(list_newsletters_tool(args.db), indent=2))

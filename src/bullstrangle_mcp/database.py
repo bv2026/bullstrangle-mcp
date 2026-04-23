@@ -324,6 +324,9 @@ CREATE TABLE IF NOT EXISTS os_evaluation_rows (
 CREATE INDEX IF NOT EXISTS idx_os_rows_symbol
 ON os_evaluation_rows(symbol);
 
+CREATE INDEX IF NOT EXISTS idx_os_rows_newsletter_symbol
+ON os_evaluation_rows(newsletter_id, symbol);
+
 CREATE TABLE IF NOT EXISTS watchlist_deviations (
     deviation_id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER NOT NULL REFERENCES os_evaluation_runs(run_id) ON DELETE CASCADE,
@@ -560,6 +563,8 @@ def connect(db_path: str | Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
@@ -768,6 +773,9 @@ def ensure_os_ingestion_schema(conn: sqlite3.Connection) -> None:
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_os_runs_newsletter_date ON os_evaluation_runs(newsletter_date)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_os_rows_symbol ON os_evaluation_rows(symbol)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_os_rows_newsletter_symbol ON os_evaluation_rows(newsletter_id, symbol)"
+    )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_watchlist_deviations_newsletter_date ON watchlist_deviations(newsletter_date)"
     )

@@ -52,7 +52,11 @@ class PageText:
     text: str
 
 
-def ingest_newsletter(pdf_path: str | Path, db_path: str | Path = DEFAULT_DB_PATH) -> dict[str, Any]:
+def ingest_newsletter(
+    pdf_path: str | Path,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    force: bool = False,
+) -> dict[str, Any]:
     """Parse and ingest one weekly newsletter PDF into SQLite."""
     initialize_database(db_path)
     pdf = Path(pdf_path)
@@ -85,6 +89,11 @@ def ingest_newsletter(pdf_path: str | Path, db_path: str | Path = DEFAULT_DB_PAT
             (publication_date.isoformat(),),
         ).fetchone()
         if existing:
+            if not force:
+                raise ValueError(
+                    "Newsletter already exists for "
+                    f"{publication_date.isoformat()}; re-run with force=True to replace it."
+                )
             conn.execute("DELETE FROM newsletters WHERE newsletter_id = ?", (existing["newsletter_id"],))
 
         cur = conn.execute(
@@ -137,6 +146,7 @@ def ingest_newsletter(pdf_path: str | Path, db_path: str | Path = DEFAULT_DB_PAT
         "consecutive_weeks_met": environment.get("consecutive_weeks_met", 0),
         "ingestion_method": "pypdf",
         "warnings": build_warnings(watchlist, environment, sections),
+        "status": "ingested",
     }
 
 
@@ -1112,11 +1122,24 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def ingest_directory(directory: str | Path, db_path: str | Path = DEFAULT_DB_PATH) -> list[dict[str, Any]]:
+def ingest_directory(
+    directory: str | Path,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    force: bool = False,
+) -> list[dict[str, Any]]:
     results = []
     pdfs = sorted(Path(directory).glob("*.pdf"), key=publication_date_sort_key)
     for pdf in pdfs:
-        results.append(ingest_newsletter(pdf, db_path))
+        try:
+            results.append(ingest_newsletter(pdf, db_path, force=force))
+        except Exception as exc:
+            results.append(
+                {
+                    "pdf_path": str(pdf.resolve()),
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
     return results
 
 

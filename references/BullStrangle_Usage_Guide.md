@@ -1,6 +1,6 @@
 # BullStrangle MCP Usage Guide
 
-Date: 2026-04-22
+Date: 2026-04-23
 Audience: local operator workflow
 
 ## Setup
@@ -41,6 +41,24 @@ Ingest all newsletter PDFs:
 
 ```powershell
 & $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-dir data\newsletters
+```
+
+Safety note:
+
+- Newsletter ingestion is non-destructive by default.
+- If a newsletter with the same publication date already exists, ingestion will raise an error for that PDF unless you use `--force`.
+- `ingest-dir` continues to the next PDF if one file fails and reports the error in its JSON output.
+
+Force replace one existing newsletter:
+
+```powershell
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf --force
+```
+
+Force replace matching dates during directory ingest:
+
+```powershell
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-dir data\newsletters --force
 ```
 
 List ingested newsletters:
@@ -268,12 +286,24 @@ Available MCP tools:
 - `aggregate_os_week`
 - `generate_weekend_decisions`
 
+MCP ingest safety:
+
+- `ingest_newsletter` and `ingest_newsletter_directory` also support `force`.
+- Leave `force` unset for normal use.
+- Use `force=true` only when you intentionally want to replace an already-ingested newsletter date.
+
 ## Test Commands
 
 Run all tests:
 
 ```powershell
 & $py -m pytest -q
+```
+
+Current expected result:
+
+```text
+12 passed
 ```
 
 Run by layer:

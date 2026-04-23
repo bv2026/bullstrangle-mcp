@@ -41,7 +41,9 @@ By default the database is written to `data/bullstrangle.db`.
 ```powershell
 bullstrangle --db data\bullstrangle.db init-db
 bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf
+bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf --force
 bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters
+bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters --force
 bullstrangle --db data\bullstrangle.db list-newsletters
 bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-17
 bullstrangle --db data\bullstrangle.db show-newsletter 34
@@ -108,6 +110,12 @@ Available MCP tools:
 - `aggregate_os_week`
 - `generate_weekend_decisions`
 
+Ingestion safety:
+
+- Newsletter re-ingestion is now protected by default.
+- If a publication date already exists, `ingest-pdf` and `ingest-dir` will fail that item unless `--force` is supplied.
+- `ingest-dir` now continues past bad PDFs and reports per-file errors instead of aborting the whole batch.
+
 ## Tests
 
 Install test dependencies:
@@ -134,5 +142,6 @@ Run by layer:
 Current test layers:
 
 - Unit: selector rounding behavior.
+- Unit: ingestion safety behavior and DB safety checks.
 - Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation.
 - E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`.
