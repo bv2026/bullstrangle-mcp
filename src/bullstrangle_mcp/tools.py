@@ -7,7 +7,7 @@ from .database import DEFAULT_DB_PATH, connect, initialize_database
 from .decisions import generate_weekend_decisions, load_decision_rules
 from .ingestion import ingest_directory, ingest_newsletter
 from .os_ingestion import ingest_os_workbook
-from .os_reports import report_os_run
+from .os_reports import list_os_runs, report_os_run
 from .os_weekly import aggregate_os_week
 from .os_workbooks import (
     calculate_newsletter_selectors,
@@ -155,6 +155,19 @@ def report_os_run_tool(
     """Create a daily OS ingestion audit/deviation report for one run."""
     initialize_database(db_path)
     return report_os_run(run_id, db_path, output_path)
+
+
+def list_os_runs_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    newsletter_date: str | None = None,
+) -> list[dict[str, Any]]:
+    """List OS evaluation runs with their run_id, trading date, row count, and status.
+
+    Pass newsletter_date to filter to one week; omit it to return all runs ordered
+    by newsletter_date DESC then trading_date ASC.
+    """
+    initialize_database(db_path)
+    return list_os_runs(db_path, newsletter_date)
 
 
 def aggregate_os_week_tool(

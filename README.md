@@ -74,7 +74,7 @@ bullstrangle-mcp-server
       "command": "bullstrangle-mcp-server",
       "args": [],
       "env": {
-        "BULLSTRANGLE_DB": "C:\\work\\bullstrangle-mcp\\data\\bullstrangle.db"
+        "BULLSTRANGLE_DATA_DIR": "C:\\work\\bullstrangle-mcp\\data"
       }
     }
   }
@@ -94,6 +94,7 @@ Available MCP tools:
 - `ingest_os_workbook`
 - `ingest_positions`
 - `list_strategy_rules`
+- `list_os_runs`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
@@ -127,6 +128,7 @@ database.py       Schema (authoritative SCHEMA_SQL), versioned migrations, conne
 - `database.py` is the single source of truth for schema. Add new columns to `SCHEMA_SQL` and append a numbered migration to `_MIGRATIONS` — never use ad-hoc `ALTER TABLE` elsewhere.
 - The database uses WAL mode and a 5-second busy timeout for safe concurrent access.
 - Decision thresholds (max deviations, minimum credits) live in the `strategy_rules` table under `rule_category = 'decision_threshold'`. Edit them in the DB and re-run `generate_weekend_decisions` — no code change required. Use `list_strategy_rules` (MCP) or query SQLite directly to inspect current values.
+- Set `BULLSTRANGLE_DATA_DIR` to the absolute path of your `data/` folder. All path defaults (`db_path`, `directory`, `output_dir`) resolve from it so the tools work from any working directory. `BULLSTRANGLE_DB` still overrides the DB path explicitly.
 
 ## Tests
 

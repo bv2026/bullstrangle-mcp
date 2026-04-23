@@ -254,12 +254,21 @@ for table in [
       "command": "bullstrangle-mcp-server",
       "args": [],
       "env": {
-        "BULLSTRANGLE_DB": "C:\\work\\bullstrangle-mcp\\data\\bullstrangle.db"
+        "BULLSTRANGLE_DATA_DIR": "C:\\work\\bullstrangle-mcp\\data"
       }
     }
   }
 }
 ```
+
+`BULLSTRANGLE_DATA_DIR` sets the base data folder.  The server derives:
+
+- DB path: `{DATA_DIR}/bullstrangle.db`
+- Newsletter PDF dir: `{DATA_DIR}/newsletters`
+- Generated workbook output: `{DATA_DIR}/../outputs/os_workbooks`
+
+`BULLSTRANGLE_DB` may still be set to override the DB path explicitly.  When
+both are set, `BULLSTRANGLE_DB` wins for the database path only.
 
 Available MCP tools:
 
@@ -274,6 +283,7 @@ Available MCP tools:
 - `ingest_os_workbook`
 - `ingest_positions`
 - `list_strategy_rules`
+- `list_os_runs`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`

@@ -67,6 +67,43 @@ def report_os_run(
     return report
 
 
+def list_os_runs(
+    db_path: str | Path = DEFAULT_DB_PATH,
+    newsletter_date: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return OS evaluation runs, optionally filtered to one newsletter date.
+
+    Each entry includes the run_id needed for report_os_run.  Ordered by
+    newsletter_date DESC then trading_date ASC so the most recent newsletter
+    appears first and its daily runs are in chronological order.
+    """
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        if newsletter_date:
+            rows = conn.execute(
+                """
+                SELECT run_id, newsletter_date, expiration_date, trading_date,
+                       row_count, populated_live_value_count, formula_cell_count,
+                       status, uploaded_at
+                FROM   os_evaluation_runs
+                WHERE  newsletter_date = ?
+                ORDER  BY trading_date ASC, run_id ASC
+                """,
+                (newsletter_date,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT run_id, newsletter_date, expiration_date, trading_date,
+                       row_count, populated_live_value_count, formula_cell_count,
+                       status, uploaded_at
+                FROM   os_evaluation_runs
+                ORDER  BY newsletter_date DESC, trading_date ASC, run_id ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def render_os_run_report_markdown(report: dict[str, Any]) -> str:
     run = report["run"]
     lines = [
