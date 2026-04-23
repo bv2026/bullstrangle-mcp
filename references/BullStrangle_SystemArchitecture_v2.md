@@ -1,8 +1,17 @@
 # Bull Strangle — System Architecture Design Document
 **Version:** 2.0  
 **Date:** April 6, 2026  
-**Status:** Pre-build Review  
+**Status:** Pre-build Design Document — superseded by actual implementation  
 **Author:** Balaji + Claude
+
+> **Note:** This document describes the originally intended architecture before implementation began.
+> The actual codebase diverged in several areas:
+> - **No SQLAlchemy or Alembic** — raw SQLite with a single authoritative `SCHEMA_SQL` and numbered migrations in `database.py`
+> - **No multi-agent runner scripts** — ingestion, decisions, and OS workflows are MCP tools and CLI commands
+> - **Module layout** differs from the Appendix A file tree — see `README.md` for the actual structure
+> - **Business rule evaluation** lives in `decisions.py`, not inside the ingestion pipeline
+>
+> For current usage, see `README.md` and `references/BullStrangle_Usage_Guide.md`.
 
 ---
 

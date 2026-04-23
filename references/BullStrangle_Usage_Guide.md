@@ -11,16 +11,10 @@ Open PowerShell in the repo:
 cd C:\work\bullstrangle-mcp
 ```
 
-Set the Python variable:
-
-```powershell
-$py = 'C:\Users\vsbra\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-```
-
 Install package and dependencies:
 
 ```powershell
-& $py -m pip install -e ".[dev,excel]"
+pip install -e ".[dev,excel]"
 ```
 
 The database path used in examples is:
@@ -34,13 +28,13 @@ data\bullstrangle.db
 Initialize or migrate the DB:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db init-db
+bullstrangle --db data\bullstrangle.db init-db
 ```
 
 Ingest all newsletter PDFs:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-dir data\newsletters
+bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters
 ```
 
 Safety note:
@@ -52,25 +46,25 @@ Safety note:
 Force replace one existing newsletter:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf --force
+bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf --force
 ```
 
 Force replace matching dates during directory ingest:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-dir data\newsletters --force
+bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters --force
 ```
 
 List ingested newsletters:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db list-newsletters
+bullstrangle --db data\bullstrangle.db list-newsletters
 ```
 
 Show one newsletter by date:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db show-newsletter 2026-04-17
+bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-17
 ```
 
 ## Generate The OS Workbook
@@ -78,13 +72,13 @@ Show one newsletter by date:
 Check calculated selectors:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db os-selectors 2026-04-17
+bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
 ```
 
 Generate the Excel workbook:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
 ```
 
 Current generated file:
@@ -118,7 +112,7 @@ Use this after market opens and Option Samurai can return live data.
 Ingest command:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-23
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-23
 ```
 
 Use the actual trading date for `--trading-date`.
@@ -143,13 +137,13 @@ Use the `run_id` returned by `ingest-os-workbook`.
 Example:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 2 --output reports\2026-04-23\os_run_2.md
+bullstrangle --db data\bullstrangle.db report-os-run 2 --output reports\2026-04-23\os_run_2.md
 ```
 
 To print full JSON:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 2 --json
+bullstrangle --db data\bullstrangle.db report-os-run 2 --json
 ```
 
 ## Weekly Aggregation
@@ -157,13 +151,13 @@ To print full JSON:
 Run this after one or more daily OS uploads. It can be run any time; it recomputes the weekly aggregate table for the newsletter date.
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-23\os_week_2026-04-17.md
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-23\os_week_2026-04-17.md
 ```
 
 To print full JSON:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json
 ```
 
 The weekly report shows:
@@ -179,7 +173,7 @@ The weekly report shows:
 Use this after updating `data\positions\positions.csv`.
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-positions data\positions\positions.csv
+bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
 ```
 
 The command stores:
@@ -202,13 +196,13 @@ Run after the weekly OS uploads are complete.
 Example:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output reports\2026-04-25\weekend_decisions_2026-04-17.md
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output reports\2026-04-25\weekend_decisions_2026-04-17.md
 ```
 
 To print full JSON:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --json
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --json
 ```
 
 Current v1 output includes:
@@ -246,22 +240,19 @@ for table in [
     "dca_decisions",
 ]:
     print(table, conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
-'@ | & $py -
+'@ | python -
 ```
 
 ## Claude Desktop MCP
 
-Claude Desktop config example:
+`claude_desktop_config.json` entry:
 
 ```json
 {
   "mcpServers": {
-    "bullstrangle": {
-      "command": "C:\\Users\\vsbra\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
-      "args": [
-        "-m",
-        "bullstrangle_mcp.mcp_server"
-      ],
+    "bullstrangle-mcp": {
+      "command": "bullstrangle-mcp-server",
+      "args": [],
       "env": {
         "BULLSTRANGLE_DB": "C:\\work\\bullstrangle-mcp\\data\\bullstrangle.db"
       }
@@ -297,7 +288,7 @@ MCP ingest safety:
 Run all tests:
 
 ```powershell
-& $py -m pytest -q
+pytest -q
 ```
 
 Current expected result:
@@ -309,15 +300,15 @@ Current expected result:
 Run by layer:
 
 ```powershell
-& $py -m pytest -q -m unit
-& $py -m pytest -q -m integration
-& $py -m pytest -q -m e2e
+pytest -q -m unit
+pytest -q -m integration
+pytest -q -m e2e
 ```
 
 Compile check:
 
 ```powershell
-& $py -m compileall -q src
+python -m compileall -q src
 ```
 
 ## Current Known Good Artifacts

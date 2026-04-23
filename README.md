@@ -6,11 +6,8 @@ The first implemented tool ingests PDFs from `data/newsletters`, extracts the ke
 
 ## Quick Start
 
-Use the bundled Codex Python runtime if your system Python does not have the project dependencies installed:
-
 ```powershell
-$py = 'C:\Users\vsbra\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-& $py -m pip install -e ".[dev,excel]"
+pip install -e ".[dev,excel]"
 bullstrangle --db data\bullstrangle.db init-db
 bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters
 bullstrangle --db data\bullstrangle.db list-newsletters
@@ -62,30 +59,20 @@ bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --d
 
 This project includes a stdio MCP server for Claude Desktop.
 
-Installed server command:
+Installed server command (available after `pip install -e .`):
 
 ```powershell
-C:\Users\vsbra\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Scripts\bullstrangle-mcp-server.exe
+bullstrangle-mcp-server
 ```
 
-Equivalent module command:
-
-```powershell
-$py = 'C:\Users\vsbra\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-& $py -m bullstrangle_mcp.mcp_server
-```
-
-Claude Desktop config example:
+`claude_desktop_config.json` entry:
 
 ```json
 {
   "mcpServers": {
-    "bullstrangle": {
-      "command": "C:\\Users\\vsbra\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
-      "args": [
-        "-m",
-        "bullstrangle_mcp.mcp_server"
-      ],
+    "bullstrangle-mcp": {
+      "command": "bullstrangle-mcp-server",
+      "args": [],
       "env": {
         "BULLSTRANGLE_DB": "C:\\work\\bullstrangle-mcp\\data\\bullstrangle.db"
       }
@@ -116,6 +103,29 @@ Ingestion safety:
 - If a publication date already exists, `ingest-pdf` and `ingest-dir` will fail that item unless `--force` is supplied.
 - `ingest-dir` now continues past bad PDFs and reports per-file errors instead of aborting the whole batch.
 
+## Module Architecture
+
+```
+mcp_server.py     MCP stdio server — thin wrappers only, no logic
+cli.py            PowerShell-friendly CLI — same tool functions as MCP
+tools.py          Anti-corruption layer — parameter coercion and db_path defaults
+ingestion.py      PDF parsing and fact storage (stores data, no business rules)
+decisions.py      Business rule evaluation — weekly summary, scoring, weekend decisions
+                  compute_weekly_summary() and calculate_consecutive_weeks() live here
+os_workbooks.py   Option Samurai Excel workbook generation
+os_ingestion.py   Refreshed workbook ingestion and deviation recording
+os_reports.py     Daily OS run reports (read-only)
+os_weekly.py      Weekly symbol aggregation across daily OS runs
+positions.py      Position CSV ingestion and account rollups
+database.py       Schema (authoritative SCHEMA_SQL), versioned migrations, connect()
+```
+
+**Key design rules:**
+- `ingestion.py` stores facts extracted from PDFs. It does not apply business rules.
+- `decisions.py` applies rules to stored facts. Call `compute_weekly_summary()` to re-evaluate decisions without re-ingesting a PDF.
+- `database.py` is the single source of truth for schema. Add new columns to `SCHEMA_SQL` and append a numbered migration to `_MIGRATIONS` — never use ad-hoc `ALTER TABLE` elsewhere.
+- The database uses WAL mode and a 5-second busy timeout for safe concurrent access.
+
 ## Tests
 
 Install test dependencies:
@@ -141,7 +151,6 @@ Run by layer:
 
 Current test layers:
 
-- Unit: selector rounding behavior.
-- Unit: ingestion safety behavior and DB safety checks.
-- Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation.
-- E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`.
+- Unit: selector rounding, ingestion safety (force flag), DB safety checks, position ingestion.
+- Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation. *(requires newsletter PDF in `data/newsletters/`)*
+- E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`. *(requires newsletter PDF)*
