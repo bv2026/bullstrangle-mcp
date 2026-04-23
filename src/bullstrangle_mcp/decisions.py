@@ -479,9 +479,10 @@ def _build_bull_decision(
     strategy_context: dict[str, Any],
     rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    rules = (rules or DEFAULT_RULES)["bull_strangle"]
+    full_rules = rules or DEFAULT_RULES
+    rules_applied = full_rules["bull_strangle"]
     final, reasons = _decision_outcome_for_action("BULL_STRANGLE", strategy_context)
-    passed_rules, failed_rules = _build_rule_diagnostics("BULL_STRANGLE", strategy_context, rules=rules)
+    passed_rules, failed_rules = _build_rule_diagnostics("BULL_STRANGLE", strategy_context, rules=full_rules)
 
     return {
         "decision_batch_id": batch_id,
@@ -505,7 +506,7 @@ def _build_bull_decision(
         "account_shares": position.get("max_account_quantity") if position else None,
         "consolidated_shares": position.get("total_quantity") if position else None,
         "shares_to_100": position.get("shares_to_100") if position else None,
-        "rules_applied_json": json.dumps(rules, sort_keys=True),
+        "rules_applied_json": json.dumps(rules_applied, sort_keys=True),
         "rules_passed_json": json.dumps(passed_rules, sort_keys=True),
         "rules_failed_json": json.dumps(failed_rules, sort_keys=True),
         "criteria_json": json.dumps(strategy_context, sort_keys=True),
@@ -522,9 +523,10 @@ def _build_dca_decision(
     strategy_context: dict[str, Any],
     rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    rules = (rules or DEFAULT_RULES)["dca"]
+    full_rules = rules or DEFAULT_RULES
+    rules_applied = full_rules["dca"]
     final, reasons = _decision_outcome_for_action("DCA", strategy_context)
-    passed_rules, failed_rules = _build_rule_diagnostics("DCA", strategy_context, rules=rules)
+    passed_rules, failed_rules = _build_rule_diagnostics("DCA", strategy_context, rules=full_rules)
     account_shares = position.get("max_account_quantity") if position else 0
     consolidated_shares = position.get("total_quantity") if position else 0
     target_account = strategy_context["selected_account"]
@@ -550,7 +552,7 @@ def _build_dca_decision(
         "account_shares": account_shares,
         "consolidated_shares": consolidated_shares,
         "shares_to_100": shares_to_100,
-        "rules_applied_json": json.dumps(rules, sort_keys=True),
+        "rules_applied_json": json.dumps(rules_applied, sort_keys=True),
         "rules_passed_json": json.dumps(passed_rules, sort_keys=True),
         "rules_failed_json": json.dumps(failed_rules, sort_keys=True),
         "criteria_json": json.dumps(strategy_context, sort_keys=True),
@@ -806,9 +808,9 @@ def _build_rule_diagnostics(
     strategy_context: dict[str, Any],
     rules: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    # rules here is already the category-level sub-dict (bull_strangle or dca),
-    # or None if called without context — fall back to bull_strangle thresholds.
-    bs_rules = rules if rules is not None else DEFAULT_RULES["bull_strangle"]
+    # rules is the full rules dict (same shape as DEFAULT_RULES), or None.
+    # Deviation diagnostics always use bull_strangle thresholds regardless of action_type.
+    bs_rules = (rules or DEFAULT_RULES)["bull_strangle"]
     passed: dict[str, Any] = {
         "market_approved": bool(strategy_context["market_approved"]),
         "os_valid": bool(strategy_context["os_valid"]),
