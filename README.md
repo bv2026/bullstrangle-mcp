@@ -24,6 +24,8 @@ By default the database is written to `data/bullstrangle.db`.
 - [Implementation Guide](references/BullStrangle_Implementation_Guide.md)
 - [Decision Logic Design](references/BullStrangle_Decision_Logic_Design.md)
 - [Master Document Implementation Plan](references/BullStrangle_Master_Document_Implementation_Plan.md)
+- [Dry Run Runbook](references/BullStrangle_Dry_Run_Runbook.md)
+- [Claude Prompts](references/Claude_Prompts_BullStrangle.md)
 - [Usage Guide](references/BullStrangle_Usage_Guide.md)
 
 ## Implemented Extraction

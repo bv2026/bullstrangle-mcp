@@ -1,7 +1,7 @@
 # BullStrangle MCP Implementation Guide
 
-Date: 2026-04-22
-Status: v1 implemented locally
+Date: 2026-04-23
+Status: score-branch decision pass implemented locally
 
 ## Overview
 
@@ -53,7 +53,7 @@ Core modules:
 - `src/bullstrangle_mcp/os_reports.py`: daily OS run Markdown report generation.
 - `src/bullstrangle_mcp/os_weekly.py`: weekly aggregation across daily OS uploads.
 - `src/bullstrangle_mcp/positions.py`: account-level positions ingestion and symbol rollups.
-- `src/bullstrangle_mcp/decisions.py`: v1 weekend Bull Strangle and DCA candidate decisions.
+- `src/bullstrangle_mcp/decisions.py`: score-based weekend Bull Strangle and DCA action selection.
 - `src/bullstrangle_mcp/tools.py`: MCP-shaped tool wrapper functions.
 - `src/bullstrangle_mcp/cli.py`: command line interface.
 - `src/bullstrangle_mcp/mcp_server.py`: stdio MCP server.
@@ -136,7 +136,7 @@ Important design rule:
 5. Daily reporting summarizes one OS run.
 6. Weekly aggregation rolls up all OS runs for a newsletter date.
 7. Positions ingestion stores account-level holdings and symbol rollups.
-8. Weekend decision generation creates one decision batch and separate Bull Strangle/DCA candidate decisions.
+8. Weekend decision generation creates one auditable decision batch and separate Bull Strangle/DCA outputs with preferred-action scoring diagnostics.
 
 ## Option Samurai Workbook Contract
 
@@ -173,23 +173,31 @@ Master Document status:
 - Current v1 strategy logic is scaffolding based on newsletter appendix extraction, Option Samurai integration, and workflow/account rules captured so far.
 - The implementation plan for converting the Master Document into structured rules is in `references/BullStrangle_Master_Document_Implementation_Plan.md`.
 
-Decision redesign direction:
+Implemented decision model:
 
 - Bull Strangle is the primary strategy decision.
 - DCA is not a prerequisite for Bull Strangle entry.
-- The next pass should compute a shared `strategy_score` first, then choose one action per symbol:
+- The decision engine computes a shared `strategy_score` first, then chooses one action per symbol:
   - `BULL_STRANGLE`
   - `DCA`
   - `WATCH`
   - `SKIP`
+- Decision batches persist the `position_run_id` used for account context.
+- Each decision row stores:
+  - `selected_action`
+  - `strategy_score`
+  - `strategy_band`
+  - `rules_passed_json`
+  - `rules_failed_json`
+  - `source_snapshot_json`
 
-Bull Strangle v1:
+Current Bull Strangle pass:
 
 - `APPROVE` when market deployment is approved, weekly OS data is valid, total credit is positive, price deviation is under `8%`, and credit deviation is under `$2.50`.
 - `WATCH` when OS data is usable and credit is positive but another gate is not passed.
 - `SKIP` when core OS values are missing or credit is not usable.
 
-DCA v1:
+Current DCA pass:
 
 - `APPROVE` when market allocation is above zero, OS data is valid, candidate score is at least `1.0`, and price deviation is under `8%`.
 - `WATCH` when allocation exists and candidate score passes but another gate is not passed.
@@ -217,12 +225,11 @@ Implemented position ingestion:
 - The current code still uses single-account readiness too aggressively for Bull Strangle; this is scheduled to change in the next decision-logic pass.
 - DCA decisions show selected account, account shares, consolidated shares, and shares needed to reach `100`.
 
-Target next-pass decision behavior:
+Still pending:
 
-- compute a shared strategy score
-- choose Bull Strangle directly when strategy criteria are strong and direct entry is preferred
-- choose DCA only when the strategy still scores well but accumulation is preferred
-- use account context to pick one execution account
+- tune scoring weights and gates from the Master Document
+- improve account-selection preferences beyond simple target-account rollups
+- add executable DCA sizing logic
 
 ## MCP Tools
 
@@ -287,7 +294,7 @@ Run by layer:
 Current expected result:
 
 ```text
-8 passed
+9 passed
 ```
 
 Compile check:

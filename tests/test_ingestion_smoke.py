@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -171,7 +172,8 @@ def test_ingest_os_workbook(tmp_path):
         assert batch["strategy_logic_version"] == "score_branch_v1"
         bull_row = conn.execute(
             """
-            SELECT selected_action, strategy_score, strategy_band
+            SELECT selected_action, strategy_score, strategy_band,
+                   rules_passed_json, rules_failed_json, source_snapshot_json
             FROM bull_strangle_decisions
             WHERE decision_batch_id = ? AND symbol = 'ZIM'
             """,
@@ -180,3 +182,9 @@ def test_ingest_os_workbook(tmp_path):
         assert bull_row["selected_action"] in {"BULL_STRANGLE", "WATCH", "SKIP"}
         assert bull_row["strategy_score"] is not None
         assert bull_row["strategy_band"] in {"strong", "moderate", "watch", "weak"}
+        passed = json.loads(bull_row["rules_passed_json"])
+        failed = json.loads(bull_row["rules_failed_json"])
+        snapshot = json.loads(bull_row["source_snapshot_json"])
+        assert passed["selected_action"] in {"BULL_STRANGLE", "DCA", "WATCH", "SKIP"}
+        assert isinstance(failed, dict)
+        assert snapshot["strategy_context"]["strategy_score"] is not None

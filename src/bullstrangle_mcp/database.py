@@ -426,6 +426,8 @@ CREATE TABLE IF NOT EXISTS bull_strangle_decisions (
     max_price_deviation_pct REAL,
     max_credit_deviation REAL,
     rules_applied_json TEXT,
+    rules_passed_json TEXT,
+    rules_failed_json TEXT,
     criteria_json TEXT,
     source_snapshot_json TEXT,
     reason TEXT,
@@ -454,6 +456,8 @@ CREATE TABLE IF NOT EXISTS dca_decisions (
     weekly_price_trend REAL,
     max_price_deviation_pct REAL,
     rules_applied_json TEXT,
+    rules_passed_json TEXT,
+    rules_failed_json TEXT,
     criteria_json TEXT,
     source_snapshot_json TEXT,
     reason TEXT,
@@ -857,6 +861,8 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
             max_price_deviation_pct REAL,
             max_credit_deviation REAL,
             rules_applied_json TEXT,
+            rules_passed_json TEXT,
+            rules_failed_json TEXT,
             criteria_json TEXT,
             source_snapshot_json TEXT,
             reason TEXT,
@@ -885,6 +891,8 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
             weekly_price_trend REAL,
             max_price_deviation_pct REAL,
             rules_applied_json TEXT,
+            rules_passed_json TEXT,
+            rules_failed_json TEXT,
             criteria_json TEXT,
             source_snapshot_json TEXT,
             reason TEXT,
@@ -912,6 +920,8 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
         ensure_column(conn, table_name, "account_shares", "REAL")
         ensure_column(conn, table_name, "consolidated_shares", "REAL")
         ensure_column(conn, table_name, "shares_to_100", "REAL")
+        ensure_column(conn, table_name, "rules_passed_json", "TEXT")
+        ensure_column(conn, table_name, "rules_failed_json", "TEXT")
 
 
 def ensure_position_schema(conn: sqlite3.Connection) -> None:

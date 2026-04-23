@@ -1,7 +1,7 @@
 # BullStrangle Decision Logic Design
 
 Date: 2026-04-23
-Status: design target for next implementation pass
+Status: initial implementation in place
 
 ## Core Principle
 
@@ -16,7 +16,7 @@ Instead, each weekend decision should:
 
 ## Shared Strategy Score
 
-Every symbol should receive a shared `strategy_score` based on:
+Every symbol now receives a shared `strategy_score` based on:
 
 - market regime and deployment state
 - newsletter/watchlist quality
@@ -26,10 +26,13 @@ Every symbol should receive a shared `strategy_score` based on:
 - weekly price/credit deviation profile
 - price attractiveness relative to the intended strike structure
 
-Output:
+Current output:
 
 - `strategy_score`
 - `strategy_band`
+- `selected_action`
+- `rules_passed_json`
+- `rules_failed_json`
 - rule pass/fail detail
 
 ## Action Branching
@@ -102,8 +105,14 @@ Every final weekend decision row should include:
 
 ## Implementation Impact
 
-The current v1 decision code should be revised so that:
+Implemented in the current score-branch pass:
 
 - Bull Strangle is no longer globally gated by one-account 100-share ownership
-- DCA is no longer limited to already-held symbols
 - the engine computes shared score first, then chooses action type
+- every decision row stores action/score diagnostics and source snapshot context
+
+Still to refine:
+
+- scoring weights from the Master Document
+- richer account-selection preferences
+- executable sizing logic for DCA

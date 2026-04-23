@@ -273,6 +273,7 @@ def _build_bull_decision(
 ) -> dict[str, Any]:
     rules = DEFAULT_RULES["bull_strangle"]
     final, reasons = _decision_outcome_for_action("BULL_STRANGLE", strategy_context)
+    passed_rules, failed_rules = _build_rule_diagnostics("BULL_STRANGLE", strategy_context)
 
     return {
         "decision_batch_id": batch_id,
@@ -297,8 +298,10 @@ def _build_bull_decision(
         "consolidated_shares": position.get("total_quantity") if position else None,
         "shares_to_100": position.get("shares_to_100") if position else None,
         "rules_applied_json": json.dumps(rules, sort_keys=True),
+        "rules_passed_json": json.dumps(passed_rules, sort_keys=True),
+        "rules_failed_json": json.dumps(failed_rules, sort_keys=True),
         "criteria_json": json.dumps(strategy_context, sort_keys=True),
-        "source_snapshot_json": _source_snapshot(row, position),
+        "source_snapshot_json": _source_snapshot(row, position, strategy_context),
         "reason": "; ".join(reasons) if reasons else "Bull Strangle chosen as preferred strategy action",
     }
 
@@ -312,6 +315,7 @@ def _build_dca_decision(
 ) -> dict[str, Any]:
     rules = DEFAULT_RULES["dca"]
     final, reasons = _decision_outcome_for_action("DCA", strategy_context)
+    passed_rules, failed_rules = _build_rule_diagnostics("DCA", strategy_context)
     account_shares = position.get("max_account_quantity") if position else 0
     consolidated_shares = position.get("total_quantity") if position else 0
     target_account = strategy_context["selected_account"]
@@ -338,8 +342,10 @@ def _build_dca_decision(
         "consolidated_shares": consolidated_shares,
         "shares_to_100": shares_to_100,
         "rules_applied_json": json.dumps(rules, sort_keys=True),
+        "rules_passed_json": json.dumps(passed_rules, sort_keys=True),
+        "rules_failed_json": json.dumps(failed_rules, sort_keys=True),
         "criteria_json": json.dumps(strategy_context, sort_keys=True),
-        "source_snapshot_json": _source_snapshot(row, position),
+        "source_snapshot_json": _source_snapshot(row, position, strategy_context),
         "reason": "; ".join(reasons) if reasons else "DCA chosen as preferred strategy action",
     }
 
@@ -382,6 +388,8 @@ def _insert_bull_decisions(conn, rows: list[dict[str, Any]]) -> None:
         "consolidated_shares",
         "shares_to_100",
         "rules_applied_json",
+        "rules_passed_json",
+        "rules_failed_json",
         "criteria_json",
         "source_snapshot_json",
         "reason",
@@ -411,6 +419,8 @@ def _insert_dca_decisions(conn, rows: list[dict[str, Any]]) -> None:
         "consolidated_shares",
         "shares_to_100",
         "rules_applied_json",
+        "rules_passed_json",
+        "rules_failed_json",
         "criteria_json",
         "source_snapshot_json",
         "reason",
@@ -426,7 +436,11 @@ def _insert_rows(conn, table_name: str, columns: list[str], rows: list[dict[str,
     )
 
 
-def _source_snapshot(row: dict[str, Any], position: dict[str, Any] | None = None) -> str:
+def _source_snapshot(
+    row: dict[str, Any],
+    position: dict[str, Any] | None = None,
+    strategy_context: dict[str, Any] | None = None,
+) -> str:
     snapshot = {
         "newsletter_baseline": {
             "stock_price": row.get("stock_price"),
@@ -451,6 +465,14 @@ def _source_snapshot(row: dict[str, Any], position: dict[str, Any] | None = None
             "account_shares": position.get("max_account_quantity") if position else None,
             "consolidated_shares": position.get("total_quantity") if position else None,
             "shares_to_100": position.get("shares_to_100") if position else None,
+        },
+        "strategy_context": {
+            "selected_action": strategy_context.get("selected_action") if strategy_context else None,
+            "strategy_score": strategy_context.get("strategy_score") if strategy_context else None,
+            "strategy_band": strategy_context.get("strategy_band") if strategy_context else None,
+            "accumulation_preferred": (
+                strategy_context.get("accumulation_preferred") if strategy_context else None
+            ),
         },
     }
     return json.dumps(snapshot, sort_keys=True)
@@ -566,6 +588,73 @@ def _build_strategy_context(
         "is_short_listed": row.get("symbol") in short_list_symbols,
         "is_favorite": bool(row.get("is_favorite")),
     }
+
+
+def _build_rule_diagnostics(
+    action_type: str,
+    strategy_context: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    passed: dict[str, Any] = {
+        "market_approved": bool(strategy_context["market_approved"]),
+        "os_valid": bool(strategy_context["os_valid"]),
+        "strategy_band": strategy_context["strategy_band"],
+        "selected_action": strategy_context["selected_action"],
+    }
+    failed: dict[str, Any] = {}
+
+    credit_ok = strategy_context["latest_credit"] is not None and float(strategy_context["latest_credit"]) > 0
+    price_ok = strategy_context["price_deviation"] is None or float(strategy_context["price_deviation"]) <= DEFAULT_RULES["bull_strangle"]["max_price_deviation_pct"]
+    credit_dev_ok = strategy_context["credit_deviation"] is None or float(strategy_context["credit_deviation"]) <= DEFAULT_RULES["bull_strangle"]["max_credit_deviation"]
+
+    if credit_ok:
+        passed["latest_credit_positive"] = True
+    else:
+        failed["latest_credit_positive"] = strategy_context["latest_credit"]
+
+    if price_ok:
+        passed["price_deviation_within_threshold"] = strategy_context["price_deviation"]
+    else:
+        failed["price_deviation_within_threshold"] = strategy_context["price_deviation"]
+
+    if credit_dev_ok:
+        passed["credit_deviation_within_threshold"] = strategy_context["credit_deviation"]
+    else:
+        failed["credit_deviation_within_threshold"] = strategy_context["credit_deviation"]
+
+    if strategy_context["is_favorite"]:
+        passed["favorite_symbol"] = True
+    if strategy_context["is_short_listed"]:
+        passed["short_listed"] = True
+    if strategy_context["price_attractive_for_dca"]:
+        passed["price_attractive_for_dca"] = True
+
+    if action_type == "BULL_STRANGLE":
+        if strategy_context["selected_action"] == "BULL_STRANGLE":
+            passed["preferred_action_match"] = True
+        else:
+            failed["preferred_action_match"] = strategy_context["selected_action"]
+        if strategy_context["bull_stock_backed_ready"]:
+            passed["stock_backed_ready"] = True
+    else:
+        if strategy_context["selected_action"] == "DCA":
+            passed["preferred_action_match"] = True
+        else:
+            failed["preferred_action_match"] = strategy_context["selected_action"]
+        if strategy_context["selected_account"]:
+            passed["selected_account"] = strategy_context["selected_account"]
+        if strategy_context["accumulation_preferred"]:
+            passed["accumulation_preferred"] = True
+        else:
+            failed["accumulation_preferred"] = False
+
+    if not strategy_context["market_approved"]:
+        failed["market_approved"] = False
+    if not strategy_context["os_valid"]:
+        failed["os_valid"] = False
+    if strategy_context["strategy_band"] == "weak":
+        failed["strategy_band"] = "weak"
+
+    return passed, failed
 
 
 def _decision_outcome_for_action(

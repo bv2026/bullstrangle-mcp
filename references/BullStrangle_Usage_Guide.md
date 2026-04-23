@@ -314,11 +314,12 @@ reports\2026-04-22\weekend_decisions_2026-04-17.md
 
 Current local April 17 status:
 
-- OS runs: `1`
+- OS runs: `2`
 - OS rows: `24`
 - weekly aggregate symbols: `24`
-- Bull Strangle decisions: `24`
-- DCA candidate decisions: `24`
+- Preferred actions: `BULL_STRANGLE 17`, `DCA 3`, `WATCH 4`, `SKIP 0`
+- Bull Strangle decisions: `APPROVE 17`, `WATCH 4`, `SKIP 3`
+- DCA decisions: `APPROVE 3`, `WATCH 4`, `SKIP 17`
 
 ## Tomorrow Checklist
 
@@ -334,3 +335,13 @@ When the market opens:
 8. Review missing values and largest deviations.
 
 Weekend decisions can wait until the week is complete.
+
+## Dry Run References
+
+For a simple operator dry run:
+
+- `references/BullStrangle_Dry_Run_Runbook.md`
+
+For Claude Desktop prompts:
+
+- `references/Claude_Prompts_BullStrangle.md`
