@@ -23,6 +23,23 @@ The database path used in examples is:
 data\bullstrangle.db
 ```
 
+## Canonical Working Locations
+
+Use these as the standard locations going forward:
+
+- Newsletter PDFs: `data\newsletters`
+- SQLite DB: `data\bullstrangle.db`
+- Positions CSV: `data\positions\positions.csv`
+- Generated OS workbook templates: `outputs\os_workbooks`
+- Refreshed OS workbook uploads: `data\os_uploads`
+- Generated reports: `reports\YYYY-MM-DD`
+
+Operator rule:
+
+- `outputs\os_workbooks` is template output only
+- `data\os_uploads` is the only place to save Excel-refreshed live workbooks before ingest
+- `data\positions\positions.csv` is the canonical positions input file
+
 ## One-Time Or Reset Setup
 
 Initialize or migrate the DB:
@@ -65,6 +82,12 @@ Show one newsletter by date:
 
 ```powershell
 bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-17
+```
+
+Show symbol history and whether it is new this week:
+
+```powershell
+bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-17
 ```
 
 ## Generate The OS Workbook
@@ -277,6 +300,7 @@ Available MCP tools:
 - `list_newsletters`
 - `get_newsletter`
 - `get_newsletter_by_date`
+- `get_symbol_history`
 - `calculate_os_selectors`
 - `prepare_os_workbook`
 - `generate_os_workbook`
@@ -287,6 +311,40 @@ Available MCP tools:
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
+
+## Tool Reference
+
+Newsletter/query tools:
+
+- `list_newsletters`
+- `get_newsletter`
+- `get_newsletter_by_date`
+- `get_symbol_history`
+
+OS workflow tools:
+
+- `calculate_os_selectors`
+- `prepare_os_workbook`
+- `generate_os_workbook`
+- `ingest_os_workbook`
+- `list_os_runs`
+- `report_os_run`
+- `aggregate_os_week`
+
+Decision/rules tools:
+
+- `list_strategy_rules`
+- `generate_weekend_decisions`
+
+Portfolio tools:
+
+- `ingest_positions`
+
+Example symbol-history prompt:
+
+```text
+Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter date 2026-04-17. Tell me whether it is new, when it first appeared, and which prior newsletters included it.
+```
 
 Use `list_strategy_rules` with `category="decision_threshold"` to inspect the
 numeric gates (max deviations, minimum credits) currently in use by the
@@ -310,7 +368,7 @@ pytest -q
 Current expected result:
 
 ```text
-30 passed
+50 passed
 ```
 
 Run by layer:
@@ -347,6 +405,14 @@ Generated reports:
 reports\2026-04-22\os_run_1.md
 reports\2026-04-22\os_week_2026-04-17.md
 reports\2026-04-22\weekend_decisions_2026-04-17.md
+```
+
+Canonical current files:
+
+```text
+data\positions\positions.csv
+outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
+data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx
 ```
 
 Current local April 17 status:

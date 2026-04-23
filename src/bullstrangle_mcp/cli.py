@@ -12,6 +12,7 @@ from .tools import (
     generate_weekend_decisions_tool,
     get_newsletter_by_ref_tool,
     get_newsletter_tool,
+    get_symbol_history_tool,
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
@@ -51,6 +52,16 @@ def main(argv: list[str] | None = None) -> int:
         "show-newsletter", help="Show one ingested newsletter by id or date"
     )
     show.add_argument("newsletter_ref", help="Newsletter id or date, e.g. 34 or 2026-04-17")
+
+    symbol_history = subparsers.add_parser(
+        "symbol-history",
+        help="Show symbol history and whether the symbol is new for a newsletter date",
+    )
+    symbol_history.add_argument("symbol", help="Symbol, e.g. NTAP")
+    symbol_history.add_argument(
+        "--newsletter-date",
+        help="Optional newsletter date to determine whether the symbol is new for that week",
+    )
 
     selectors = subparsers.add_parser(
         "os-selectors", help="Calculate rounded Option Samurai selectors for a newsletter"
@@ -139,6 +150,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "show-newsletter":
         print(json.dumps(get_newsletter_by_ref_tool(args.newsletter_ref, args.db), indent=2))
+        return 0
+    if args.command == "symbol-history":
+        print(
+            json.dumps(
+                get_symbol_history_tool(args.symbol, args.db, args.newsletter_date),
+                indent=2,
+            )
+        )
         return 0
     if args.command == "os-selectors":
         print(json.dumps(calculate_os_selectors_tool(args.newsletter_date, args.db), indent=2))

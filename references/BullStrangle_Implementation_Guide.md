@@ -61,6 +61,8 @@ Core modules:
 Tests:
 
 - `tests/test_unit_os_workbooks.py`: selector rounding unit tests.
+- `tests/test_unit_symbol_history.py`: symbol-history tool behavior.
+- `tests/test_unit_safety.py`: ingest safety and DB safety behavior.
 - `tests/test_ingestion_smoke.py`: integration workflow from PDF through weekend decisions.
 - `tests/test_e2e_mcp_server.py`: MCP server stdio e2e test.
 
@@ -248,6 +250,7 @@ Available tools:
 - `list_newsletters`
 - `get_newsletter`
 - `get_newsletter_by_date`
+- `get_symbol_history`
 - `calculate_os_selectors`
 - `prepare_os_workbook`
 - `generate_os_workbook`
@@ -256,6 +259,13 @@ Available tools:
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
+
+Current tool grouping:
+
+- Newsletter ingestion/query: `ingest_newsletter`, `ingest_newsletter_directory`, `list_newsletters`, `get_newsletter`, `get_newsletter_by_date`, `get_symbol_history`
+- OS workbook workflow: `calculate_os_selectors`, `prepare_os_workbook`, `generate_os_workbook`, `ingest_os_workbook`, `list_os_runs`, `report_os_run`, `aggregate_os_week`
+- Portfolio and rules: `ingest_positions`, `list_strategy_rules`
+- Weekend decisioning: `generate_weekend_decisions`
 
 MCP server module:
 
@@ -302,7 +312,7 @@ Run by layer:
 Current expected result:
 
 ```text
-12 passed
+50 passed
 ```
 
 Compile check:

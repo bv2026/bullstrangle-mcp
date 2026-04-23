@@ -15,6 +15,22 @@ bullstrangle --db data\bullstrangle.db list-newsletters
 
 By default the database is written to `data/bullstrangle.db`.
 
+## Canonical Paths
+
+These are the finalized working locations:
+
+- Newsletter PDFs: `data/newsletters`
+- SQLite DB: `data/bullstrangle.db`
+- Positions CSV: `data/positions/positions.csv`
+- Generated OS workbook templates: `outputs/os_workbooks`
+- Refreshed OS workbooks for ingestion: `data/os_uploads`
+- Generated reports: `reports/YYYY-MM-DD`
+
+Recommended operator rule:
+
+- never overwrite the generated template in `outputs/os_workbooks`
+- always refresh and save the live Excel copy in `data/os_uploads`
+
 ## Documentation
 
 - [Workflow Architecture](references/BullStrangle_MCP_Workflow_Architecture.md)
@@ -44,6 +60,7 @@ bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters --force
 bullstrangle --db data\bullstrangle.db list-newsletters
 bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-17
 bullstrangle --db data\bullstrangle.db show-newsletter 34
+bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-17
 bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
 bullstrangle --db data\bullstrangle.db prepare-os-workbook 2026-04-17
 bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
@@ -88,6 +105,7 @@ Available MCP tools:
 - `list_newsletters`
 - `get_newsletter`
 - `get_newsletter_by_date`
+- `get_symbol_history`
 - `calculate_os_selectors`
 - `prepare_os_workbook`
 - `generate_os_workbook`
@@ -98,6 +116,36 @@ Available MCP tools:
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
+
+## Tool Inventory
+
+Newsletter tools:
+
+- `ingest_newsletter`: ingest one newsletter PDF
+- `ingest_newsletter_directory`: ingest a newsletter directory with per-file status
+- `list_newsletters`: list ingested newsletters
+- `get_newsletter`: fetch one newsletter by id
+- `get_newsletter_by_date`: fetch one newsletter by publication date
+- `get_symbol_history`: show symbol appearance history and whether it is new for a given newsletter date
+
+OS workbook tools:
+
+- `calculate_os_selectors`: calculate newsletter-derived OS selector values
+- `prepare_os_workbook`: create/update workbook metadata row
+- `generate_os_workbook`: generate the Excel workbook template
+- `ingest_os_workbook`: ingest a refreshed live workbook
+- `list_os_runs`: list OS runs so run ids are discoverable
+- `report_os_run`: render a daily OS report
+- `aggregate_os_week`: aggregate all runs for one newsletter week
+
+Decision and rules tools:
+
+- `generate_weekend_decisions`: produce weekend Bull Strangle and DCA outputs
+- `list_strategy_rules`: inspect strategy/rule rows, including decision thresholds
+
+Portfolio tools:
+
+- `ingest_positions`: ingest account positions from `data/positions/positions.csv`
 
 Ingestion safety:
 
@@ -157,3 +205,9 @@ Current test layers:
 - Unit: selector rounding, ingestion safety (force flag), DB WAL/index checks, position ingestion, parser fixtures (`parse_watchlist_option_prices`, `parse_market_environment`), strategy-context builder (`_build_strategy_context`). No PDF required.
 - Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation. *(requires newsletter PDF in `data/newsletters/`)*
 - E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`. *(requires newsletter PDF)*
+
+Current expected result:
+
+```text
+50 passed
+```

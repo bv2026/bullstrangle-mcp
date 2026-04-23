@@ -112,6 +112,87 @@ def get_newsletter_by_ref_tool(
     return get_newsletter_by_date_tool(newsletter_ref, db_path)
 
 
+def get_symbol_history_tool(
+    symbol: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    newsletter_date: str | None = None,
+) -> dict[str, Any]:
+    """Return symbol history across newsletters and whether it is new for a given date."""
+    initialize_database(db_path)
+    normalized_symbol = "".join(ch for ch in symbol.upper() if ch.isalnum())
+    if not normalized_symbol:
+        raise ValueError("Symbol must contain at least one alphanumeric character")
+
+    with connect(db_path) as conn:
+        history_rows = conn.execute(
+            """
+            SELECT h.symbol,
+                   h.publication_date,
+                   h.on_watchlist,
+                   h.on_short_list,
+                   n.newsletter_id,
+                   n.entry_date,
+                   n.target_expiration
+            FROM symbol_history h
+            JOIN newsletters n ON n.newsletter_id = h.newsletter_id
+            WHERE h.symbol = ?
+            ORDER BY h.publication_date DESC
+            """,
+            (normalized_symbol,),
+        ).fetchall()
+
+        if not history_rows:
+            raise ValueError(f"Symbol not found in history: {normalized_symbol}")
+
+        watchlist_rows = conn.execute(
+            """
+            SELECT newsletter_date,
+                   expiration_date,
+                   symbol,
+                   description,
+                   sector,
+                   stock_price,
+                   implied_volatility,
+                   is_favorite
+            FROM watchlist_entries
+            WHERE symbol = ?
+            ORDER BY newsletter_date DESC
+            """,
+            (normalized_symbol,),
+        ).fetchall()
+
+    occurrences = [dict(row) for row in history_rows]
+    watchlist_entries = [dict(row) for row in watchlist_rows]
+    first_seen = occurrences[-1]["publication_date"]
+    latest_seen = occurrences[0]["publication_date"]
+    watchlist_count = sum(1 for row in occurrences if row["on_watchlist"])
+    short_list_count = sum(1 for row in occurrences if row["on_short_list"])
+
+    result: dict[str, Any] = {
+        "symbol": normalized_symbol,
+        "first_seen": first_seen,
+        "latest_seen": latest_seen,
+        "occurrence_count": len(occurrences),
+        "watchlist_count": watchlist_count,
+        "short_list_count": short_list_count,
+        "occurrences": occurrences,
+        "watchlist_entries": watchlist_entries,
+    }
+
+    if newsletter_date:
+        matched = next((row for row in occurrences if row["publication_date"] == newsletter_date), None)
+        prior_count = sum(1 for row in occurrences if row["publication_date"] < newsletter_date)
+        result["newsletter_date"] = newsletter_date
+        result["present_on_newsletter_date"] = bool(matched)
+        result["is_new_for_newsletter_date"] = bool(matched and prior_count == 0)
+        result["prior_occurrence_count"] = prior_count
+        result["latest_prior_publication_date"] = (
+            max((row["publication_date"] for row in occurrences if row["publication_date"] < newsletter_date), default=None)
+        )
+
+    return result
+
+
 def calculate_os_selectors_tool(
     newsletter_date: str, db_path: str = str(DEFAULT_DB_PATH)
 ) -> dict[str, Any]:

@@ -14,6 +14,7 @@ from .tools import (
     generate_weekend_decisions_tool,
     get_newsletter_by_date_tool,
     get_newsletter_tool,
+    get_symbol_history_tool,
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
@@ -125,6 +126,16 @@ def get_newsletter(newsletter_id: int, db_path: str | None = None) -> dict[str, 
 def get_newsletter_by_date(newsletter_date: str, db_path: str | None = None) -> dict[str, Any]:
     """Return one newsletter by publication date, for example 2026-04-17."""
     return get_newsletter_by_date_tool(newsletter_date, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_symbol_history(
+    symbol: str,
+    newsletter_date: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return symbol history and whether the symbol is new for a given newsletter date."""
+    return get_symbol_history_tool(symbol, db_path or default_db_path(), newsletter_date)
 
 
 @mcp.tool()

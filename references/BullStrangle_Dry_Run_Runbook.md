@@ -50,6 +50,13 @@ Expected local inputs:
 - refreshed OS workbooks under `data/os_uploads`
 - positions CSV under `data/positions/positions.csv`
 
+Canonical operator locations:
+
+- `data/newsletters` for newsletter PDFs
+- `data/positions/positions.csv` for positions
+- `outputs/os_workbooks` for MCP-generated Excel templates
+- `data/os_uploads` for Excel-refreshed live OS workbooks
+
 ## Environment
 
 Open PowerShell in:
