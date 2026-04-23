@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,160 @@ from .positions import latest_position_state
 
 
 STRATEGY_LOGIC_VERSION = "score_branch_v1"
+
+
+# ── Weekly summary (moved from ingestion.py) ──────────────────────────────────
+# These functions compute deployment decisions from market environment facts
+# stored during ingestion.  They live here — not in ingestion.py — because
+# they apply business rules to stored data rather than parsing PDF content.
+
+def _bool_int(value: Any) -> int:
+    return 1 if bool(value) else 0
+
+
+def calculate_consecutive_weeks(
+    conn: sqlite3.Connection,
+    publication_date: date,
+    current_met: bool,
+) -> int:
+    """Count how many consecutive weeks criteria have been met up to and including this week."""
+    if not current_met:
+        return 0
+    rows = conn.execute(
+        """
+        SELECT publication_date, all_criteria_met
+        FROM market_environment
+        WHERE publication_date < ?
+        ORDER BY publication_date DESC
+        """,
+        (publication_date.isoformat(),),
+    ).fetchall()
+    count = 1
+    for row in rows:
+        if row["all_criteria_met"]:
+            count += 1
+        else:
+            break
+    return count
+
+
+def compute_weekly_summary(
+    conn: sqlite3.Connection,
+    newsletter_id: int,
+    publication_date: date,
+) -> None:
+    """Compute and persist weekly deployment decision and symbol history.
+
+    Called once per newsletter after all PDF sections have been inserted.
+    Reads the market_environment row written by ingestion, applies the
+    two-week confirmation rule, and writes to weekly_decisions and
+    symbol_history.
+
+    This is deliberately separate from the ingestion pipeline: ingestion
+    stores facts; this function applies rules.  To re-evaluate decisions
+    without re-ingesting the PDF, call this directly.
+    """
+    env = conn.execute(
+        "SELECT * FROM market_environment WHERE newsletter_id = ?",
+        (newsletter_id,),
+    ).fetchone()
+
+    all_criteria_met = bool(env["all_criteria_met"]) if env else False
+    consecutive = calculate_consecutive_weeks(conn, publication_date, all_criteria_met)
+    deployment_approved = all_criteria_met and consecutive >= 2
+    action = (
+        "deploy" if deployment_approved
+        else ("monitor_only" if all_criteria_met else "pause")
+    )
+    scaling_phase = (
+        "normal" if deployment_approved
+        else ("rebuild_week1" if all_criteria_met else "pause")
+    )
+    recommended_position_count = 3 if deployment_approved else (1 if all_criteria_met else 0)
+
+    if env:
+        conn.execute(
+            """
+            UPDATE market_environment
+            SET consecutive_weeks_met = ?, deployment_approved = ?,
+                recommended_position_count = ?, scaling_phase = ?
+            WHERE newsletter_id = ?
+            """,
+            (
+                consecutive,
+                _bool_int(deployment_approved),
+                recommended_position_count,
+                scaling_phase,
+                newsletter_id,
+            ),
+        )
+
+    rationale = {
+        "decision": action,
+        "reason": (
+            "Two-week confirmation met" if deployment_approved
+            else ("Week 1 of confirmation" if all_criteria_met
+                  else "One or more market criteria failed")
+        ),
+        "criteria_status": {
+            "all_criteria_met": all_criteria_met,
+            "consecutive_weeks": {
+                "value": consecutive,
+                "threshold": 2,
+                "passed": consecutive >= 2,
+            },
+        },
+    }
+    conn.execute(
+        """
+        INSERT INTO weekly_decisions
+        (newsletter_id, publication_date, all_criteria_met, consecutive_weeks_met,
+         deployment_approved, action_taken, positions_deployed, symbols_deployed,
+         decision_rationale)
+        VALUES (?, ?, ?, ?, ?, ?, 0, '[]', ?)
+        """,
+        (
+            newsletter_id,
+            publication_date.isoformat(),
+            _bool_int(all_criteria_met),
+            consecutive,
+            _bool_int(deployment_approved),
+            action,
+            json.dumps(rationale, sort_keys=True),
+        ),
+    )
+
+    short_rows = conn.execute(
+        """
+        SELECT symbol, group_concat(portfolio_type) AS portfolios
+        FROM short_list_entries
+        WHERE newsletter_id = ?
+        GROUP BY symbol
+        """,
+        (newsletter_id,),
+    ).fetchall()
+    short_map = {row["symbol"]: row["portfolios"] for row in short_rows}
+
+    entries = conn.execute(
+        "SELECT * FROM watchlist_entries WHERE newsletter_id = ? ORDER BY symbol",
+        (newsletter_id,),
+    ).fetchall()
+    for entry in entries:
+        on_short = entry["symbol"] in short_map
+        conn.execute(
+            """
+            INSERT INTO symbol_history
+            (symbol, newsletter_id, publication_date, on_watchlist, on_short_list, metadata)
+            VALUES (?, ?, ?, 1, ?, ?)
+            """,
+            (
+                entry["symbol"],
+                newsletter_id,
+                publication_date.isoformat(),
+                _bool_int(on_short),
+                json.dumps({"source": "newsletter_ingestion"}, sort_keys=True),
+            ),
+        )
 
 
 DEFAULT_RULES = {

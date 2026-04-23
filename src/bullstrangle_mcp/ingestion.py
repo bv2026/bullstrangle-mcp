@@ -12,6 +12,7 @@ from typing import Any
 from pypdf import PdfReader
 
 from .database import DEFAULT_DB_PATH, connect, initialize_database
+from .decisions import compute_weekly_summary
 
 
 SECTORS = [
@@ -125,7 +126,7 @@ def ingest_newsletter(
         insert_short_list(conn, newsletter_id, publication_date, short_list)
         mark_favorites_and_insert_analysis(conn, newsletter_id, publication_date, favorites)
         insert_reference_sections(conn, newsletter_id, publication_date, pdf, sections)
-        insert_decisions_and_history(conn, newsletter_id, publication_date)
+        compute_weekly_summary(conn, newsletter_id, publication_date)
         conn.commit()
 
     return {
@@ -933,112 +934,6 @@ def insert_reference_sections(
                 max(page_numbers),
             ),
         )
-
-
-def insert_decisions_and_history(conn, newsletter_id: int, publication_date: date) -> None:
-    env = conn.execute(
-        "SELECT * FROM market_environment WHERE newsletter_id = ?", (newsletter_id,)
-    ).fetchone()
-    all_criteria_met = bool(env["all_criteria_met"]) if env else False
-    consecutive = calculate_consecutive_weeks(conn, publication_date, all_criteria_met)
-    deployment_approved = all_criteria_met and consecutive >= 2
-    action = "deploy" if deployment_approved else ("monitor_only" if all_criteria_met else "pause")
-    scaling_phase = "normal" if deployment_approved else ("rebuild_week1" if all_criteria_met else "pause")
-    recommended_position_count = 3 if deployment_approved else (1 if all_criteria_met else 0)
-
-    if env:
-        conn.execute(
-            """
-            UPDATE market_environment
-            SET consecutive_weeks_met = ?, deployment_approved = ?,
-                recommended_position_count = ?, scaling_phase = ?
-            WHERE newsletter_id = ?
-            """,
-            (consecutive, bool_int(deployment_approved), recommended_position_count, scaling_phase, newsletter_id),
-        )
-
-    rationale = {
-        "decision": action,
-        "reason": "Two-week confirmation met" if deployment_approved else (
-            "Week 1 of confirmation" if all_criteria_met else "One or more market criteria failed"
-        ),
-        "criteria_status": {
-            "all_criteria_met": all_criteria_met,
-            "consecutive_weeks": {"value": consecutive, "threshold": 2, "passed": consecutive >= 2},
-        },
-    }
-    conn.execute(
-        """
-        INSERT INTO weekly_decisions
-        (newsletter_id, publication_date, all_criteria_met, consecutive_weeks_met,
-         deployment_approved, action_taken, positions_deployed, symbols_deployed,
-         decision_rationale)
-        VALUES (?, ?, ?, ?, ?, ?, 0, '[]', ?)
-        """,
-        (
-            newsletter_id,
-            publication_date.isoformat(),
-            bool_int(all_criteria_met),
-            consecutive,
-            bool_int(deployment_approved),
-            action,
-            json.dumps(rationale, sort_keys=True),
-        ),
-    )
-
-    short_rows = conn.execute(
-        "SELECT symbol, group_concat(portfolio_type) AS portfolios FROM short_list_entries WHERE newsletter_id = ? GROUP BY symbol",
-        (newsletter_id,),
-    ).fetchall()
-    short_map = {row["symbol"]: row["portfolios"] for row in short_rows}
-
-    entries = conn.execute(
-        "SELECT * FROM watchlist_entries WHERE newsletter_id = ? ORDER BY symbol", (newsletter_id,)
-    ).fetchall()
-    priority = 0
-    for entry in entries:
-        on_short = entry["symbol"] in short_map
-        if on_short:
-            priority += 1
-        eligible = deployment_approved and on_short
-        reason = None if eligible else (
-            "Market deployment not approved" if not deployment_approved else "Not on short list"
-        )
-        conn.execute(
-            """
-            INSERT INTO symbol_history
-            (symbol, newsletter_id, publication_date, on_watchlist, on_short_list, metadata)
-            VALUES (?, ?, ?, 1, ?, ?)
-            """,
-            (
-                entry["symbol"],
-                newsletter_id,
-                publication_date.isoformat(),
-                bool_int(on_short),
-                json.dumps({"source": "newsletter_ingestion"}, sort_keys=True),
-            ),
-        )
-
-
-def calculate_consecutive_weeks(conn, publication_date: date, current_met: bool) -> int:
-    if not current_met:
-        return 0
-    rows = conn.execute(
-        """
-        SELECT publication_date, all_criteria_met
-        FROM market_environment
-        WHERE publication_date < ?
-        ORDER BY publication_date DESC
-        """,
-        (publication_date.isoformat(),),
-    ).fetchall()
-    count = 1
-    for row in rows:
-        if row["all_criteria_met"]:
-            count += 1
-        else:
-            break
-    return count
 
 
 def section_text(pages: list[PageText]) -> str:
