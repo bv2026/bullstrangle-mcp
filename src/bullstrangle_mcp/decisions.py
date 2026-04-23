@@ -181,6 +181,54 @@ DEFAULT_RULES = {
 }
 
 
+def load_decision_rules(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Load numeric decision thresholds from the strategy_rules table.
+
+    Returns a dict with the same shape as DEFAULT_RULES.  If the
+    decision_threshold rows are absent (fresh DB before first init) the
+    function falls back to DEFAULT_RULES so callers never break.
+
+    Threshold rule_name convention: ``<category>_<key>``, e.g.
+    ``bull_strangle_max_price_deviation_pct``.  The numeric value is stored
+    as ``{"value": <float>}`` in the rule_parameters JSON column.
+    """
+    rows = conn.execute(
+        """
+        SELECT rule_name, rule_parameters
+        FROM   strategy_rules
+        WHERE  rule_category = 'decision_threshold'
+          AND  is_active      = 1
+        """
+    ).fetchall()
+
+    if not rows:
+        return DEFAULT_RULES
+
+    import copy
+
+    rules: dict[str, Any] = copy.deepcopy(DEFAULT_RULES)
+    for row in rows:
+        name: str = row["rule_name"]
+        try:
+            params = json.loads(row["rule_parameters"] or "{}")
+            value = params.get("value")
+            if value is None:
+                continue
+        except (ValueError, TypeError):
+            continue
+
+        if name.startswith("bull_strangle_"):
+            key = name[len("bull_strangle_"):]
+            if key in rules["bull_strangle"]:
+                rules["bull_strangle"][key] = float(value)
+        elif name.startswith("dca_"):
+            key = name[len("dca_"):]
+            if key in rules["dca"]:
+                rules["dca"][key] = float(value)
+
+    return rules
+
+
 def generate_weekend_decisions(
     newsletter_date: str,
     db_path: str | Path = DEFAULT_DB_PATH,
@@ -261,6 +309,7 @@ def generate_weekend_decisions(
             (newsletter["newsletter_id"],),
         ).fetchall()
 
+        loaded_rules = load_decision_rules(conn)
         bull_rows = []
         dca_rows = []
         for row in rows:
@@ -272,6 +321,7 @@ def generate_weekend_decisions(
                 position,
                 positions_available,
                 short_list_symbols,
+                rules=loaded_rules,
             )
             bull_rows.append(
                 _build_bull_decision(
@@ -280,6 +330,7 @@ def generate_weekend_decisions(
                     row_dict,
                     position,
                     strategy_context,
+                    rules=loaded_rules,
                 )
             )
             dca_rows.append(
@@ -289,6 +340,7 @@ def generate_weekend_decisions(
                     row_dict,
                     position,
                     strategy_context,
+                    rules=loaded_rules,
                 )
             )
 
@@ -425,10 +477,11 @@ def _build_bull_decision(
     row: dict[str, Any],
     position: dict[str, Any] | None,
     strategy_context: dict[str, Any],
+    rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    rules = DEFAULT_RULES["bull_strangle"]
+    rules = (rules or DEFAULT_RULES)["bull_strangle"]
     final, reasons = _decision_outcome_for_action("BULL_STRANGLE", strategy_context)
-    passed_rules, failed_rules = _build_rule_diagnostics("BULL_STRANGLE", strategy_context)
+    passed_rules, failed_rules = _build_rule_diagnostics("BULL_STRANGLE", strategy_context, rules=rules)
 
     return {
         "decision_batch_id": batch_id,
@@ -467,10 +520,11 @@ def _build_dca_decision(
     row: dict[str, Any],
     position: dict[str, Any] | None,
     strategy_context: dict[str, Any],
+    rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    rules = DEFAULT_RULES["dca"]
+    rules = (rules or DEFAULT_RULES)["dca"]
     final, reasons = _decision_outcome_for_action("DCA", strategy_context)
-    passed_rules, failed_rules = _build_rule_diagnostics("DCA", strategy_context)
+    passed_rules, failed_rules = _build_rule_diagnostics("DCA", strategy_context, rules=rules)
     account_shares = position.get("max_account_quantity") if position else 0
     consolidated_shares = position.get("total_quantity") if position else 0
     target_account = strategy_context["selected_account"]
@@ -639,7 +693,9 @@ def _build_strategy_context(
     position: dict[str, Any] | None,
     positions_available: bool,
     short_list_symbols: set[str],
+    rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    bs_rules = (rules or DEFAULT_RULES)["bull_strangle"]
     market_approved = int(market.get("deployment_approved") or 0)
     os_valid = int(row.get("is_week_valid") or 0)
     latest_credit = row.get("latest_total_credit")
@@ -675,9 +731,9 @@ def _build_strategy_context(
         strategy_score += 2.0
     if latest_credit is not None and float(latest_credit) > 0:
         strategy_score += 1.0
-    if price_deviation is None or float(price_deviation) <= DEFAULT_RULES["bull_strangle"]["max_price_deviation_pct"]:
+    if price_deviation is None or float(price_deviation) <= bs_rules["max_price_deviation_pct"]:
         strategy_score += 1.0
-    if credit_deviation is None or float(credit_deviation) <= DEFAULT_RULES["bull_strangle"]["max_credit_deviation"]:
+    if credit_deviation is None or float(credit_deviation) <= bs_rules["max_credit_deviation"]:
         strategy_score += 1.0
     if row.get("is_favorite"):
         strategy_score += 1.0
@@ -699,9 +755,9 @@ def _build_strategy_context(
         market_approved
         and os_valid
         and latest_credit is not None
-        and float(latest_credit) >= DEFAULT_RULES["bull_strangle"]["minimum_total_credit"]
-        and (price_deviation is None or float(price_deviation) <= DEFAULT_RULES["bull_strangle"]["max_price_deviation_pct"])
-        and (credit_deviation is None or float(credit_deviation) <= DEFAULT_RULES["bull_strangle"]["max_credit_deviation"])
+        and float(latest_credit) >= bs_rules["minimum_total_credit"]
+        and (price_deviation is None or float(price_deviation) <= bs_rules["max_price_deviation_pct"])
+        and (credit_deviation is None or float(credit_deviation) <= bs_rules["max_credit_deviation"])
         and strategy_band in {"strong", "moderate"}
     )
     dca_viable = bool(
@@ -748,7 +804,11 @@ def _build_strategy_context(
 def _build_rule_diagnostics(
     action_type: str,
     strategy_context: dict[str, Any],
+    rules: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    # rules here is already the category-level sub-dict (bull_strangle or dca),
+    # or None if called without context — fall back to bull_strangle thresholds.
+    bs_rules = rules if rules is not None else DEFAULT_RULES["bull_strangle"]
     passed: dict[str, Any] = {
         "market_approved": bool(strategy_context["market_approved"]),
         "os_valid": bool(strategy_context["os_valid"]),
@@ -758,8 +818,8 @@ def _build_rule_diagnostics(
     failed: dict[str, Any] = {}
 
     credit_ok = strategy_context["latest_credit"] is not None and float(strategy_context["latest_credit"]) > 0
-    price_ok = strategy_context["price_deviation"] is None or float(strategy_context["price_deviation"]) <= DEFAULT_RULES["bull_strangle"]["max_price_deviation_pct"]
-    credit_dev_ok = strategy_context["credit_deviation"] is None or float(strategy_context["credit_deviation"]) <= DEFAULT_RULES["bull_strangle"]["max_credit_deviation"]
+    price_ok = strategy_context["price_deviation"] is None or float(strategy_context["price_deviation"]) <= bs_rules["max_price_deviation_pct"]
+    credit_dev_ok = strategy_context["credit_deviation"] is None or float(strategy_context["credit_deviation"]) <= bs_rules["max_credit_deviation"]
 
     if credit_ok:
         passed["latest_credit_positive"] = True

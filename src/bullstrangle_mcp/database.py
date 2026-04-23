@@ -574,7 +574,29 @@ VALUES
 ('exit', 'Both options expire',
  'When both options expire and stock is kept, usually continue holding and sell calls and puts for the next cycle unless better watchlist candidates exist.',
  '{"roll_to_next_cycle":true,"reevaluate_against_watchlist":true}',
- 'Trade Management Suggestions');
+ 'Trade Management Suggestions'),
+-- Decision threshold rules — numeric gates used by the decision engine.
+-- Adjust value in rule_parameters to tune without code changes.
+('decision_threshold', 'bull_strangle_max_price_deviation_pct',
+ 'Maximum allowed absolute stock-price deviation (as a fraction) between newsletter baseline and live price before disqualifying a Bull Strangle candidate.',
+ '{"value":0.08}',
+ 'DEFAULT_RULES'),
+('decision_threshold', 'bull_strangle_max_credit_deviation',
+ 'Maximum allowed absolute total-credit deviation (in dollars) between newsletter baseline and live option credit before disqualifying a Bull Strangle candidate.',
+ '{"value":2.50}',
+ 'DEFAULT_RULES'),
+('decision_threshold', 'bull_strangle_minimum_total_credit',
+ 'Minimum live total option credit (in dollars) required for a Bull Strangle candidate to be viable.',
+ '{"value":0.01}',
+ 'DEFAULT_RULES'),
+('decision_threshold', 'dca_max_price_deviation_pct',
+ 'Maximum allowed absolute stock-price deviation (as a fraction) for a DCA candidate to remain eligible.',
+ '{"value":0.08}',
+ 'DEFAULT_RULES'),
+('decision_threshold', 'dca_minimum_candidate_score',
+ 'Minimum strategy score required for a symbol to be considered a DCA candidate.',
+ '{"value":1.0}',
+ 'DEFAULT_RULES');
 """
 
 

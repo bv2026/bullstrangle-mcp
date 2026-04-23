@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .database import DEFAULT_DB_PATH, connect, initialize_database
-from .decisions import generate_weekend_decisions
+from .decisions import generate_weekend_decisions, load_decision_rules
 from .ingestion import ingest_directory, ingest_newsletter
 from .os_ingestion import ingest_os_workbook
 from .os_reports import report_os_run
@@ -185,3 +185,60 @@ def ingest_positions_tool(
     """Ingest account-level positions and symbol rollups from a CSV export."""
     initialize_database(db_path)
     return ingest_positions(csv_path, db_path)
+
+
+def list_strategy_rules_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    category: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return strategy rules stored in the database.
+
+    When *category* is provided only rules with a matching rule_category are
+    returned.  Omit it to return all active rules.  Decision-threshold rules
+    (rule_category='decision_threshold') carry the numeric gates currently in
+    use by the decision engine; editing their rule_parameters value and
+    re-running weekend decisions will apply the new thresholds without any
+    code change.
+    """
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        if category:
+            rows = conn.execute(
+                """
+                SELECT rule_id, rule_category, rule_name, rule_description,
+                       rule_parameters, source_section, is_active, created_date
+                FROM   strategy_rules
+                WHERE  rule_category = ?
+                ORDER  BY rule_category, rule_name
+                """,
+                (category,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT rule_id, rule_category, rule_name, rule_description,
+                       rule_parameters, source_section, is_active, created_date
+                FROM   strategy_rules
+                ORDER  BY rule_category, rule_name
+                """
+            ).fetchall()
+
+        loaded = load_decision_rules(conn)
+
+    result = []
+    for row in rows:
+        entry = dict(row)
+        # Annotate decision_threshold rows with the resolved live value
+        if entry["rule_category"] == "decision_threshold":
+            name: str = entry["rule_name"]
+            resolved: float | None = None
+            if name.startswith("bull_strangle_"):
+                key = name[len("bull_strangle_"):]
+                resolved = loaded["bull_strangle"].get(key)
+            elif name.startswith("dca_"):
+                key = name[len("dca_"):]
+                resolved = loaded["dca"].get(key)
+            entry["resolved_value"] = resolved
+        result.append(entry)
+
+    return result

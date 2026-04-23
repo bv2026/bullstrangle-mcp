@@ -19,6 +19,7 @@ from .tools import (
     ingest_newsletter_tool,
     ingest_positions_tool,
     list_newsletters_tool,
+    list_strategy_rules_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
 )
@@ -119,6 +120,20 @@ def ingest_os_workbook(
 def ingest_positions(csv_path: str, db_path: str | None = None) -> dict[str, Any]:
     """Ingest account-level positions and symbol rollups from a CSV export."""
     return ingest_positions_tool(csv_path, db_path or default_db_path())
+
+
+@mcp.tool()
+def list_strategy_rules(
+    category: str | None = None,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """List strategy rules stored in the database.
+
+    Pass category='decision_threshold' to see only the numeric decision gates
+    (max deviations, minimum credits) that the engine uses when evaluating
+    Bull Strangle and DCA candidates.  Omit category to return all rules.
+    """
+    return list_strategy_rules_tool(db_path or default_db_path(), category)
 
 
 @mcp.tool()
