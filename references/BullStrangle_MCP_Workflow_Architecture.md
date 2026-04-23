@@ -13,6 +13,7 @@ As of April 22, 2026, the local implementation is packaged and runnable for the 
 - ingest refreshed daily OS workbooks after Excel/Option Samurai recalculation
 - store daily OS snapshots and deviations
 - aggregate all OS uploads for a newsletter week
+- ingest account-level positions and symbol rollups
 - generate v1 weekend Bull Strangle and DCA candidate decisions
 - expose the workflow through both CLI commands and Claude-compatible MCP tools
 
@@ -926,9 +927,73 @@ Implemented Claude-compatible MCP tools:
 - `prepare_os_workbook`
 - `generate_os_workbook`
 - `ingest_os_workbook`
+- `ingest_positions`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
+
+## Position Tables
+
+### `position_import_runs`
+
+One row per imported positions CSV.
+
+Implemented fields:
+
+- `position_run_id`
+- `source_path`
+- `imported_at`
+- `row_count`
+- `account_count`
+- `symbol_count`
+- `total_market_value`
+- `total_cost_basis`
+- `status`
+- `validation_json`
+
+### `account_positions`
+
+One row per account/symbol holding from the latest positions export.
+
+Implemented fields:
+
+- `position_run_id`
+- `account_name`
+- `symbol`
+- `quantity`
+- `current_price`
+- `average_price`
+- `market_value`
+- `cost_basis`
+- `unrealized_gain_loss`
+- `unrealized_gain_loss_pct`
+- `raw_row_json`
+
+### `symbol_position_rollups`
+
+Symbol-level exposure view plus single-account execution eligibility.
+
+Implemented fields:
+
+- `position_run_id`
+- `symbol`
+- `total_quantity`
+- `total_market_value`
+- `total_cost_basis`
+- `weighted_average_price`
+- `account_count`
+- `max_account_quantity`
+- `bull_strangle_ready`
+- `eligible_account`
+- `dca_target_account`
+- `shares_to_100`
+- `accounts_json`
+
+Design rule:
+
+- `total_quantity` is only for exposure awareness.
+- `bull_strangle_ready` is true only when one account has at least `100` shares.
+- DCA and Bull Strangle recommendations must point to one account.
 
 ## Weekend Decision Tables
 
@@ -1296,7 +1361,7 @@ Purpose:
 11. Done: implement `dca_decisions`.
 12. Extract Master Document strategy rules into structured implementation tasks.
 13. Tune weekend decision criteria after several daily OS uploads.
-14. Add DCA holdings/account input and single-account execution selection.
+14. Done: add DCA holdings/account input and single-account execution selection.
 15. Add reports:
    - daily OS deviation report
    - weekend Bull Strangle decision report
@@ -1442,6 +1507,6 @@ Mitigation:
 11. Done: implement `bull_strangle_decisions`.
 12. Done: implement v1 `dca_decisions`.
 13. Next: tune decision criteria after multiple daily OS uploads.
-14. Implement DCA holdings/account input and single-account execution selection.
+14. Done: implement DCA holdings/account input and single-account execution selection.
 15. Implement weekend reports.
 16. Add report persistence tables if report history needs to be queryable from DB.

@@ -40,6 +40,7 @@ async def test_mcp_server_lists_tools_and_calculates_selectors(tmp_path):
             assert "report_os_run" in tool_names
             assert "aggregate_os_week" in tool_names
             assert "generate_weekend_decisions" in tool_names
+            assert "ingest_positions" in tool_names
 
             result = await session.call_tool(
                 "calculate_os_selectors", {"newsletter_date": "2026-04-17"}

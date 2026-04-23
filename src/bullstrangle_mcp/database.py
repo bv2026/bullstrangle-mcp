@@ -455,6 +455,60 @@ CREATE TABLE IF NOT EXISTS dca_decisions (
 
 CREATE INDEX IF NOT EXISTS idx_dca_decisions_newsletter_date
 ON dca_decisions(newsletter_date);
+
+CREATE TABLE IF NOT EXISTS position_import_runs (
+    position_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_path TEXT NOT NULL,
+    imported_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    account_count INTEGER NOT NULL DEFAULT 0,
+    symbol_count INTEGER NOT NULL DEFAULT 0,
+    total_market_value REAL,
+    total_cost_basis REAL,
+    status TEXT NOT NULL DEFAULT 'imported',
+    validation_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS account_positions (
+    position_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    position_run_id INTEGER NOT NULL REFERENCES position_import_runs(position_run_id) ON DELETE CASCADE,
+    account_name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    quantity REAL NOT NULL DEFAULT 0,
+    current_price REAL,
+    average_price REAL,
+    market_value REAL,
+    cost_basis REAL,
+    unrealized_gain_loss REAL,
+    unrealized_gain_loss_pct REAL,
+    raw_row_json TEXT,
+    UNIQUE(position_run_id, account_name, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_positions_symbol
+ON account_positions(symbol);
+
+CREATE TABLE IF NOT EXISTS symbol_position_rollups (
+    rollup_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    position_run_id INTEGER NOT NULL REFERENCES position_import_runs(position_run_id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    total_quantity REAL NOT NULL DEFAULT 0,
+    total_market_value REAL,
+    total_cost_basis REAL,
+    weighted_average_price REAL,
+    account_count INTEGER NOT NULL DEFAULT 0,
+    max_account_quantity REAL NOT NULL DEFAULT 0,
+    bull_strangle_ready INTEGER NOT NULL DEFAULT 0,
+    eligible_account TEXT,
+    dca_target_account TEXT,
+    shares_to_100 REAL,
+    accounts_json TEXT,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(position_run_id, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_symbol_position_rollups_symbol
+ON symbol_position_rollups(symbol);
 """
 
 
@@ -524,6 +578,7 @@ def ensure_schema_migrations(conn: sqlite3.Connection) -> None:
     ensure_os_ingestion_schema(conn)
     ensure_os_weekly_aggregation_schema(conn)
     ensure_decision_schema(conn)
+    ensure_position_schema(conn)
 
     backfill_newsletter_date(conn, "newsletter_full_text")
     backfill_newsletter_date(conn, "watchlist_entries")
@@ -831,6 +886,73 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_dca_decisions_newsletter_date ON dca_decisions(newsletter_date)"
     )
+    for table_name in ["bull_strangle_decisions", "dca_decisions"]:
+        ensure_column(conn, table_name, "selected_account", "TEXT")
+        ensure_column(conn, table_name, "account_shares", "REAL")
+        ensure_column(conn, table_name, "consolidated_shares", "REAL")
+        ensure_column(conn, table_name, "shares_to_100", "REAL")
+
+
+def ensure_position_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS position_import_runs (
+            position_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_path TEXT NOT NULL,
+            imported_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            row_count INTEGER NOT NULL DEFAULT 0,
+            account_count INTEGER NOT NULL DEFAULT 0,
+            symbol_count INTEGER NOT NULL DEFAULT 0,
+            total_market_value REAL,
+            total_cost_basis REAL,
+            status TEXT NOT NULL DEFAULT 'imported',
+            validation_json TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_positions (
+            position_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            position_run_id INTEGER NOT NULL REFERENCES position_import_runs(position_run_id) ON DELETE CASCADE,
+            account_name TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            quantity REAL NOT NULL DEFAULT 0,
+            current_price REAL,
+            average_price REAL,
+            market_value REAL,
+            cost_basis REAL,
+            unrealized_gain_loss REAL,
+            unrealized_gain_loss_pct REAL,
+            raw_row_json TEXT,
+            UNIQUE(position_run_id, account_name, symbol)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS symbol_position_rollups (
+            rollup_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            position_run_id INTEGER NOT NULL REFERENCES position_import_runs(position_run_id) ON DELETE CASCADE,
+            symbol TEXT NOT NULL,
+            total_quantity REAL NOT NULL DEFAULT 0,
+            total_market_value REAL,
+            total_cost_basis REAL,
+            weighted_average_price REAL,
+            account_count INTEGER NOT NULL DEFAULT 0,
+            max_account_quantity REAL NOT NULL DEFAULT 0,
+            bull_strangle_ready INTEGER NOT NULL DEFAULT 0,
+            eligible_account TEXT,
+            dca_target_account TEXT,
+            shares_to_100 REAL,
+            accounts_json TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(position_run_id, symbol)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_account_positions_symbol ON account_positions(symbol)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_symbol_position_rollups_symbol ON symbol_position_rollups(symbol)")
 
 
 def ensure_column(

@@ -7,6 +7,7 @@ from typing import Any
 
 from .database import DEFAULT_DB_PATH, connect, initialize_database
 from .os_weekly import aggregate_os_week
+from .positions import latest_position_rollups
 
 
 DEFAULT_RULES = {
@@ -31,6 +32,8 @@ def generate_weekend_decisions(
     initialize_database(db_path)
     decision_date = decision_date or date.today().isoformat()
     aggregate = aggregate_os_week(newsletter_date, db_path)
+    position_rollups = latest_position_rollups(db_path)
+    positions_available = bool(position_rollups)
 
     with connect(db_path) as conn:
         newsletter = conn.execute(
@@ -92,8 +95,25 @@ def generate_weekend_decisions(
         dca_rows = []
         for row in rows:
             row_dict = dict(row)
-            bull_rows.append(_build_bull_decision(batch_id, dict(market), row_dict))
-            dca_rows.append(_build_dca_decision(batch_id, dict(market), row_dict))
+            position = position_rollups.get(row_dict["symbol"])
+            bull_rows.append(
+                _build_bull_decision(
+                    batch_id,
+                    dict(market),
+                    row_dict,
+                    position,
+                    positions_available,
+                )
+            )
+            dca_rows.append(
+                _build_dca_decision(
+                    batch_id,
+                    dict(market),
+                    row_dict,
+                    position,
+                    positions_available,
+                )
+            )
 
         bull_rows = _rank_decisions(bull_rows)
         dca_rows = _rank_decisions(dca_rows)
@@ -110,6 +130,7 @@ def generate_weekend_decisions(
         "market_status": market["market_status"],
         "deployment_approved": int(market["deployment_approved"] or 0),
         "os_run_count": aggregate["run_count"],
+        "positions_available": positions_available,
         "bull_strangle_counts": _decision_counts(bull_rows),
         "dca_counts": _decision_counts(dca_rows),
         "bull_strangle_decisions": bull_rows,
@@ -214,6 +235,8 @@ def _build_bull_decision(
     batch_id: int,
     market: dict[str, Any],
     row: dict[str, Any],
+    position: dict[str, Any] | None,
+    positions_available: bool,
 ) -> dict[str, Any]:
     rules = DEFAULT_RULES["bull_strangle"]
     market_approved = int(market.get("deployment_approved") or 0)
@@ -221,6 +244,10 @@ def _build_bull_decision(
     latest_credit = row.get("latest_total_credit")
     price_deviation = row.get("worst_abs_stock_price_deviation_pct")
     credit_deviation = row.get("worst_abs_total_credit_deviation")
+    position_ready = (
+        not positions_available
+        or (position is not None and int(position.get("bull_strangle_ready") or 0) == 1)
+    )
     reasons = []
     if not market_approved:
         reasons.append("market deployment is not approved")
@@ -232,8 +259,10 @@ def _build_bull_decision(
         reasons.append("price deviation exceeds threshold")
     if credit_deviation is not None and credit_deviation > rules["max_credit_deviation"]:
         reasons.append("credit deviation exceeds threshold")
+    if not position_ready:
+        reasons.append("no single account has 100 shares for Bull Strangle promotion")
 
-    if market_approved and os_valid and not reasons:
+    if market_approved and os_valid and position_ready and not reasons:
         final = "APPROVE"
     elif os_valid and latest_credit is not None and latest_credit > 0:
         final = "WATCH"
@@ -255,16 +284,21 @@ def _build_bull_decision(
         "latest_live_stock_price": row.get("latest_live_stock_price"),
         "max_price_deviation_pct": price_deviation,
         "max_credit_deviation": credit_deviation,
+        "selected_account": position.get("eligible_account") if position else None,
+        "account_shares": position.get("max_account_quantity") if position else None,
+        "consolidated_shares": position.get("total_quantity") if position else None,
+        "shares_to_100": position.get("shares_to_100") if position else None,
         "rules_applied_json": json.dumps(rules, sort_keys=True),
         "criteria_json": json.dumps(
             {
                 "market_approved": bool(market_approved),
                 "os_week_valid": bool(os_valid),
                 "latest_credit_positive": latest_credit is not None and latest_credit > 0,
+                "single_account_100_shares": bool(position_ready),
             },
             sort_keys=True,
         ),
-        "source_snapshot_json": _source_snapshot(row),
+        "source_snapshot_json": _source_snapshot(row, position),
         "reason": "; ".join(reasons) if reasons else "all v1 Bull Strangle criteria passed",
     }
 
@@ -273,6 +307,8 @@ def _build_dca_decision(
     batch_id: int,
     market: dict[str, Any],
     row: dict[str, Any],
+    position: dict[str, Any] | None,
+    positions_available: bool,
 ) -> dict[str, Any]:
     rules = DEFAULT_RULES["dca"]
     allocation_ok = 1 if (market.get("investment_percent") or 0) > 0 else 0
@@ -280,6 +316,11 @@ def _build_dca_decision(
     price_deviation = row.get("worst_abs_stock_price_deviation_pct")
     trend = _price_trend(row)
     candidate_score = _dca_candidate_score(row, trend)
+    account_shares = position.get("max_account_quantity") if position else 0
+    consolidated_shares = position.get("total_quantity") if position else 0
+    target_account = position.get("dca_target_account") if position else None
+    shares_to_100 = position.get("shares_to_100") if position else 100
+    bull_ready = bool(position and int(position.get("bull_strangle_ready") or 0))
     reasons = []
     if not allocation_ok:
         reasons.append("market allocation is zero")
@@ -289,10 +330,14 @@ def _build_dca_decision(
         reasons.append("candidate score is below threshold")
     if price_deviation is not None and price_deviation > rules["max_price_deviation_pct"]:
         reasons.append("price deviation exceeds threshold")
+    if positions_available and not position:
+        reasons.append("no current position/account selected for DCA")
+    if bull_ready:
+        reasons.append("single account already has 100 shares; evaluate as Bull Strangle")
 
     if allocation_ok and os_valid and not reasons:
         final = "APPROVE"
-    elif allocation_ok and candidate_score >= rules["minimum_candidate_score"]:
+    elif allocation_ok and candidate_score >= rules["minimum_candidate_score"] and not bull_ready:
         final = "WATCH"
     else:
         final = "SKIP"
@@ -310,16 +355,23 @@ def _build_dca_decision(
         "latest_live_price": row.get("latest_live_stock_price"),
         "weekly_price_trend": trend,
         "max_price_deviation_pct": price_deviation,
+        "selected_account": target_account,
+        "account_shares": account_shares,
+        "consolidated_shares": consolidated_shares,
+        "shares_to_100": shares_to_100,
         "rules_applied_json": json.dumps(rules, sort_keys=True),
         "criteria_json": json.dumps(
             {
                 "market_allocation_ok": bool(allocation_ok),
                 "os_week_valid": bool(os_valid),
                 "candidate_score": candidate_score,
+                "target_account": target_account,
+                "shares_to_100": shares_to_100,
+                "single_account_100_shares": bull_ready,
             },
             sort_keys=True,
         ),
-        "source_snapshot_json": _source_snapshot(row),
+        "source_snapshot_json": _source_snapshot(row, position),
         "reason": "; ".join(reasons) if reasons else "all v1 DCA criteria passed",
     }
 
@@ -354,6 +406,10 @@ def _insert_bull_decisions(conn, rows: list[dict[str, Any]]) -> None:
         "latest_live_stock_price",
         "max_price_deviation_pct",
         "max_credit_deviation",
+        "selected_account",
+        "account_shares",
+        "consolidated_shares",
+        "shares_to_100",
         "rules_applied_json",
         "criteria_json",
         "source_snapshot_json",
@@ -376,6 +432,10 @@ def _insert_dca_decisions(conn, rows: list[dict[str, Any]]) -> None:
         "latest_live_price",
         "weekly_price_trend",
         "max_price_deviation_pct",
+        "selected_account",
+        "account_shares",
+        "consolidated_shares",
+        "shares_to_100",
         "rules_applied_json",
         "criteria_json",
         "source_snapshot_json",
@@ -392,7 +452,7 @@ def _insert_rows(conn, table_name: str, columns: list[str], rows: list[dict[str,
     )
 
 
-def _source_snapshot(row: dict[str, Any]) -> str:
+def _source_snapshot(row: dict[str, Any], position: dict[str, Any] | None = None) -> str:
     snapshot = {
         "newsletter_baseline": {
             "stock_price": row.get("stock_price"),
@@ -407,6 +467,16 @@ def _source_snapshot(row: dict[str, Any]) -> str:
             "latest_live_stock_price": row.get("latest_live_stock_price"),
             "latest_total_credit": row.get("latest_total_credit"),
             "missing_core_value_days": row.get("missing_core_value_days"),
+        },
+        "position_context": {
+            "selected_account": (
+                position.get("eligible_account") or position.get("dca_target_account")
+                if position
+                else None
+            ),
+            "account_shares": position.get("max_account_quantity") if position else None,
+            "consolidated_shares": position.get("total_quantity") if position else None,
+            "shares_to_100": position.get("shares_to_100") if position else None,
         },
     }
     return json.dumps(snapshot, sort_keys=True)
@@ -448,7 +518,17 @@ def _decision_table(title: str, rows: list[dict[str, Any]], limit: int = 12) -> 
     lines = [f"## {title}", ""]
     if not rows:
         return lines + ["None.", ""]
-    headers = ["rank", "symbol", "decision", "credit_or_score", "max_price_dev", "reason"]
+    headers = [
+        "rank",
+        "symbol",
+        "decision",
+        "account",
+        "acct_shares",
+        "to_100",
+        "credit_or_score",
+        "max_price_dev",
+        "reason",
+    ]
     lines.append("| " + " | ".join(headers) + " |")
     lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
     for row in rows[:limit]:
@@ -463,6 +543,9 @@ def _decision_table(title: str, rows: list[dict[str, Any]], limit: int = 12) -> 
                     str(row["priority_rank"]),
                     row["symbol"],
                     row["final_decision"],
+                    str(row.get("selected_account") or ""),
+                    _format_number(row.get("account_shares")),
+                    _format_number(row.get("shares_to_100")),
                     _format_number(credit_or_score),
                     _format_percent(max_price_dev),
                     row["reason"].replace("|", "\\|"),

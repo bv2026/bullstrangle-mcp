@@ -17,6 +17,7 @@ from .tools import (
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
+    ingest_positions_tool,
     list_newsletters_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
@@ -106,6 +107,12 @@ def ingest_os_workbook(
 ) -> dict[str, Any]:
     """Ingest a refreshed Option Samurai workbook into daily OS snapshot tables."""
     return ingest_os_workbook_tool(workbook_path, db_path or default_db_path(), trading_date)
+
+
+@mcp.tool()
+def ingest_positions(csv_path: str, db_path: str | None = None) -> dict[str, Any]:
+    """Ingest account-level positions and symbol rollups from a CSV export."""
+    return ingest_positions_tool(csv_path, db_path or default_db_path())
 
 
 @mcp.tool()

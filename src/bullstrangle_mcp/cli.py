@@ -15,6 +15,7 @@ from .tools import (
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
+    ingest_positions_tool,
     list_newsletters_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
@@ -67,6 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     ingest_os.add_argument("workbook_path")
     ingest_os.add_argument("--trading-date", help="Trading date for the OS snapshot, e.g. 2026-04-22")
+
+    ingest_positions = subparsers.add_parser(
+        "ingest-positions",
+        help="Ingest account-level positions from a CSV export",
+    )
+    ingest_positions.add_argument("csv_path", help="Positions CSV path, e.g. data/positions/positions.csv")
 
     report_os = subparsers.add_parser(
         "report-os-run",
@@ -144,6 +151,9 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
+        return 0
+    if args.command == "ingest-positions":
+        print(json.dumps(ingest_positions_tool(args.csv_path, args.db), indent=2))
         return 0
     if args.command == "report-os-run":
         report = report_os_run_tool(args.run_id, args.db, args.output)

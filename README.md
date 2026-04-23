@@ -46,6 +46,7 @@ bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
 bullstrangle --db data\bullstrangle.db prepare-os-workbook 2026-04-17
 bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
 bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
+bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
 bullstrangle --db data\bullstrangle.db report-os-run 1 --output reports\2026-04-22\os_run_1.md
 bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-22\os_week_2026-04-17.md
 bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json
@@ -99,6 +100,7 @@ Available MCP tools:
 - `prepare_os_workbook`
 - `generate_os_workbook`
 - `ingest_os_workbook`
+- `ingest_positions`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
@@ -129,5 +131,5 @@ Run by layer:
 Current test layers:
 
 - Unit: selector rounding behavior.
-- Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, and weekend decision generation.
+- Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation.
 - E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`.

@@ -14,6 +14,7 @@ from .os_workbooks import (
     generate_os_workbook,
     prepare_os_workbook_record,
 )
+from .positions import ingest_positions
 
 
 def ingest_newsletter_tool(pdf_path: str, db_path: str = str(DEFAULT_DB_PATH)) -> dict[str, Any]:
@@ -166,3 +167,12 @@ def generate_weekend_decisions_tool(
     """Generate weekend Bull Strangle and DCA decisions for one newsletter week."""
     initialize_database(db_path)
     return generate_weekend_decisions(newsletter_date, db_path, decision_date, output_path)
+
+
+def ingest_positions_tool(
+    csv_path: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Ingest account-level positions and symbol rollups from a CSV export."""
+    initialize_database(db_path)
+    return ingest_positions(csv_path, db_path)

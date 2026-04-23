@@ -52,6 +52,7 @@ Core modules:
 - `src/bullstrangle_mcp/os_ingestion.py`: refreshed Excel workbook ingestion.
 - `src/bullstrangle_mcp/os_reports.py`: daily OS run Markdown report generation.
 - `src/bullstrangle_mcp/os_weekly.py`: weekly aggregation across daily OS uploads.
+- `src/bullstrangle_mcp/positions.py`: account-level positions ingestion and symbol rollups.
 - `src/bullstrangle_mcp/decisions.py`: v1 weekend Bull Strangle and DCA candidate decisions.
 - `src/bullstrangle_mcp/tools.py`: MCP-shaped tool wrapper functions.
 - `src/bullstrangle_mcp/cli.py`: command line interface.
@@ -116,6 +117,12 @@ Weekend decisions:
 - `bull_strangle_decisions`
 - `dca_decisions`
 
+Positions:
+
+- `position_import_runs`
+- `account_positions`
+- `symbol_position_rollups`
+
 Important design rule:
 
 - `watchlist_entries` is immutable newsletter baseline data. Daily OS values never overwrite it.
@@ -128,7 +135,8 @@ Important design rule:
 4. OS ingestion reads the workbook, stores one run plus one evaluated row per symbol, and computes deviations against the newsletter baseline.
 5. Daily reporting summarizes one OS run.
 6. Weekly aggregation rolls up all OS runs for a newsletter date.
-7. Weekend decision generation creates one decision batch and separate Bull Strangle/DCA candidate decisions.
+7. Positions ingestion stores account-level holdings and symbol rollups.
+8. Weekend decision generation creates one decision batch and separate Bull Strangle/DCA candidate decisions.
 
 ## Option Samurai Workbook Contract
 
@@ -190,6 +198,15 @@ Account-aware DCA rule:
 - A symbol becomes Bull Strangle eligible only when one account has at least `100` shares.
 - `100` shares split across multiple accounts should not be treated as Bull Strangle-ready.
 
+Implemented position ingestion:
+
+- CLI command: `ingest-positions data\positions\positions.csv`
+- Stores raw account-level rows in `account_positions`.
+- Stores consolidated awareness rollups in `symbol_position_rollups`.
+- Marks `bull_strangle_ready` only when a single account has at least `100` shares.
+- Weekend Bull Strangle decisions now require that single-account readiness when positions have been imported.
+- DCA decisions show selected account, account shares, consolidated shares, and shares needed to reach `100`.
+
 ## MCP Tools
 
 Available tools:
@@ -203,6 +220,7 @@ Available tools:
 - `prepare_os_workbook`
 - `generate_os_workbook`
 - `ingest_os_workbook`
+- `ingest_positions`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
@@ -252,7 +270,7 @@ Run by layer:
 Current expected result:
 
 ```text
-7 passed
+8 passed
 ```
 
 Compile check:

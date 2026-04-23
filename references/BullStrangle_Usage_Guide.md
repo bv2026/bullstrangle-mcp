@@ -156,6 +156,27 @@ The weekly report shows:
 - top price deviations
 - top credit deviations
 
+## Positions Ingestion
+
+Use this after updating `data\positions\positions.csv`.
+
+```powershell
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-positions data\positions\positions.csv
+```
+
+The command stores:
+
+- one import run in `position_import_runs`
+- one row per account/symbol in `account_positions`
+- one symbol-level awareness row in `symbol_position_rollups`
+
+Important:
+
+- Consolidated symbol quantity is used for portfolio awareness.
+- Bull Strangle readiness requires `100` shares in one account.
+- `100` shares split across accounts does not qualify.
+- DCA uses the selected/target account and shares needed to reach `100`.
+
 ## Weekend Decision Generation
 
 Run after the weekly OS uploads are complete.
@@ -242,6 +263,7 @@ Available MCP tools:
 - `prepare_os_workbook`
 - `generate_os_workbook`
 - `ingest_os_workbook`
+- `ingest_positions`
 - `report_os_run`
 - `aggregate_os_week`
 - `generate_weekend_decisions`
