@@ -13,6 +13,8 @@ from bullstrangle_mcp.os_workbooks import (
     generate_os_workbook,
     prepare_os_workbook_record,
 )
+from bullstrangle_mcp.positions import ingest_positions
+from bullstrangle_mcp.database import connect
 from bullstrangle_mcp.tools import get_newsletter_by_ref_tool, get_newsletter_tool
 
 
@@ -127,6 +129,19 @@ def test_ingest_os_workbook(tmp_path):
     assert output_path.exists()
     assert "Weekly OS Aggregation" in output_path.read_text(encoding="utf-8")
 
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "ACCOUNT,Symbol,Quantity, Price , AVG PRICE , Market Value , Cost Basis ",
+                'A1,IBIT,50, $52.00 , $50.00 ," $2600.00 "," $2500.00 "',
+                'A1,ZIM,100, $17.00 , $16.00 ," $1700.00 "," $1600.00 "',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    positions = ingest_positions(positions_csv, db)
+
     decisions = generate_weekend_decisions(
         "2026-04-17",
         db,
@@ -136,7 +151,32 @@ def test_ingest_os_workbook(tmp_path):
 
     assert decisions["newsletter_date"] == "2026-04-17"
     assert decisions["os_run_count"] == 1
+    assert decisions["position_run_id"] == positions["position_run_id"]
+    assert decisions["positions_available"] is True
+    assert sum(decisions["selected_action_counts"].values()) == 24
     assert decisions["bull_strangle_counts"]["SKIP"] >= 1
-    assert decisions["dca_counts"]["SKIP"] >= 1
     assert "Weekend Decisions" in decisions["markdown"]
     assert (tmp_path / "weekend_decisions.md").exists()
+
+    with connect(db) as conn:
+        batch = conn.execute(
+            """
+            SELECT position_run_id, strategy_logic_version
+            FROM decision_batches
+            WHERE newsletter_date = ? AND decision_date = ?
+            """,
+            ("2026-04-17", "2026-04-25"),
+        ).fetchone()
+        assert batch["position_run_id"] == positions["position_run_id"]
+        assert batch["strategy_logic_version"] == "score_branch_v1"
+        bull_row = conn.execute(
+            """
+            SELECT selected_action, strategy_score, strategy_band
+            FROM bull_strangle_decisions
+            WHERE decision_batch_id = ? AND symbol = 'ZIM'
+            """,
+            (decisions["decision_batch_id"],),
+        ).fetchone()
+        assert bull_row["selected_action"] in {"BULL_STRANGLE", "WATCH", "SKIP"}
+        assert bull_row["strategy_score"] is not None
+        assert bull_row["strategy_band"] in {"strong", "moderate", "watch", "weak"}

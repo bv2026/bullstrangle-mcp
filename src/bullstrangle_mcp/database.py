@@ -394,7 +394,9 @@ CREATE TABLE IF NOT EXISTS decision_batches (
     source_run_start_date TEXT,
     source_run_end_date TEXT,
     market_environment_id INTEGER REFERENCES market_environment(env_id) ON DELETE SET NULL,
+    position_run_id INTEGER REFERENCES position_import_runs(position_run_id) ON DELETE SET NULL,
     os_run_count INTEGER NOT NULL DEFAULT 0,
+    strategy_logic_version TEXT,
     status TEXT NOT NULL DEFAULT 'generated',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     source_snapshot_json TEXT,
@@ -414,6 +416,9 @@ CREATE TABLE IF NOT EXISTS bull_strangle_decisions (
     symbol TEXT NOT NULL,
     final_decision TEXT NOT NULL,
     priority_rank INTEGER,
+    selected_action TEXT,
+    strategy_score REAL,
+    strategy_band TEXT,
     market_approved INTEGER NOT NULL DEFAULT 0,
     os_week_valid INTEGER NOT NULL DEFAULT 0,
     latest_total_credit REAL,
@@ -440,6 +445,9 @@ CREATE TABLE IF NOT EXISTS dca_decisions (
     symbol TEXT NOT NULL,
     final_decision TEXT NOT NULL,
     priority_rank INTEGER,
+    selected_action TEXT,
+    strategy_score REAL,
+    strategy_band TEXT,
     market_allocation_ok INTEGER NOT NULL DEFAULT 0,
     dca_candidate_score REAL,
     latest_live_price REAL,
@@ -817,7 +825,9 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
             source_run_start_date TEXT,
             source_run_end_date TEXT,
             market_environment_id INTEGER REFERENCES market_environment(env_id) ON DELETE SET NULL,
+            position_run_id INTEGER REFERENCES position_import_runs(position_run_id) ON DELETE SET NULL,
             os_run_count INTEGER NOT NULL DEFAULT 0,
+            strategy_logic_version TEXT,
             status TEXT NOT NULL DEFAULT 'generated',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             source_snapshot_json TEXT,
@@ -837,6 +847,9 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
             symbol TEXT NOT NULL,
             final_decision TEXT NOT NULL,
             priority_rank INTEGER,
+            selected_action TEXT,
+            strategy_score REAL,
+            strategy_band TEXT,
             market_approved INTEGER NOT NULL DEFAULT 0,
             os_week_valid INTEGER NOT NULL DEFAULT 0,
             latest_total_credit REAL,
@@ -863,6 +876,9 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
             symbol TEXT NOT NULL,
             final_decision TEXT NOT NULL,
             priority_rank INTEGER,
+            selected_action TEXT,
+            strategy_score REAL,
+            strategy_band TEXT,
             market_allocation_ok INTEGER NOT NULL DEFAULT 0,
             dca_candidate_score REAL,
             latest_live_price REAL,
@@ -886,7 +902,12 @@ def ensure_decision_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_dca_decisions_newsletter_date ON dca_decisions(newsletter_date)"
     )
+    ensure_column(conn, "decision_batches", "position_run_id", "INTEGER")
+    ensure_column(conn, "decision_batches", "strategy_logic_version", "TEXT")
     for table_name in ["bull_strangle_decisions", "dca_decisions"]:
+        ensure_column(conn, table_name, "selected_action", "TEXT")
+        ensure_column(conn, table_name, "strategy_score", "REAL")
+        ensure_column(conn, table_name, "strategy_band", "TEXT")
         ensure_column(conn, table_name, "selected_account", "TEXT")
         ensure_column(conn, table_name, "account_shares", "REAL")
         ensure_column(conn, table_name, "consolidated_shares", "REAL")

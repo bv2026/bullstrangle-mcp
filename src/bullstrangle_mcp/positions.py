@@ -35,6 +35,10 @@ def ingest_positions(
     total_market_value = sum(row["market_value"] or 0 for row in rows)
     total_cost_basis = sum(row["cost_basis"] or 0 for row in rows)
     validation = _validate_rows(rows)
+    if validation["duplicate_account_symbol_rows"]:
+        raise ValueError(
+            f"Duplicate account/symbol rows found in positions CSV: {validation['duplicate_account_symbol_rows']}"
+        )
 
     with connect(db_path) as conn:
         cur = conn.execute(
@@ -80,13 +84,19 @@ def ingest_positions(
 def latest_position_rollups(
     db_path: str | Path = DEFAULT_DB_PATH,
 ) -> dict[str, dict[str, Any]]:
+    return latest_position_state(db_path)[1]
+
+
+def latest_position_state(
+    db_path: str | Path = DEFAULT_DB_PATH,
+) -> tuple[int | None, dict[str, dict[str, Any]]]:
     initialize_database(db_path)
     with connect(db_path) as conn:
         run = conn.execute(
             "SELECT MAX(position_run_id) AS position_run_id FROM position_import_runs"
         ).fetchone()
         if not run or run["position_run_id"] is None:
-            return {}
+            return None, {}
         rows = conn.execute(
             """
             SELECT *
@@ -95,7 +105,7 @@ def latest_position_rollups(
             """,
             (run["position_run_id"],),
         ).fetchall()
-    return {row["symbol"]: dict(row) for row in rows}
+    return int(run["position_run_id"]), {row["symbol"]: dict(row) for row in rows}
 
 
 def _read_positions(path: Path) -> list[dict[str, Any]]:
