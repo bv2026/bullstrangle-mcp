@@ -81,13 +81,13 @@ bullstrangle --db data\bullstrangle.db list-newsletters
 Show one newsletter by date:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-17
+bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-24
 ```
 
 Show symbol history and whether it is new this week:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-17
+bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-24
 ```
 
 ## Generate The OS Workbook
@@ -95,19 +95,19 @@ bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 202
 Check calculated selectors:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
+bullstrangle --db data\bullstrangle.db os-selectors 2026-04-24
 ```
 
 Generate the Excel workbook:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\os_workbooks
 ```
 
 Current generated file:
 
 ```text
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
+outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
 ```
 
 Inbound refreshed workbook folder:
@@ -135,7 +135,7 @@ Use this after market opens and Option Samurai can return live data.
 Ingest command:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-23
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-23
 ```
 
 Use the actual trading date for `--trading-date`.
@@ -174,13 +174,13 @@ bullstrangle --db data\bullstrangle.db report-os-run 2 --json
 Run this after one or more daily OS uploads. It can be run any time; it recomputes the weekly aggregate table for the newsletter date.
 
 ```powershell
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-23\os_week_2026-04-17.md
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output reports\2026-04-23\os_week_2026-04-24.md
 ```
 
 To print full JSON:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --json
 ```
 
 The weekly report shows:
@@ -219,13 +219,13 @@ Run after the weekly OS uploads are complete.
 Example:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output reports\2026-04-25\weekend_decisions_2026-04-17.md
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-24 --decision-date 2026-04-25 --output reports\2026-04-25\weekend_decisions_2026-04-24.md
 ```
 
 To print full JSON:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --json
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-24 --decision-date 2026-04-25 --json
 ```
 
 Current v1 output includes:
@@ -343,7 +343,7 @@ Portfolio tools:
 Example symbol-history prompt:
 
 ```text
-Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter date 2026-04-17. Tell me whether it is new, when it first appeared, and which prior newsletters included it.
+Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter date 2026-04-24. Tell me whether it is new, when it first appeared, and which prior newsletters included it.
 ```
 
 Use `list_strategy_rules` with `category="decision_threshold"` to inspect the
@@ -390,7 +390,7 @@ python -m compileall -q src
 Generated workbook:
 
 ```text
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
+outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
 ```
 
 Inbound OS upload folder:
@@ -403,16 +403,16 @@ Generated reports:
 
 ```text
 reports\2026-04-22\os_run_1.md
-reports\2026-04-22\os_week_2026-04-17.md
-reports\2026-04-22\weekend_decisions_2026-04-17.md
+reports\2026-04-22\os_week_2026-04-24.md
+reports\2026-04-22\weekend_decisions_2026-04-24.md
 ```
 
 Canonical current files:
 
 ```text
 data\positions\positions.csv
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
-data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx
+outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
+data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx
 ```
 
 Current local April 17 status:
@@ -428,7 +428,7 @@ Current local April 17 status:
 
 When the market opens:
 
-1. Copy `outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx` to `data\os_uploads`.
+1. Copy `outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx` to `data\os_uploads`.
 2. Open the copy in `data\os_uploads`.
 3. Refresh Option Samurai formulas in Excel.
 4. Save the workbook.
