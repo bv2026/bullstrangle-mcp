@@ -1,7 +1,7 @@
 # BullStrangle Implementation Plan v3
 
 Date: 2026-04-26
-Status: ACTIVE — Phase 1 complete
+Status: ACTIVE — Phase 2 complete
 
 ## Progress
 
@@ -9,8 +9,8 @@ Status: ACTIVE — Phase 1 complete
 |---|---|---|
 | 0 | Master Document rule extraction → `master_document_rule_inventory.md` | ✅ Done (2026-04-26) |
 | 1 | Schema migration 3 + earnings calendar wiring | ✅ Done (2026-04-26) |
-| 2 | `rule_catalog.py` — load and query `strategy_rule_catalog` | 🔲 Next |
-| 3 | `entry_engine.py` — Gates 1–9 evaluation | 🔲 Pending |
+| 2 | `rule_catalog.py` — load and query `strategy_rule_catalog` | ✅ Done (2026-04-26) |
+| 3 | `entry_engine.py` — Gates 1–9 evaluation | 🔲 Next |
 | 4 | `exit_engine.py` — EXPIRY rules | 🔲 Pending |
 | 5 | `position_book.py` — layer lifecycle, book sync | 🔲 Pending |
 | 6 | Tool registration (15 new MCP tools + CLI) | 🔲 Pending |
@@ -166,21 +166,17 @@ Estimated output: 40–60 rows covering the 9 entry gates and 4 exit rules at mi
 
 ---
 
-#### Phase 2 — Rule Catalog Module
+#### Phase 2 — Rule Catalog Module ✅ DONE
 
-**File:** `src/bullstrangle_mcp/rule_catalog.py`
+**Commit:** `1fe4a3f` — 2026-04-26
 
-```
-load_rule_catalog(db_path) → seeds strategy_rule_catalog from master_document_rule_inventory.md
-get_gate_rules(db_path, rule_area) → list[RuleDefinition]
-get_rule(db_path, rule_id) → RuleDefinition
-```
+**`src/bullstrangle_mcp/rule_catalog.py`** — `RuleDefinition` dataclass; `load_rule_catalog()` seeds `strategy_rule_catalog` with 47 rules using `INSERT OR IGNORE` (idempotent); `get_rule()`, `get_gate_rules()`, `list_rule_catalog()` (MCP-shaped, auto-seeds on first call).
 
-Every `RuleDefinition` carries `rule_id`, `rule_type`, `parameters_json`, `source_section`. No gate in Phase 3 may hard-code a numeric threshold — it must call `get_rule()`.
+**New MCP tools:** `list_rule_catalog` (filter by area/type), `get_rule` (fetch one rule with parsed parameters dict). **New CLI commands:** `list-rule-catalog`, `get-rule`.
 
-**New tools:** `list_rule_catalog`, `get_rule`
+**Note:** The inventory `.md` summary said 43 rules; actual section-by-section count is 47 (8+4+8+7+4+8+5+3). Tests are data-driven against `_SEED_RULES`.
 
-**Test:** Unit — `load_rule_catalog` seeds rows; `get_rule("GATE-001")` returns expected parameters.
+**Tests added:** 18 new unit tests in `test_unit_rule_catalog.py`. Suite: **81 passed**.
 
 ---
 
@@ -312,10 +308,10 @@ Keep: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed
 | Category | Existing | To Build | Built |
 |---|---|---|---|
 | DB tables | 24 | 5 | 5 ✅ |
-| Source modules | 12 | 4 | 0 |
-| MCP tools | 30 | 15 | 0 |
+| Source modules | 12 | 4 | 1 ✅ (`rule_catalog.py`) |
+| MCP tools | 30 | 15 | 2 ✅ (`list_rule_catalog`, `get_rule`) |
 | Reference docs | 9 | 1 (rule inventory) | 1 ✅ |
-| **Total** | **75** | **25** | **6** |
+| **Total** | **75** | **25** | **9** |
 
 ---
 

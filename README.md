@@ -237,6 +237,8 @@ bullstrangle-mcp-server
 
 - `generate_weekend_decisions` — produce weekend Bull Strangle and DCA decision outputs
 - `list_strategy_rules` — inspect strategy/rule rows, including tunable decision thresholds
+- `list_rule_catalog` — list v3 Master Document rules; filter by area (stock_selection, earnings, exit…) or type (hard_gate, hard_rule, optional_overlay…)
+- `get_rule` — fetch a single rule by rule_id with parsed parameters dict (e.g. `GATE-SS-005` → `min_earnings_clear_days: 45`)
 
 ### Portfolio tools
 
@@ -303,17 +305,27 @@ python -m compileall -q src
 
 Current test layers:
 
-- Unit: selector rounding, ingestion safety (force flag), DB WAL/index checks, position ingestion, parser fixtures (`parse_watchlist_option_prices`, `parse_market_environment`), strategy-context builder (`_build_strategy_context`), migration idempotency (`_m003_v3_cycle_model`), earnings calendar wiring (`insert_earnings_calendar`), earnings date parsing (`_parse_earnings_date`). No PDF required.
+- Unit: selector rounding, ingestion safety (force flag), DB WAL/index checks, position ingestion, parser fixtures (`parse_watchlist_option_prices`, `parse_market_environment`), strategy-context builder (`_build_strategy_context`), migration idempotency (`_m003_v3_cycle_model`), earnings calendar wiring (`insert_earnings_calendar`), earnings date parsing (`_parse_earnings_date`), rule catalog seeding/idempotency/filtering (`rule_catalog.py`). No PDF required.
 - Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation. *(requires newsletter PDF in `data/newsletters/`)*
 - E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`. *(requires newsletter PDF)*
 
 Current expected result:
 
 ```text
-63 passed
+81 passed
 ```
 
 ## Changelog
+
+### 2026-04-26 — Phase 2: rule_catalog.py
+
+New module `rule_catalog.py` seeds `strategy_rule_catalog` with all 47 rules extracted from the Master Document (8 areas, 6 types). Auto-seeds on first MCP/CLI call using `INSERT OR IGNORE` — idempotent.
+
+**New MCP tools:** `list_rule_catalog` (filter by area/type), `get_rule` (fetch one rule with parsed parameters dict). **New CLI commands:** `list-rule-catalog`, `get-rule`.
+
+Total MCP tools: **32** (was 30). Tests: **81 passed** (was 63, +18 rule catalog unit tests).
+
+---
 
 ### 2026-04-26 — Phase 1: v3 cycle model schema migration
 
