@@ -588,9 +588,14 @@ def generate_exit_report(
     """
     Generate a markdown exit monitoring report for all ACTIVE positions.
 
-    Fetches live prices (unless include_live_price=False), evaluates all
-    triggers, and returns a report grouped by urgency tier.
+    Auto-resolves any expired positions first (so the report always reflects
+    the true current state), then fetches live prices for remaining ACTIVE
+    layers and evaluates all triggers.  Report is grouped by urgency tier.
     """
+    # Auto-resolve expired positions before building the report
+    from .position_book import auto_resolve_expired
+    auto_result = auto_resolve_expired(db_path)
+
     decisions = evaluate_exit_batch(db_path, include_live_price=include_live_price)
 
     today = date.today().isoformat()
@@ -598,6 +603,18 @@ def generate_exit_report(
     lines.append("# Bull Strangle Exit Monitoring Report")
     lines.append("")
     lines.append(f"**Date:** {today}  **Active positions:** {len(decisions)}")
+
+    # Surface any auto-resolved positions
+    if auto_result.get("auto_resolved") and auto_result.get("total_resolved", 0) > 0:
+        lines.append("")
+        lines.append(f"_Auto-resolved {auto_result['total_resolved']} expired position(s):_")
+        for wk in auto_result.get("weeks", []):
+            for outcome in wk.get("outcomes", []):
+                pnl_str = f"${outcome['pnl']:+.0f}" if outcome.get("pnl") is not None else "?"
+                lines.append(
+                    f"- **{outcome['symbol']}** exp {wk['newsletter_date']} "
+                    f"→ {outcome['outcome']} ({pnl_str})"
+                )
     lines.append("")
 
     if not decisions:

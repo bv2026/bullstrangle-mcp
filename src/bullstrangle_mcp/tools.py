@@ -18,6 +18,7 @@ from .os_workbooks import (
     prepare_os_workbook_record,
 )
 from .position_book import (
+    auto_resolve_expired,
     backtest_all,
     generate_backtest_report,
     resolve_outcomes,
@@ -851,6 +852,19 @@ def list_strategy_rules_tool(
         result.append(entry)
 
     return result
+
+
+def auto_resolve_expired_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Scan for ACTIVE layers whose expiration has passed and resolve them automatically.
+
+    Calls resolve_outcomes for every expired newsletter week.  Safe to run
+    repeatedly — already-CLOSED layers are untouched.  Returns a summary of
+    what was resolved and the P&L for each position.
+    """
+    initialize_database(db_path)
+    return auto_resolve_expired(db_path)
 
 
 def seed_cycle_layers_tool(

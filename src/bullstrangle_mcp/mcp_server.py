@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from .database import DEFAULT_DB_PATH
 from .tools import (
     aggregate_os_week_tool,
+    auto_resolve_expired_tool,
     backtest_all_tool,
     calculate_os_selectors_tool,
     check_deployment_approval_tool,
@@ -431,6 +432,21 @@ def search_commentary(
     newsletter date and section name.
     """
     return search_commentary_tool(query, limit, db_path or default_db_path())
+
+
+@mcp.tool()
+def auto_resolve_expired(db_path: str | None = None) -> dict[str, Any]:
+    """Scan for ACTIVE cycle_layers whose expiration has passed and close them.
+
+    Automatically calls resolve_outcomes for every expired newsletter week —
+    fetches the yfinance closing price at expiration, computes P&L, and marks
+    the layer CLOSED with the correct outcome (BOTH_OTM / CALL_ASSIGNED /
+    PUT_ASSIGNED).  Safe to run daily; already-closed layers are untouched.
+
+    Run this every Monday morning (or schedule it) so the book is always
+    current before you review the weekly action plan.
+    """
+    return auto_resolve_expired_tool(db_path or default_db_path())
 
 
 @mcp.tool()

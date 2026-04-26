@@ -7,6 +7,7 @@ from pathlib import Path
 from .database import DEFAULT_DB_PATH, initialize_database
 from .tools import (
     aggregate_os_week_tool,
+    auto_resolve_expired_tool,
     backtest_all_tool,
     calculate_os_selectors_tool,
     evaluate_entry_tool,
@@ -288,6 +289,11 @@ def main(argv: list[str] | None = None) -> int:
         help="List persisted exit_decisions rows",
     )
 
+    subparsers.add_parser(
+        "auto-resolve",
+        help="Auto-resolve expired ACTIVE positions (fetch yfinance close, compute P&L)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "init-db":
@@ -481,6 +487,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "list-exit-decisions":
         print(json.dumps(list_exit_decisions_tool(args.db), indent=2))
+        return 0
+    if args.command == "auto-resolve":
+        result = auto_resolve_expired_tool(args.db)
+        if not result["auto_resolved"]:
+            print(result["message"])
+        else:
+            print(f"Resolved {result['total_resolved']} position(s) across {result['weeks_processed']} week(s):")
+            for wk in result["weeks"]:
+                print(f"\n  {wk['newsletter_date']}:")
+                for outcome in wk["outcomes"]:
+                    pnl_str = f"${outcome['pnl']:+.0f}" if outcome.get("pnl") is not None else "?"
+                    print(f"    {outcome['symbol']:8s} -> {outcome['outcome']} ({pnl_str})")
         return 0
 
     parser.error(f"Unknown command: {args.command}")

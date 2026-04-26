@@ -398,6 +398,63 @@ def resolve_outcomes(
     }
 
 
+def auto_resolve_expired(db_path: str | Path) -> dict[str, Any]:
+    """Find all ACTIVE layers whose expiration_date has passed and resolve them.
+
+    Calls ``resolve_outcomes`` for every unique newsletter date that has at least
+    one expired ACTIVE layer.  Safe to call repeatedly — already-closed layers
+    are ignored by ``resolve_outcomes``.
+
+    Returns a summary of which weeks were processed and what was resolved.
+    """
+    initialize_database(db_path)
+    today = date.today().isoformat()
+
+    with connect(db_path) as conn:
+        expired_weeks = conn.execute(
+            """
+            SELECT DISTINCT n.publication_date
+            FROM cycle_layers cl
+            JOIN newsletters n ON n.newsletter_id = cl.newsletter_id
+            WHERE cl.status = 'ACTIVE'
+              AND cl.expiration_date <= ?
+              AND cl.account_id = ?
+            ORDER BY n.publication_date
+            """,
+            (today, PAPER_ACCOUNT),
+        ).fetchall()
+
+    if not expired_weeks:
+        return {
+            "auto_resolved": False,
+            "message": "No expired ACTIVE layers found",
+            "weeks_checked": [],
+        }
+
+    weeks_summary = []
+    for row in expired_weeks:
+        pub = row["publication_date"]
+        result = resolve_outcomes(pub, db_path)
+        weeks_summary.append({
+            "newsletter_date": pub,
+            "resolved": len(result["resolved"]),
+            "failed": len(result["failed"]),
+            "outcomes": [
+                {"symbol": r["symbol"], "outcome": r["outcome"], "pnl": r["pnl_total"]}
+                for r in result["resolved"]
+            ],
+        })
+
+    total_resolved = sum(w["resolved"] for w in weeks_summary)
+    return {
+        "auto_resolved": True,
+        "today": today,
+        "weeks_processed": len(weeks_summary),
+        "total_resolved": total_resolved,
+        "weeks": weeks_summary,
+    }
+
+
 def backtest_all(
     db_path: str | Path,
     portfolio_type: str = "small",
