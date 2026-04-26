@@ -123,6 +123,16 @@ def compute_weekly_summary(
          deployment_approved, action_taken, positions_deployed, symbols_deployed,
          decision_rationale)
         VALUES (?, ?, ?, ?, ?, ?, 0, '[]', ?)
+        ON CONFLICT(newsletter_id) DO UPDATE SET
+            publication_date = excluded.publication_date,
+            all_criteria_met = excluded.all_criteria_met,
+            consecutive_weeks_met = excluded.consecutive_weeks_met,
+            deployment_approved = excluded.deployment_approved,
+            action_taken = excluded.action_taken,
+            positions_deployed = excluded.positions_deployed,
+            symbols_deployed = excluded.symbols_deployed,
+            decision_rationale = excluded.decision_rationale,
+            decision_timestamp = CURRENT_TIMESTAMP
         """,
         (
             newsletter_id,
@@ -150,6 +160,7 @@ def compute_weekly_summary(
         "SELECT * FROM watchlist_entries WHERE newsletter_id = ? ORDER BY symbol",
         (newsletter_id,),
     ).fetchall()
+    conn.execute("DELETE FROM symbol_history WHERE newsletter_id = ?", (newsletter_id,))
     for entry in entries:
         on_short = entry["symbol"] in short_map
         conn.execute(
@@ -284,6 +295,7 @@ def generate_weekend_decisions(
             ).fetchall()
         }
 
+        loaded_rules = load_decision_rules(conn)
         batch_id = _upsert_batch(
             conn,
             newsletter=dict(newsletter),
@@ -293,6 +305,7 @@ def generate_weekend_decisions(
             source_start=source_dates["start_date"],
             source_end=source_dates["end_date"],
             position_run_id=position_run_id,
+            rules=loaded_rules,
         )
         conn.execute("DELETE FROM bull_strangle_decisions WHERE decision_batch_id = ?", (batch_id,))
         conn.execute("DELETE FROM dca_decisions WHERE decision_batch_id = ?", (batch_id,))
@@ -309,7 +322,6 @@ def generate_weekend_decisions(
             (newsletter["newsletter_id"],),
         ).fetchall()
 
-        loaded_rules = load_decision_rules(conn)
         bull_rows = []
         dca_rows = []
         for row in rows:
@@ -409,6 +421,7 @@ def _upsert_batch(
     source_start: str | None,
     source_end: str | None,
     position_run_id: int | None,
+    rules: dict[str, Any],
 ) -> int:
     snapshot = {
         "market_environment": {
@@ -424,7 +437,7 @@ def _upsert_batch(
             "invalid_symbol_count": aggregate["invalid_symbol_count"],
             "run_ids": aggregate["run_ids"],
         },
-        "rules": DEFAULT_RULES,
+        "rules": rules,
         "strategy_logic_version": STRATEGY_LOGIC_VERSION,
         "position_run_id": position_run_id,
     }

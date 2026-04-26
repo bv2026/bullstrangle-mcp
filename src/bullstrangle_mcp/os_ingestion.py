@@ -47,6 +47,7 @@ def ingest_os_workbook(
         headers = _read_headers(values_ws)
         records = _read_records(values_ws, headers)
         formula_cell_count = _count_formula_cells(formula_ws, headers, len(records))
+        metadata = _read_metadata(values_wb)
     finally:
         formula_wb.close()
         values_wb.close()
@@ -57,7 +58,7 @@ def ingest_os_workbook(
     newsletter_id = int(records[0]["newsletter_id"])
     newsletter_date = str(records[0]["newsletter_date"])
     expiration_date = records[0].get("expiration_date")
-    workbook_id = _find_workbook_id(db_path, newsletter_id, path)
+    workbook_id = _find_workbook_id(db_path, newsletter_id, path, metadata, records[0])
     populated_live_value_count = _count_populated_live_values(records)
     validation = {
         "missing_live_value_count": _count_missing_live_values(records),
@@ -66,6 +67,34 @@ def ingest_os_workbook(
     status = "ingested" if populated_live_value_count else "ingested_no_cached_values"
 
     with connect(db_path) as conn:
+        newsletter = conn.execute(
+            """
+            SELECT newsletter_id, publication_date, target_expiration
+            FROM newsletters
+            WHERE newsletter_id = ?
+            """,
+            (newsletter_id,),
+        ).fetchone()
+        if not newsletter:
+            raise ValueError(f"Workbook references unknown newsletter_id: {newsletter_id}")
+        if newsletter_date != newsletter["publication_date"]:
+            raise ValueError(
+                "Workbook newsletter_date does not match database newsletter: "
+                f"{newsletter_date} != {newsletter['publication_date']}"
+            )
+        if expiration_date and expiration_date != newsletter["target_expiration"]:
+            raise ValueError(
+                "Workbook expiration_date does not match database newsletter: "
+                f"{expiration_date} != {newsletter['target_expiration']}"
+            )
+        baseline_rows = {
+            int(row["entry_id"]): dict(row)
+            for row in conn.execute(
+                "SELECT * FROM watchlist_entries WHERE newsletter_id = ?", (newsletter_id,)
+            ).fetchall()
+        }
+        _validate_records(records, newsletter_id, newsletter_date, expiration_date, baseline_rows)
+
         cur = conn.execute(
             """
             INSERT INTO os_evaluation_runs
@@ -91,12 +120,6 @@ def ingest_os_workbook(
             ),
         )
         run_id = int(cur.lastrowid)
-        baseline_rows = {
-            row["entry_id"]: dict(row)
-            for row in conn.execute(
-                "SELECT * FROM watchlist_entries WHERE newsletter_id = ?", (newsletter_id,)
-            ).fetchall()
-        }
         for record in records:
             _insert_evaluation_row(conn, run_id, record)
             baseline = baseline_rows.get(int(record["watchlist_entry_id"]))
@@ -149,6 +172,17 @@ def _read_records(ws, headers: list[str]) -> list[dict[str, Any]]:
     return records
 
 
+def _read_metadata(wb) -> dict[str, Any]:
+    if "Metadata" not in wb.sheetnames:
+        return {}
+    ws = wb["Metadata"]
+    metadata: dict[str, Any] = {}
+    for key, value in ws.iter_rows(min_row=2, max_col=2, values_only=True):
+        if key:
+            metadata[str(key)] = value
+    return metadata
+
+
 def _count_formula_cells(ws, headers: list[str], row_count: int) -> int:
     total = 0
     for row in ws.iter_rows(
@@ -164,9 +198,29 @@ def _count_formula_cells(ws, headers: list[str], row_count: int) -> int:
     return total
 
 
-def _find_workbook_id(db_path: str | Path, newsletter_id: int, path: Path) -> int | None:
+def _find_workbook_id(
+    db_path: str | Path,
+    newsletter_id: int,
+    path: Path,
+    metadata: dict[str, Any] | None = None,
+    first_record: dict[str, Any] | None = None,
+) -> int | None:
     resolved = str(path.resolve())
     with connect(db_path) as conn:
+        metadata = metadata or {}
+        workbook_id = _int_or_none(metadata.get("workbook_id"))
+        if workbook_id is not None:
+            row = conn.execute(
+                """
+                SELECT workbook_id
+                FROM os_workbooks
+                WHERE workbook_id = ? AND newsletter_id = ?
+                """,
+                (workbook_id, newsletter_id),
+            ).fetchone()
+            if row:
+                return int(row["workbook_id"])
+
         row = conn.execute(
             """
             SELECT workbook_id
@@ -178,7 +232,69 @@ def _find_workbook_id(db_path: str | Path, newsletter_id: int, path: Path) -> in
             """,
             (newsletter_id, resolved),
         ).fetchone()
-    return int(row["workbook_id"]) if row else None
+        if row:
+            return int(row["workbook_id"])
+
+        template_version = metadata.get("template_version")
+        selector_source = (
+            (first_record or {}).get("selector_source")
+            or metadata.get("selector_source")
+        )
+        if template_version and selector_source:
+            row = conn.execute(
+                """
+                SELECT workbook_id
+                FROM os_workbooks
+                WHERE newsletter_id = ?
+                  AND template_version = ?
+                  AND selector_source = ?
+                ORDER BY workbook_id DESC
+                LIMIT 1
+                """,
+                (newsletter_id, template_version, selector_source),
+            ).fetchone()
+            if row:
+                return int(row["workbook_id"])
+    return None
+
+
+def _validate_records(
+    records: list[dict[str, Any]],
+    newsletter_id: int,
+    newsletter_date: str,
+    expiration_date: Any,
+    baseline_rows: dict[int, dict[str, Any]],
+) -> None:
+    seen_entry_ids: set[int] = set()
+    for index, record in enumerate(records, start=DATA_START_ROW):
+        row_newsletter_id = _int_or_none(record.get("newsletter_id"))
+        if row_newsletter_id != newsletter_id:
+            raise ValueError(
+                f"OS_Live row {index} has mixed newsletter_id: {row_newsletter_id} != {newsletter_id}"
+            )
+        if str(record.get("newsletter_date")) != newsletter_date:
+            raise ValueError(
+                f"OS_Live row {index} has mixed newsletter_date: {record.get('newsletter_date')} != {newsletter_date}"
+            )
+        if expiration_date and record.get("expiration_date") != expiration_date:
+            raise ValueError(
+                f"OS_Live row {index} has mixed expiration_date: {record.get('expiration_date')} != {expiration_date}"
+            )
+        entry_id = _int_or_none(record.get("watchlist_entry_id"))
+        if entry_id is None:
+            raise ValueError(f"OS_Live row {index} is missing watchlist_entry_id")
+        if entry_id in seen_entry_ids:
+            raise ValueError(f"OS_Live row {index} duplicates watchlist_entry_id: {entry_id}")
+        seen_entry_ids.add(entry_id)
+
+        baseline = baseline_rows.get(entry_id)
+        if not baseline:
+            raise ValueError(f"OS_Live row {index} references unknown watchlist_entry_id: {entry_id}")
+        if record.get("symbol") != baseline["symbol"]:
+            raise ValueError(
+                f"OS_Live row {index} symbol does not match watchlist_entry_id {entry_id}: "
+                f"{record.get('symbol')} != {baseline['symbol']}"
+            )
 
 
 def _count_populated_live_values(records: list[dict[str, Any]]) -> int:
@@ -320,6 +436,15 @@ def _string_or_none(value: Any) -> str | None:
     if value in (None, ""):
         return None
     return str(value)
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _num(value: Any) -> float | None:

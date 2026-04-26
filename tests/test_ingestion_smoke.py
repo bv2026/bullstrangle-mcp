@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,7 @@ def test_ingest_os_workbook(tmp_path):
     assert result["row_count"] == 24
     assert result["formula_cell_count"] > 0
     assert result["status"] in {"ingested", "ingested_no_cached_values"}
+    assert result["workbook_id"] == generated["workbook_id"]
 
     report = report_os_run(result["run_id"], db)
 
@@ -191,6 +193,41 @@ def test_ingest_os_workbook(tmp_path):
 
 
 @pytest.mark.integration
+def test_ingest_os_workbook_rejects_mixed_newsletter_rows(tmp_path):
+    pdf = require_sample_pdf()
+    db = tmp_path / "bullstrangle.db"
+    output_dir = tmp_path / "os_workbooks"
+    ingest_newsletter(pdf, db)
+    generated = generate_os_workbook("2026-04-17", db, output_dir)
+
+    workbook_path = Path(generated["generated_path"])
+    workbook = load_workbook(workbook_path)
+    workbook["OS_Live"]["A11"] = 999
+    workbook.save(workbook_path)
+    workbook.close()
+
+    with pytest.raises(ValueError, match="mixed newsletter_id"):
+        ingest_os_workbook(workbook_path, db, trading_date="2026-04-22")
+
+
+@pytest.mark.integration
+def test_ingest_os_workbook_uploaded_copy_keeps_workbook_lineage(tmp_path):
+    pdf = require_sample_pdf()
+    db = tmp_path / "bullstrangle.db"
+    output_dir = tmp_path / "os_workbooks"
+    upload_dir = tmp_path / "os_uploads"
+    upload_dir.mkdir()
+    ingest_newsletter(pdf, db)
+    generated = generate_os_workbook("2026-04-17", db, output_dir)
+    uploaded = upload_dir / Path(generated["generated_path"]).name
+    shutil.copy2(generated["generated_path"], uploaded)
+
+    result = ingest_os_workbook(uploaded, db, trading_date="2026-04-22")
+
+    assert result["workbook_id"] == generated["workbook_id"]
+
+
+@pytest.mark.integration
 def test_generate_weekend_decisions_rule_sensitivity_via_db(tmp_path):
     """DB-modified thresholds are reflected in stored decisions; DCA path completes cleanly.
 
@@ -255,7 +292,17 @@ def test_generate_weekend_decisions_rule_sensitivity_via_db(tmp_path):
             """,
             (decisions_tight["decision_batch_id"],),
         ).fetchone()
+        batch = conn.execute(
+            """
+            SELECT source_snapshot_json
+            FROM decision_batches
+            WHERE decision_batch_id = ?
+            """,
+            (decisions_tight["decision_batch_id"],),
+        ).fetchone()
     applied = json.loads(sample["rules_applied_json"])
+    snapshot = json.loads(batch["source_snapshot_json"])
     assert applied["max_credit_deviation"] == pytest.approx(custom_value), (
         f"Expected rules_applied_json to reflect DB value {custom_value}, got {applied}"
     )
+    assert snapshot["rules"]["bull_strangle"]["max_credit_deviation"] == pytest.approx(custom_value)

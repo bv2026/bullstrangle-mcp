@@ -7,6 +7,8 @@ import pytest
 
 from bullstrangle_mcp import ingestion
 from bullstrangle_mcp.database import connect, initialize_database
+from bullstrangle_mcp.decisions import compute_weekly_summary
+from bullstrangle_mcp.mcp_server import default_newsletters_dir, default_os_workbooks_dir
 
 
 def _patch_minimal_ingestion(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,6 +134,32 @@ def test_ingest_newsletter_requires_force_to_replace(tmp_path, monkeypatch: pyte
         assert len(newsletters) == 1
         assert newsletters[0]["newsletter_id"] == replaced["newsletter_id"]
         assert replaced["newsletter_id"] != first["newsletter_id"]
+
+
+def test_compute_weekly_summary_can_recompute_without_unique_failures(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    _patch_minimal_ingestion(monkeypatch)
+    db = tmp_path / "bullstrangle.db"
+    pdf = tmp_path / "sample.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    result = ingestion.ingest_newsletter(pdf, db)
+
+    with connect(db) as conn:
+        compute_weekly_summary(conn, result["newsletter_id"], date(2026, 4, 17))
+        conn.commit()
+        weekly_count = conn.execute("SELECT COUNT(*) FROM weekly_decisions").fetchone()[0]
+        history_count = conn.execute("SELECT COUNT(*) FROM symbol_history").fetchone()[0]
+
+    assert weekly_count == 1
+    assert history_count == 1
+
+
+def test_mcp_data_paths_derive_from_bullstrangle_db_when_data_dir_missing(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    data_dir = tmp_path / "data"
+    monkeypatch.delenv("BULLSTRANGLE_DATA_DIR", raising=False)
+    monkeypatch.setenv("BULLSTRANGLE_DB", str(data_dir / "bullstrangle.db"))
+
+    assert Path(default_newsletters_dir()) == data_dir / "newsletters"
+    assert Path(default_os_workbooks_dir()) == tmp_path / "outputs" / "os_workbooks"
 
 
 def test_ingest_directory_continues_after_pdf_error(tmp_path, monkeypatch: pytest.MonkeyPatch):

@@ -47,9 +47,12 @@ SERVER_NAME = "bullstrangle-mcp"
 
 
 def _data_dir() -> Path | None:
-    """Return the configured data directory, or None if not set."""
+    """Return the configured or DB-derived data directory, or None if not set."""
     d = os.environ.get("BULLSTRANGLE_DATA_DIR")
-    return Path(d) if d else None
+    if d:
+        return Path(d)
+    db = os.environ.get("BULLSTRANGLE_DB")
+    return Path(db).parent if db else None
 
 
 def default_db_path() -> str:
