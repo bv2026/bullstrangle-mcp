@@ -1,11 +1,25 @@
 # BullStrangle Implementation Plan v3
 
 Date: 2026-04-26
-Status: ACTIVE
+Status: ACTIVE — Phase 1 complete
+
+## Progress
+
+| Phase | Description | Status |
+|---|---|---|
+| 0 | Master Document rule extraction → `master_document_rule_inventory.md` | ✅ Done (2026-04-26) |
+| 1 | Schema migration 3 + earnings calendar wiring | ✅ Done (2026-04-26) |
+| 2 | `rule_catalog.py` — load and query `strategy_rule_catalog` | 🔲 Next |
+| 3 | `entry_engine.py` — Gates 1–9 evaluation | 🔲 Pending |
+| 4 | `exit_engine.py` — EXPIRY rules | 🔲 Pending |
+| 5 | `position_book.py` — layer lifecycle, book sync | 🔲 Pending |
+| 6 | Tool registration (15 new MCP tools + CLI) | 🔲 Pending |
+| 7 | Report updates (cycle stack, Gate 9 status) | 🔲 Pending |
+| 8 | v1 score engine deprecation | 🔲 Pending |
 
 ## Overview
 
-Architecture spec v3 and Implementation Guide v2 are written. No v3 code exists yet. This document defines what exists in the v1 baseline, what needs to be built, and the strict implementation order.
+Architecture spec v3 and Implementation Guide v2 are written. This document defines what exists in the v1 baseline, what needs to be built, and the strict implementation order.
 
 ---
 
@@ -38,14 +52,14 @@ Architecture spec v3 and Implementation Guide v2 are written. No v3 code exists 
 | `symbol_position_rollups` | ✅ Keep | Feeds Gate 7 |
 | `generated_reports` | ✅ Keep | |
 | `report_subscriptions` | ✅ Keep | |
-| `earnings_calendar` | ⚠️ Exists/empty | Never populated — wire in Phase 1 |
+| `earnings_calendar` | ✅ Wired (Phase 1) | Populated by `insert_earnings_calendar()` on every ingest |
 
 #### Source modules (12)
 
 | Module | Status |
 |---|---|
-| `database.py` | ✅ Keep — add migration 3 in Phase 1 |
-| `ingestion.py` | ✅ Keep — add earnings wiring in Phase 1 |
+| `database.py` | ✅ Migration 3 added (Phase 1) — `strategy_rule_catalog`, `position_books`, `cycle_layers`, `entry_decisions`, `exit_decisions` |
+| `ingestion.py` | ✅ Earnings wiring added (Phase 1) — `insert_earnings_calendar()` + `_parse_earnings_date()` |
 | `os_workbooks.py` | ✅ Keep |
 | `os_ingestion.py` | ✅ Keep |
 | `os_reports.py` | ✅ Keep |
@@ -120,7 +134,7 @@ Phase 7  ← reports after tools (read from new tables)
 Phase 8  ← deprecation last (keep old engine running during parallel testing)
 ```
 
-#### Phase 0 — Master Document Rule Inventory ⛔ BLOCKER
+#### Phase 0 — Master Document Rule Inventory ✅ DONE
 
 **Deliverable:** `references/master_document_rule_inventory.md`
 
@@ -140,17 +154,15 @@ Estimated output: 40–60 rows covering the 9 entry gates and 4 exit rules at mi
 
 ---
 
-#### Phase 1 — Schema Migration + Earnings Wiring
+#### Phase 1 — Schema Migration + Earnings Wiring ✅ DONE
 
-**File:** `src/bullstrangle_mcp/database.py`
+**Commit:** `0fe61dc` — 2026-04-26
 
-Add `_m003_v3_cycle_model` to `_MIGRATIONS`. Creates all 5 new tables. The migration must be additive — no existing table is altered.
+**`src/bullstrangle_mcp/database.py`** — `_m003_v3_cycle_model` added to `_MIGRATIONS` as version 3. Creates all 5 new tables additively. No existing table altered.
 
-**File:** `src/bullstrangle_mcp/ingestion.py`
+**`src/bullstrangle_mcp/ingestion.py`** — `insert_earnings_calendar()` + `_parse_earnings_date()` parse watchlist `latest_earnings` dates (M/D/YYYY format) into `earnings_calendar` on every ingest. Gate 5 (no earnings during holding period) now has data to check.
 
-Wire earnings date parsing from PDF → `INSERT OR IGNORE INTO earnings_calendar`. Gate 5 (no earnings during holding period) cannot function without this data.
-
-**Test:** One new unit test — migration idempotency. One integration test — earnings rows appear after PDF ingestion.
+**Tests added:** `test_m003_migration_is_idempotent`, `test_earnings_calendar_populated_after_ingest`, `test_parse_earnings_date_handles_formats`. Suite: **63 passed**.
 
 ---
 
@@ -297,13 +309,13 @@ Keep: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed
 
 ### Summary Counts
 
-| Category | Existing | To Build |
-|---|---|---|
-| DB tables | 24 | 5 |
-| Source modules | 12 | 4 |
-| MCP tools | 30 | 15 |
-| Reference docs | 9 | 1 (rule inventory) |
-| **Total** | **75** | **25** |
+| Category | Existing | To Build | Built |
+|---|---|---|---|
+| DB tables | 24 | 5 | 5 ✅ |
+| Source modules | 12 | 4 | 0 |
+| MCP tools | 30 | 15 | 0 |
+| Reference docs | 9 | 1 (rule inventory) | 1 ✅ |
+| **Total** | **75** | **25** | **6** |
 
 ---
 

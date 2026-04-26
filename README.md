@@ -255,6 +255,7 @@ mcp_server.py     MCP stdio server — thin wrappers only, no logic
 cli.py            PowerShell-friendly CLI — same tool functions as MCP
 tools.py          Anti-corruption layer — parameter coercion and db_path defaults
 ingestion.py      PDF parsing and fact storage (stores data, no business rules)
+                  insert_earnings_calendar() populates earnings_calendar on every ingest
 decisions.py      Business rule evaluation — weekly summary, scoring, weekend decisions
                   compute_weekly_summary() and calculate_consecutive_weeks() live here
 reports.py        Report generation — weekly action plan, daily brief, report history
@@ -264,6 +265,10 @@ os_reports.py     Daily OS run reports (read-only)
 os_weekly.py      Weekly symbol aggregation across daily OS runs
 positions.py      Position CSV ingestion and account rollups
 database.py       Schema (authoritative SCHEMA_SQL), versioned migrations, connect()
+rule_catalog.py   (planned Phase 2) Rule catalog loader — seeds strategy_rule_catalog
+entry_engine.py   (planned Phase 3) Gate evaluator — Gates 1–9 per symbol per Monday
+exit_engine.py    (planned Phase 4) Exit rule evaluator — EXPIRY / DROP / EARNINGS rules
+position_book.py  (planned Phase 5) Cycle-layer lifecycle, book management, CSV sync
 ```
 
 **Key design rules:**
@@ -298,17 +303,39 @@ python -m compileall -q src
 
 Current test layers:
 
-- Unit: selector rounding, ingestion safety (force flag), DB WAL/index checks, position ingestion, parser fixtures (`parse_watchlist_option_prices`, `parse_market_environment`), strategy-context builder (`_build_strategy_context`). No PDF required.
+- Unit: selector rounding, ingestion safety (force flag), DB WAL/index checks, position ingestion, parser fixtures (`parse_watchlist_option_prices`, `parse_market_environment`), strategy-context builder (`_build_strategy_context`), migration idempotency (`_m003_v3_cycle_model`), earnings calendar wiring (`insert_earnings_calendar`), earnings date parsing (`_parse_earnings_date`). No PDF required.
 - Integration: PDF ingestion, SQLite persistence, OS workbook metadata preparation, OS workbook generation, OS workbook ingestion, daily OS reporting, weekly aggregation, position ingestion, and weekend decision generation. *(requires newsletter PDF in `data/newsletters/`)*
 - E2E: launches the MCP server over stdio, lists tools, and calls `calculate_os_selectors`. *(requires newsletter PDF)*
 
 Current expected result:
 
 ```text
-60 passed
+63 passed
 ```
 
 ## Changelog
+
+### 2026-04-26 — Phase 1: v3 cycle model schema migration
+
+Added 5 new DB tables (migration 3) that form the backbone of the gate-based v3 cycle model, plus automatic earnings calendar population on every newsletter ingest.
+
+**New DB tables (migration 3):** `strategy_rule_catalog`, `position_books`, `cycle_layers`, `entry_decisions`, `exit_decisions`.
+
+**New ingestion wiring:** `insert_earnings_calendar()` parses `latest_earnings` dates from watchlist rows (M/D/YYYY format) and inserts them into `earnings_calendar` on every `ingest-pdf` / `ingest-dir` run.
+
+**3 new unit tests:** migration idempotency, earnings calendar population after ingest, earnings date format parsing. Total: **63 passed**.
+
+Implementation plan: [BullStrangle Implementation Plan v3](references/BullStrangle_Implementation_Plan_v3.md)
+
+---
+
+### 2026-04-26 — Phase 0: Master Document rule extraction
+
+Extracted all 43 rules, gates, and thresholds from the 187-page Bull Strangle Master Document v8 into a structured inventory. This is the authoritative seed data for `strategy_rule_catalog`.
+
+**Rule inventory:** [Master Document Rule Inventory](references/master_document_rule_inventory.md) — 43 rules across 8 areas (stock_selection, earnings, strike_selection, capital, cycle, exit, market_environment, formula).
+
+---
 
 ### 2026-04-26 — Phase A/B gap-fill
 
