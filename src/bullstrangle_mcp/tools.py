@@ -17,6 +17,12 @@ from .os_workbooks import (
     generate_os_workbook,
     prepare_os_workbook_record,
 )
+from .position_book import (
+    backtest_all,
+    generate_backtest_report,
+    resolve_outcomes,
+    seed_from_short_list,
+)
 from .positions import ingest_positions
 from .reports import generate_daily_brief, generate_weekly_action_plan
 from .rule_catalog import get_rule as _get_rule
@@ -833,6 +839,66 @@ def list_strategy_rules_tool(
             entry["resolved_value"] = resolved
         result.append(entry)
 
+    return result
+
+
+def seed_cycle_layers_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    portfolio_type: str = "small",
+) -> dict[str, Any]:
+    """Seed cycle_layers from Darren's Short List for one newsletter week.
+
+    Only seeds when deployment was approved for that week.  Safe to call twice —
+    already-existing layers are left untouched.  Symbols with no watchlist entry
+    (no strikes/premiums available) are skipped and listed in ``skipped``.
+    """
+    return seed_from_short_list(newsletter_date, db_path, portfolio_type)
+
+
+def resolve_cycle_outcomes_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Fetch yfinance closing prices at expiration and compute P&L for seeded layers.
+
+    Determines BOTH_OTM / CALL_ASSIGNED / PUT_ASSIGNED for each symbol, writes
+    P&L to cycle_layers, and records the exit_decision.  Layers whose expiration
+    is in the future are returned as ``pending`` and left unchanged.
+    """
+    return resolve_outcomes(newsletter_date, db_path)
+
+
+def backtest_all_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    portfolio_type: str = "small",
+) -> dict[str, Any]:
+    """Seed and resolve all approved newsletters in one call.
+
+    Equivalent to running seed_cycle_layers + resolve_cycle_outcomes for every
+    approved newsletter week.  Safe to call multiple times — idempotent.
+    """
+    return backtest_all(db_path, portfolio_type)
+
+
+def generate_backtest_report_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    portfolio_type: str = "small",
+    output: str | None = None,
+) -> dict[str, Any]:
+    """Generate a week-by-week markdown backtest report from closed cycle layers.
+
+    Shows entry price, strikes, expiration close, outcome, P&L per symbol,
+    and summary stats (win rate, total P&L, best/worst trade).
+    Optionally write the report to *output* path.
+    """
+    md = generate_backtest_report(db_path, portfolio_type)
+    result: dict[str, Any] = {"markdown": md, "portfolio_type": portfolio_type}
+    if output:
+        out = Path(output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(md, encoding="utf-8")
+        result["output_path"] = str(out.resolve())
     return result
 
 

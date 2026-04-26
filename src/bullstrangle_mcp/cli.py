@@ -7,13 +7,17 @@ from pathlib import Path
 from .database import DEFAULT_DB_PATH, initialize_database
 from .tools import (
     aggregate_os_week_tool,
+    backtest_all_tool,
     calculate_os_selectors_tool,
     generate_os_workbook_tool,
     generate_weekend_decisions_tool,
     get_newsletter_by_ref_tool,
     get_newsletter_tool,
+    generate_backtest_report_tool,
     get_rule_tool,
     get_symbol_history_tool,
+    resolve_cycle_outcomes_tool,
+    seed_cycle_layers_tool,
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
@@ -122,6 +126,32 @@ def main(argv: list[str] | None = None) -> int:
         help="Print full JSON instead of the Markdown report",
     )
 
+    seed_cmd = subparsers.add_parser(
+        "seed-cycle-layers",
+        help="Seed cycle_layers from the Short List for one newsletter week",
+    )
+    seed_cmd.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-17")
+    seed_cmd.add_argument("--portfolio-type", default="small", choices=["small", "large"])
+
+    resolve_cmd = subparsers.add_parser(
+        "resolve-outcomes",
+        help="Fetch yfinance expiration prices and compute P&L for seeded layers",
+    )
+    resolve_cmd.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-17")
+
+    backtest_cmd = subparsers.add_parser(
+        "backtest-all",
+        help="Seed and resolve all approved newsletter weeks (one-shot backtest)",
+    )
+    backtest_cmd.add_argument("--portfolio-type", default="small", choices=["small", "large"])
+
+    backtest_report_cmd = subparsers.add_parser(
+        "backtest-report",
+        help="Generate a week-by-week markdown backtest report",
+    )
+    backtest_report_cmd.add_argument("--portfolio-type", default="small", choices=["small", "large"])
+    backtest_report_cmd.add_argument("--output", help="Optional path to write the Markdown report")
+
     list_rules = subparsers.add_parser(
         "list-rule-catalog",
         help="List v3 strategy rules from the Master Document catalog",
@@ -222,6 +252,19 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(aggregate, indent=2))
         else:
             print(aggregate["markdown"])
+        return 0
+    if args.command == "seed-cycle-layers":
+        print(json.dumps(seed_cycle_layers_tool(args.newsletter_date, args.db, args.portfolio_type), indent=2))
+        return 0
+    if args.command == "resolve-outcomes":
+        print(json.dumps(resolve_cycle_outcomes_tool(args.newsletter_date, args.db), indent=2))
+        return 0
+    if args.command == "backtest-all":
+        print(json.dumps(backtest_all_tool(args.db, args.portfolio_type), indent=2))
+        return 0
+    if args.command == "backtest-report":
+        report = generate_backtest_report_tool(args.db, args.portfolio_type, args.output)
+        print(report["markdown"])
         return 0
     if args.command == "list-rule-catalog":
         print(

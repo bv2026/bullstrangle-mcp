@@ -9,8 +9,10 @@ from mcp.server.fastmcp import FastMCP
 from .database import DEFAULT_DB_PATH
 from .tools import (
     aggregate_os_week_tool,
+    backtest_all_tool,
     calculate_os_selectors_tool,
     check_deployment_approval_tool,
+    generate_backtest_report_tool,
     generate_daily_brief_tool,
     generate_os_workbook_tool,
     generate_weekly_action_plan_tool,
@@ -36,6 +38,8 @@ from .tools import (
     list_os_runs_tool,
     list_rule_catalog_tool,
     list_strategy_rules_tool,
+    resolve_cycle_outcomes_tool,
+    seed_cycle_layers_tool,
     get_rule_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
@@ -418,6 +422,61 @@ def search_commentary(
     newsletter date and section name.
     """
     return search_commentary_tool(query, limit, db_path or default_db_path())
+
+
+@mcp.tool()
+def seed_cycle_layers(
+    newsletter_date: str,
+    portfolio_type: str = "small",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Seed cycle_layers from the newsletter Short List for one week.
+
+    Only seeds when the week was deployment-approved. Safe to call multiple times.
+    portfolio_type: 'small' (default) or 'large'.
+    """
+    return seed_cycle_layers_tool(newsletter_date, db_path or default_db_path(), portfolio_type)
+
+
+@mcp.tool()
+def resolve_cycle_outcomes(
+    newsletter_date: str,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Fetch yfinance closing prices at expiration and record P&L for seeded layers.
+
+    Determines BOTH_OTM / CALL_ASSIGNED / PUT_ASSIGNED per symbol.
+    Layers whose expiration is in the future are returned as pending.
+    """
+    return resolve_cycle_outcomes_tool(newsletter_date, db_path or default_db_path())
+
+
+@mcp.tool()
+def backtest_all(
+    portfolio_type: str = "small",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Seed and resolve all approved newsletter weeks in one call.
+
+    Runs seed_cycle_layers + resolve_cycle_outcomes for every week where
+    deployment was approved. Idempotent — safe to run multiple times.
+    """
+    return backtest_all_tool(db_path or default_db_path(), portfolio_type)
+
+
+@mcp.tool()
+def generate_backtest_report(
+    portfolio_type: str = "small",
+    output: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate a week-by-week markdown backtest report from closed cycle layers.
+
+    Shows entry price, strikes, close at expiration, outcome (BOTH_OTM /
+    CALL_ASSIGNED / PUT_ASSIGNED), P&L per symbol, and summary stats.
+    Optionally write to an output file path.
+    """
+    return generate_backtest_report_tool(db_path or default_db_path(), portfolio_type, output)
 
 
 @mcp.tool()
