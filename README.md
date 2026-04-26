@@ -31,6 +31,79 @@ Recommended operator rule:
 - never overwrite the generated template in `outputs/workbooks`
 - the workbook is auto-copied to `data/os_uploads` on generation — open it there, refresh, and save in place
 
+## End-to-End Operator Flow
+
+Two inputs feed the system in parallel — the weekly newsletter PDF and the broker positions export. Both land in the DB and are consumed together by the weekend decision engine.
+
+```
+WEEKLY (Sunday night / Monday)
+──────────────────────────────────────────────────────────────
+
+data/newsletters/newsletter.pdf
+        │
+        │  ingest-pdf
+        ▼
+  bullstrangle.db
+  (watchlist, market env, short list, deep analysis)
+        │
+        │  generate-os-workbook
+        ▼
+outputs/workbooks/BullStrangle_OS_Live_YYYY-MM-DD.xlsx   ← template (do not edit)
+        │
+        │  auto-copied on generation
+        ▼
+data/os_uploads/BullStrangle_OS_Live_YYYY-MM-DD.xlsx     ← operator working copy
+
+
+DAILY (market hours, Mon–Fri)
+──────────────────────────────────────────────────────────────
+
+data/os_uploads/BullStrangle_OS_Live_YYYY-MM-DD.xlsx
+        │
+        │  open in Excel → enable Option Samurai add-in
+        │  → refresh formulas → save
+        │
+        │  ingest-os-workbook --trading-date YYYY-MM-DD
+        ▼
+  bullstrangle.db
+  (os_evaluation_runs, os_evaluation_rows, watchlist_deviations)
+
+
+ONCE PER WEEK (before weekend decisions)
+──────────────────────────────────────────────────────────────
+
+data/positions/positions.csv          ← export from broker
+        │
+        │  ingest-positions
+        ▼
+  bullstrangle.db
+  (account_positions, symbol_position_rollups)
+  Answers: shares per account, which symbols have ≥100 shares
+           in one account (bull strangle ready), DCA target account
+
+
+WEEKEND (Saturday / Sunday)
+──────────────────────────────────────────────────────────────
+
+  bullstrangle.db
+  (all of the above combined)
+        │
+        │  aggregate-os-week          ← roll up daily OS runs
+        │  generate-weekend-decisions ← score + action per symbol
+        ▼
+outputs/reports/YYYY-MM-DD/
+  os_week_YYYY-MM-DD.md              ← deviations summary
+  weekend_decisions_YYYY-MM-DD.md    ← BULL_STRANGLE / DCA / WATCH / SKIP
+```
+
+**How positions feeds decisions:**
+
+| Position fact | Decision impact |
+|---|---|
+| One account has ≥ 100 shares | Symbol eligible for stock-backed `BULL_STRANGLE` |
+| Shares split across accounts | Not bull-strangle ready — routes to `DCA` instead |
+| Shares in target account | DCA output: which account to buy in, how many shares to 100 |
+
 ## Documentation
 
 - [Architecture Spec v1.1](references/BullStrangle_Newsletter_MCP_Architecture_Spec_v1.1_JSONB.md) — canonical spec (32 tables, 34 tools)
