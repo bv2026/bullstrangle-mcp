@@ -334,7 +334,7 @@ def prepare_os_workbook_record(
 def generate_os_workbook(
     newsletter_date: str,
     db_path: str | Path = DEFAULT_DB_PATH,
-    output_dir: str | Path = "outputs/os_workbooks",
+    output_dir: str | Path = "outputs/workbooks",
     template_version: str = DEFAULT_TEMPLATE_VERSION,
 ) -> dict[str, Any]:
     initialize_database(db_path)

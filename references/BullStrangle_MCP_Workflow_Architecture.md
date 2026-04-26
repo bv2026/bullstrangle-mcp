@@ -118,7 +118,7 @@ Process:
 
 Important:
 
-- `outputs/os_workbooks` is for generated workbook templates.
+- `outputs/workbooks` is for generated workbook templates.
 - `data/os_uploads` is for Excel-refreshed workbook uploads.
 - Daily uploads do not create final trade decisions.
 - Daily uploads only create OS snapshots and deviations.
@@ -565,12 +565,12 @@ One row per `watchlist_entries` symbol for the newsletter cycle.
 Current generated workbook command:
 
 ```powershell
-python -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
+python -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\workbooks
 ```
 
 Current output example:
 
-- `outputs/os_workbooks/BullStrangle_OS_Live_2026-04-17.xlsx`
+- `outputs/workbooks/BullStrangle_OS_Live_2026-04-17.xlsx`
 
 Required input columns:
 

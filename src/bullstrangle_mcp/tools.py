@@ -214,7 +214,7 @@ def prepare_os_workbook_tool(
 def generate_os_workbook_tool(
     newsletter_date: str,
     db_path: str = str(DEFAULT_DB_PATH),
-    output_dir: str = "outputs/os_workbooks",
+    output_dir: str = "outputs/workbooks",
 ) -> dict[str, Any]:
     """Generate an Option Samurai-enabled Excel workbook from a newsletter watchlist."""
     initialize_database(db_path)

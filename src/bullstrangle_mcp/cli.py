@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     generate_os.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-17")
     generate_os.add_argument(
-        "--output-dir", default="outputs/os_workbooks", help="Directory for generated .xlsx files"
+        "--output-dir", default="outputs/workbooks", help="Directory for generated .xlsx files"
     )
 
     ingest_os = subparsers.add_parser(

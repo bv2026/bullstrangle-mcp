@@ -30,13 +30,13 @@ Use these as the standard locations going forward:
 - Newsletter PDFs: `data\newsletters`
 - SQLite DB: `data\bullstrangle.db`
 - Positions CSV: `data\positions\positions.csv`
-- Generated OS workbook templates: `outputs\os_workbooks`
+- Generated OS workbook templates: `outputs\workbooks`
 - Refreshed OS workbook uploads: `data\os_uploads`
 - Generated reports: `reports\YYYY-MM-DD`
 
 Operator rule:
 
-- `outputs\os_workbooks` is template output only
+- `outputs\workbooks` is template output only
 - `data\os_uploads` is the only place to save Excel-refreshed live workbooks before ingest
 - `data\positions\positions.csv` is the canonical positions input file
 
@@ -101,13 +101,13 @@ bullstrangle --db data\bullstrangle.db os-selectors 2026-04-24
 Generate the Excel workbook:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\os_workbooks
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\workbooks
 ```
 
 Current generated file:
 
 ```text
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
+outputs\workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
 ```
 
 Inbound refreshed workbook folder:
@@ -118,14 +118,14 @@ data\os_uploads
 
 Keep generated templates and refreshed uploads separate:
 
-- `outputs\os_workbooks`: MCP-generated workbook templates.
+- `outputs\workbooks`: MCP-generated workbook templates.
 - `data\os_uploads`: Excel-refreshed workbooks ready for ingestion.
 
 ## Market-Hours Daily Workflow
 
 Use this after market opens and Option Samurai can return live data.
 
-1. Copy the generated workbook from `outputs\os_workbooks` into `data\os_uploads`.
+1. Copy the generated workbook from `outputs\workbooks` into `data\os_uploads`.
 2. Open the copy in `data\os_uploads` in Excel.
 3. Make sure the Option Samurai add-in is enabled.
 4. Refresh/recalculate the workbook.
@@ -288,7 +288,7 @@ for table in [
 
 - DB path: `{DATA_DIR}/bullstrangle.db`
 - Newsletter PDF dir: `{DATA_DIR}/newsletters`
-- Generated workbook output: `{DATA_DIR}/../outputs/os_workbooks`
+- Generated workbook output: `{DATA_DIR}/../outputs/workbooks`
 
 `BULLSTRANGLE_DB` may still be set to override the DB path explicitly.  When
 both are set, `BULLSTRANGLE_DB` wins for the database path only.
@@ -390,7 +390,7 @@ python -m compileall -q src
 Generated workbook:
 
 ```text
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
+outputs\workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
 ```
 
 Inbound OS upload folder:
@@ -411,7 +411,7 @@ Canonical current files:
 
 ```text
 data\positions\positions.csv
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
+outputs\workbooks\BullStrangle_OS_Live_2026-04-24.xlsx
 data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx
 ```
 
@@ -428,7 +428,7 @@ Current local April 17 status:
 
 When the market opens:
 
-1. Copy `outputs\os_workbooks\BullStrangle_OS_Live_2026-04-24.xlsx` to `data\os_uploads`.
+1. Copy `outputs\workbooks\BullStrangle_OS_Live_2026-04-24.xlsx` to `data\os_uploads`.
 2. Open the copy in `data\os_uploads`.
 3. Refresh Option Samurai formulas in Excel.
 4. Save the workbook.

@@ -159,7 +159,7 @@ def test_mcp_data_paths_derive_from_bullstrangle_db_when_data_dir_missing(tmp_pa
     monkeypatch.setenv("BULLSTRANGLE_DB", str(data_dir / "bullstrangle.db"))
 
     assert Path(default_newsletters_dir()) == data_dir / "newsletters"
-    assert Path(default_os_workbooks_dir()) == tmp_path / "outputs" / "os_workbooks"
+    assert Path(default_os_workbooks_dir()) == tmp_path / "outputs" / "workbooks"
 
 
 def test_ingest_directory_continues_after_pdf_error(tmp_path, monkeypatch: pytest.MonkeyPatch):

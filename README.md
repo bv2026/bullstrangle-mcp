@@ -22,13 +22,13 @@ These are the finalized working locations:
 - Newsletter PDFs: `data/newsletters`
 - SQLite DB: `data/bullstrangle.db`
 - Positions CSV: `data/positions/positions.csv`
-- Generated OS workbook templates: `outputs/os_workbooks`
+- Generated OS workbook templates: `outputs/workbooks`
 - Refreshed OS workbooks for ingestion: `data/os_uploads`
 - Generated reports: `reports/YYYY-MM-DD`
 
 Recommended operator rule:
 
-- never overwrite the generated template in `outputs/os_workbooks`
+- never overwrite the generated template in `outputs/workbooks`
 - always refresh and save the live Excel copy in `data/os_uploads`
 
 ## Documentation
@@ -65,7 +65,7 @@ bullstrangle --db data\bullstrangle.db show-newsletter 34
 bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-17
 bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
 bullstrangle --db data\bullstrangle.db prepare-os-workbook 2026-04-17
-bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\workbooks
 bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
 bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
 bullstrangle --db data\bullstrangle.db report-os-run 1 --output reports\2026-04-22\os_run_1.md

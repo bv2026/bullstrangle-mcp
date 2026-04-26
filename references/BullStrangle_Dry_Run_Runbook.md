@@ -46,7 +46,7 @@ What is still provisional:
 Expected local inputs:
 
 - newsletter PDFs under `data/newsletters`
-- generated workbook templates under `outputs/os_workbooks`
+- generated workbook templates under `outputs/workbooks`
 - refreshed OS workbooks under `data/os_uploads`
 - positions CSV under `data/positions/positions.csv`
 
@@ -54,7 +54,7 @@ Canonical operator locations:
 
 - `data/newsletters` for newsletter PDFs
 - `data/positions/positions.csv` for positions
-- `outputs/os_workbooks` for MCP-generated Excel templates
+- `outputs/workbooks` for MCP-generated Excel templates
 - `data/os_uploads` for Excel-refreshed live OS workbooks
 
 ## Environment
@@ -95,13 +95,13 @@ Confirm one target newsletter:
 ### 3. Generate OS Workbook
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\os_workbooks
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\workbooks
 ```
 
 Expected workbook:
 
 ```text
-outputs\os_workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
+outputs\workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
 ```
 
 ### 4. Refresh Workbook In Excel

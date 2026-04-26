@@ -57,7 +57,7 @@ SERVER_NAME = "bullstrangle-mcp"
 #   <data>/bullstrangle.db          — SQLite database
 #   <data>/newsletters/             — inbound newsletter PDFs
 #   <data>/os_uploads/              — refreshed Option Samurai workbooks
-#   <data>/../outputs/os_workbooks/ — generated workbook templates
+#   <data>/../outputs/workbooks/    — generated workbook templates
 
 
 def _data_dir() -> Path | None:
@@ -84,9 +84,9 @@ def default_newsletters_dir() -> str:
 
 
 def default_os_workbooks_dir() -> str:
-    """Default generated workbook output dir: DATA_DIR/../outputs/os_workbooks."""
+    """Default generated workbook output dir: DATA_DIR/../outputs/workbooks."""
     d = _data_dir()
-    return str(d.parent / "outputs" / "os_workbooks") if d else "outputs/os_workbooks"
+    return str(d.parent / "outputs" / "workbooks") if d else "outputs/workbooks"
 
 
 mcp = FastMCP(
@@ -179,8 +179,8 @@ def generate_os_workbook(
 ) -> dict[str, Any]:
     """Generate an Option Samurai-enabled Excel workbook from the newsletter watchlist.
 
-    output_dir defaults to DATA_DIR/../outputs/os_workbooks when BULLSTRANGLE_DATA_DIR
-    is set, otherwise outputs/os_workbooks relative to the working directory.
+    output_dir defaults to DATA_DIR/../outputs/workbooks when BULLSTRANGLE_DATA_DIR
+    is set, otherwise outputs/workbooks relative to the working directory.
     """
     return generate_os_workbook_tool(
         newsletter_date,
