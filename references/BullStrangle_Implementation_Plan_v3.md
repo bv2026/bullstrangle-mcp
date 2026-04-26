@@ -1,7 +1,8 @@
 # BullStrangle Implementation Plan v3
 
 Date: 2026-04-26
-Status: ACTIVE — Phase 2 complete
+Last updated: 2026-04-26
+Status: ACTIVE — Phase 5a complete; Phase 3 next
 
 ## Progress
 
@@ -9,10 +10,13 @@ Status: ACTIVE — Phase 2 complete
 |---|---|---|
 | 0 | Master Document rule extraction → `master_document_rule_inventory.md` | ✅ Done (2026-04-26) |
 | 1 | Schema migration 3 + earnings calendar wiring | ✅ Done (2026-04-26) |
+| 1b | Parser bug fix — 20+ split-ticker PDF artifacts in `normalize_pdf_text` | ✅ Done (2026-04-26) |
 | 2 | `rule_catalog.py` — load and query `strategy_rule_catalog` | ✅ Done (2026-04-26) |
 | 3 | `entry_engine.py` — Gates 1–9 evaluation | 🔲 Next |
 | 4 | `exit_engine.py` — EXPIRY rules | 🔲 Pending |
-| 5 | `position_book.py` — layer lifecycle, book sync | 🔲 Pending |
+| 5a | `position_book.py` — Short List backtest validator with yfinance P&L | ✅ Done (2026-04-26) |
+| 5b | Active portfolio monitoring — live mark-to-market, alerts, auto-resolve | 🔲 Pending |
+| 5c | `position_book.py` — full live trading layer lifecycle + book sync | 🔲 Pending |
 | 6 | Tool registration (15 new MCP tools + CLI) | 🔲 Pending |
 | 7 | Report updates (cycle stack, Gate 9 status) | 🔲 Pending |
 | 8 | v1 score engine deprecation | 🔲 Pending |
@@ -180,6 +184,88 @@ Estimated output: 40–60 rows covering the 9 entry gates and 4 exit rules at mi
 
 ---
 
+#### Phase 1b — Parser Bug Fix ✅ DONE
+
+**Commit:** `73f28ce` — 2026-04-26
+
+**`src/bullstrangle_mcp/ingestion.py`** — Added 27 entries to `normalize_pdf_text()` correcting split-ticker PDF artifacts where PyPDF inserts a space inside multi-letter tickers (e.g. `C RML` → `CRML`, `TEC K` → `TECK`). Cleared the previously broken `TICKER_DESCRIPTION_CORRECTIONS` dict (it only had one entry and even that was wrong).
+
+**Tickers corrected:** CRML, CDE, CELH, CLF, COMM, CNC, CNK, CNQ, COPX, CORZ, CPRI, CRSP, CXW, FCEL, FCX, GOLD (Barrick Mining), MCHP, NCLH, SCHW, TECK — 20 symbols across 18 newsletters.
+
+**Impact:** All 18 newsletters re-ingested with `--force`. Zero suspicious-ticker warnings. Backtest result corrected from −5.50% (dominated by bogus Citigroup/wrong-company price lookups) to +0.58% on 25 closed trades.
+
+**Important note:** `TEC` in the newsletters is **TECK** (Teck Resources, ~$47–59, Materials sector), NOT TECL (Direxion 3x Semiconductor ETF). Price data confirms this.
+
+---
+
+#### Phase 5a — Short List Backtest Validator ✅ DONE
+
+**Commit:** `4118fd8` — 2026-04-26
+
+**`src/bullstrangle_mcp/position_book.py`** — Paper-trade backtest engine using Darren's Short List (small portfolio) as position source and yfinance for expiration-date price resolution.
+
+Key functions:
+- `seed_from_short_list(newsletter_date, db_path, portfolio_type)` — seeds `cycle_layers` from `short_list_entries` joined to `watchlist_entries` for strikes/premiums; idempotent; checks `deployment_approved`
+- `resolve_outcomes(newsletter_date, db_path)` — fetches expiration close price via yfinance; computes P&L for three outcomes: `BOTH_OTM`, `CALL_ASSIGNED`, `PUT_ASSIGNED`; updates `cycle_layers` status to `CLOSED`
+- `backtest_all(db_path, portfolio_type)` — processes all approved newsletter weeks in one shot
+- `generate_backtest_report(db_path, portfolio_type)` — week-by-week markdown table + summary stats
+
+**New MCP tools:** `seed_cycle_layers`, `resolve_cycle_outcomes`, `backtest_all`, `generate_backtest_report`
+**New CLI commands:** `seed-cycle-layers`, `resolve-outcomes`, `backtest-all`, `backtest-report`
+
+**Current backtest result (small portfolio, 25 closed trades):**
+- Closed: 25 trades, 13 wins (52%), Total P&L +$434, Return +0.58%
+- Open: 8 positions still active (5 exp 2026-05-15, 3 exp 2026-05-22)
+
+**`pyproject.toml`** — Added `yfinance>=1.0` dependency.
+
+---
+
+#### Phase 5b — Active Portfolio Monitoring
+
+**Status:** 🔲 Pending
+
+The paper-trade portfolio data is in SQLite but there is no ongoing monitoring layer. The following gaps must be addressed before this can be used as a live tracking tool:
+
+| Gap | Description | Priority |
+|---|---|---|
+| Live mark-to-market | Open positions show `?` for current price/P&L — need yfinance live quote on demand | High |
+| Auto-resolve at expiration | Currently manual — must call `resolve-outcomes` after each expiration date passes; should trigger automatically | High |
+| Weekly P&L roll-up | No cumulative equity curve, no drawdown tracking, no week-over-week comparison | Medium |
+| Assignment risk alerts | No flag when underlying approaches a strike (e.g. stock within 2% of call or put strike) | Medium |
+| Dashboard / monitoring UI | Everything requires MCP tool calls or scripts; no persistent view of the open book | Medium |
+| Multi-portfolio support | Currently only `small` portfolio backtest; `large` portfolio tracking not wired | Low |
+
+**Suggested implementation:**
+- `get_active_cycles(db_path)` tool — calls yfinance for each open position, returns live P&L, distance-to-strike, days-to-expiry
+- Scheduled `resolve_cycle_outcomes` — auto-run daily after market close; close any layer whose `expiration_date <= today` and `status = ACTIVE`
+- Equity curve table — append a snapshot row per week to a `portfolio_snapshots` table (weekly return, cumulative return, open positions count)
+- Strike proximity warning — in `generate_backtest_report` and `generate_daily_brief`, flag any open layer where `|close_price - strike| / close_price < 0.03`
+
+---
+
+#### Phase 5c — Full Live Trading Layer Lifecycle
+
+**Status:** 🔲 Pending (requires Phase 3 entry engine + real broker positions)
+
+This is the original Phase 5 scope from the spec — live trading flow rather than paper-trade backtest:
+
+```
+sync_from_positions(import_run_id, db_path)
+  → upsert position_books from symbol_position_rollups
+  → set bull_strangle_ready = True when one account has ≥ 100 shares
+
+open_cycle_layer(book_id, newsletter_id, os_run_id, strikes, premiums, db_path) → layer_id
+close_cycle_layer(layer_id, actual_action, pnl, db_path)
+get_book(symbol, account_id, db_path) → PositionBook
+list_books(db_path, status_filter) → list[PositionBook]
+get_layers(book_id, db_path) → list[CycleLayer]
+```
+
+Cannot start until Phase 3 (entry engine gates) and broker positions CSV wiring are in place.
+
+---
+
 #### Phase 3 — Entry Engine
 
 **File:** `src/bullstrangle_mcp/entry_engine.py`
@@ -308,10 +394,22 @@ Keep: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed
 | Category | Existing | To Build | Built |
 |---|---|---|---|
 | DB tables | 24 | 5 | 5 ✅ |
-| Source modules | 12 | 4 | 1 ✅ (`rule_catalog.py`) |
-| MCP tools | 30 | 15 | 2 ✅ (`list_rule_catalog`, `get_rule`) |
+| Source modules | 12 | 4 | 2 ✅ (`rule_catalog.py`, `position_book.py` Phase 5a) |
+| MCP tools | 30 | 15 | 6 ✅ (`list_rule_catalog`, `get_rule`, `seed_cycle_layers`, `resolve_cycle_outcomes`, `backtest_all`, `generate_backtest_report`) |
 | Reference docs | 9 | 1 (rule inventory) | 1 ✅ |
-| **Total** | **75** | **25** | **9** |
+| Parser bug fixes | — | — | 20 tickers corrected ✅ |
+| **Total** | **75** | **25** | **14** |
+
+### Monitoring Gaps Backlog (Phase 5b)
+
+| Item | Status |
+|---|---|
+| Live mark-to-market for open positions | 🔲 |
+| Auto-resolve cycle layers at expiration | 🔲 |
+| Weekly P&L roll-up / equity curve | 🔲 |
+| Assignment risk alerts (stock near strike) | 🔲 |
+| Dashboard / persistent monitoring UI | 🔲 |
+| Large portfolio tracking | 🔲 |
 
 ---
 
