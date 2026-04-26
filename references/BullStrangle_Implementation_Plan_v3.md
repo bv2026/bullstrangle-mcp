@@ -240,23 +240,62 @@ Key functions:
 
 ---
 
-#### Phase 5c — Full Live Trading Layer Lifecycle 🔲 PENDING
+#### Phase 5c — Full Live Trading Layer Lifecycle 🔲 PENDING (June)
 
-Requires Phase 3 entry engine + real broker positions. Cannot start until live trades exist.
+**Blocker:** Cannot start until real Bull Strangle trades are open in the broker. The paper-trade infrastructure (`cycle_layers`, `position_books`, entry/exit engines, auto-resolve) is 100% built and production-ready. Phase 5c adds the broker-sync bridge so live trades flow into the same tables.
 
-```
+**What already exists that Phase 5c builds on:**
+
+| Table / function | Status | Notes |
+|---|---|---|
+| `position_books` | ✅ exists | One row per symbol+account; `bull_strangle_ready` flag |
+| `cycle_layers` | ✅ exists | Paper-trade rows with `account_id='paper_trade'`; live rows will use real account IDs |
+| `entry_decisions` | ✅ exists | Gate 1–9 outcomes per symbol per newsletter |
+| `exit_decisions` | ✅ exists | Exit trigger outcomes per layer |
+| `symbol_position_rollups` | ✅ exists | Populated by `ingest-positions`; share counts per account |
+| `account_positions` | ✅ exists | Raw positions from broker CSV |
+
+**What Phase 5c adds to `position_book.py`:**
+
+```python
 sync_from_positions(import_run_id, db_path)
-  → upsert position_books from symbol_position_rollups
-  → set bull_strangle_ready = True when one account has >= 100 shares
+  # upsert position_books from symbol_position_rollups
+  # sets bull_strangle_ready = True when one account has >= 100 shares
+  # links position_book.current_import_run_id = import_run_id
 
-open_cycle_layer(book_id, newsletter_id, os_run_id, strikes, premiums, db_path) -> layer_id
-close_cycle_layer(layer_id, actual_action, pnl, db_path)
+open_cycle_layer(
+    book_id, newsletter_id, os_run_id,
+    call_strike, put_strike,
+    call_premium, put_premium, total_credit,
+    expiration_date, account_id, db_path
+) -> int  # layer_id
+  # account_id = real broker account (not 'paper_trade')
+  # status = 'ACTIVE'
+
+close_cycle_layer(layer_id, actual_action, close_price, pnl, db_path)
+  # actual_action: BOTH_OTM | CALL_ASSIGNED | PUT_ASSIGNED | MANUAL_CLOSE
+  # status = 'CLOSED'
+
 get_book(symbol, account_id, db_path) -> PositionBook
-list_books(db_path, status_filter) -> list[PositionBook]
+list_books(db_path, status_filter=None) -> list[PositionBook]
 get_layers(book_id, db_path) -> list[CycleLayer]
 ```
 
-**New tools:** `list_position_books`, `get_position_book`, `get_cycle_layers`, `open_cycle_layer`, `close_cycle_layer`, `confirm_entry`
+**New MCP tools to register:** `list_position_books`, `get_position_book`, `get_cycle_layers`, `open_cycle_layer`, `close_cycle_layer`, `confirm_entry`
+
+**New CLI commands:** `list-position-books`, `get-position-book`, `open-cycle-layer`, `close-cycle-layer`
+
+**Key design constraint:** Paper-trade rows (`account_id='paper_trade'`) and live rows (real account IDs) coexist in `cycle_layers`. All existing queries that filter by `portfolio_type` and `account_id` already handle this correctly — live rows just use a different `account_id` value. No schema change required.
+
+**June pre-flight checklist (do before first live trade):**
+
+1. Export positions from broker → `data\positions\positions.csv`
+2. `bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv`
+3. Verify `symbol_position_rollups` shows ≥100 shares in one account for your target symbols
+4. Run `sync_from_positions` (Phase 5c) to populate `position_books` with real account IDs
+5. After placing the first live strangle, call `open_cycle_layer` with real strikes/premiums/account
+6. From that point, `exit-report` and `daily-brief` will show both paper and live layers side-by-side
+7. At expiration, call `close_cycle_layer` instead of relying on `auto_resolve` (which uses yfinance — fine for paper, but live P&L should come from broker confirmation)
 
 ---
 
@@ -361,6 +400,62 @@ Keep always: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — the
 | `sync_from_positions` → `position_books` book sync | 5c | Medium | June (needs live broker positions) |
 | Assignment risk alerts (stock near strike section in exit report) | 5b deferred | Small | June |
 | Dashboard / monitoring UI | 5b deferred | Large | TBD |
+
+---
+
+---
+
+### June 2026 Handoff
+
+#### May Cycle Baseline (2026-04-26 snapshot — update at May cycle close)
+
+| Item | Value |
+|---|---|
+| Newsletters ingested | 18 |
+| Strategy rules | 47 |
+| Small portfolio — closed trades | 25 |
+| Small portfolio — P&L | +$434 (+0.76%) |
+| Small portfolio — win rate | 52% |
+| Small portfolio — max drawdown | -4.1% |
+| Large portfolio — closed trades | 74 |
+| Large portfolio — P&L | -$38,408 (-10.75%) |
+| Large portfolio — win rate | 50% |
+| Large portfolio — max drawdown | -11.3% |
+| Open (small) | 8 positions — exp 2026-05-15 and 2026-05-22 |
+| Open (large) | 19 positions — exp 2026-05-15 and 2026-05-22 |
+
+Update these numbers after May expiration closes (run `auto-resolve` + `portfolio-performance`).
+
+#### What Is Ready For Live Trading (no code changes needed)
+
+- **Gate engine (entry_engine.py):** All 9 gates evaluate live. `evaluate-newsletter` gives go/no-go per symbol. Gate results saved in `entry_decisions`.
+- **Exit engine (exit_engine.py):** All 6 triggers evaluate live. `exit-report` and `daily-brief` show urgency-grouped alerts. `auto_resolve_expired` closes past-expiry layers.
+- **OS workflow:** `weekend-setup` + `daily-ingest` cover the full Sunday/daily cycle. Stale workbook detection + auto-recovery is in place.
+- **Reports:** `weekly-action-plan` and `daily-brief` pull from live engine tables (no dead table queries remain).
+- **cycle_layers table:** Already supports live account IDs alongside paper-trade rows. Schema does not change for Phase 5c.
+
+#### What Phase 5c Adds (build in June)
+
+1. `sync_from_positions()` — wire broker positions CSV into `position_books` with real account IDs
+2. `open_cycle_layer()` — record a live trade entry (real account, real strikes/premiums)
+3. `close_cycle_layer()` — record a live trade exit (broker-confirmed P&L, not yfinance)
+4. MCP tools + CLI commands for all of the above
+5. `list_position_books`, `get_position_book`, `get_cycle_layers` — query live book state
+
+#### What Phase 8 Final Does (small, do anytime in June)
+
+Delete these 7 functions from `src/bullstrangle_mcp/decisions.py` — all are marked `# DEPRECATED`:
+- `_build_strategy_context()`
+- `_score_bull_strangle()`
+- `_score_dca()`
+- `_select_action()`
+- `_upsert_batch()`
+- `_insert_bull_decisions()`
+- `_insert_dca_decisions()`
+
+Keep forever: `compute_weekly_summary()`, `calculate_consecutive_weeks()` (feed Gate 1).
+
+Tables `decision_batches`, `bull_strangle_decisions`, `dca_decisions` — leave in schema (historical data), no active code path writes to them.
 
 ---
 

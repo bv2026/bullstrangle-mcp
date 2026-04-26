@@ -333,6 +333,8 @@ for r in rows:
 | Open (small) | 8 positions — exp 2026-05-15 and 2026-05-22 |
 | Open (large) | 19 positions — exp 2026-05-15 and 2026-05-22 |
 
+Update after May expiration closes: run `auto-resolve` → `portfolio-performance` → record final numbers here.
+
 ---
 
 ## Success Criteria For May Cycle
@@ -344,3 +346,110 @@ The May 2026 validation cycle is successful if:
 - Auto-resolve correctly closes all May-expiring positions without manual intervention
 - Exit report surfaces any REVIEW / EXIT_MONDAY triggers before they become problems
 - Large vs small comparison remains consistent (small outperforms large)
+
+---
+
+## June 2026 — Going Live
+
+This section picks up after May expiration closes. Everything below is the transition from paper-trade validation to live broker trades.
+
+### What Is Already Built
+
+The full infrastructure is production-ready. Phase 5c (June work) adds only the broker-sync bridge — it builds on top of existing tables without any schema changes.
+
+| Component | Status |
+|-----------|--------|
+| Entry engine — Gates 1–9 | ✅ Ready |
+| Exit engine — 6 triggers | ✅ Ready |
+| `cycle_layers` table — supports real account IDs | ✅ Ready |
+| `position_books` table | ✅ Ready |
+| `weekend-setup` / `daily-ingest` workflow | ✅ Ready |
+| `daily-brief` exit alerts | ✅ Ready |
+| `auto_resolve_expired` | ✅ Ready (paper trades; for live, use `close_cycle_layer` instead) |
+| `open_cycle_layer` / `close_cycle_layer` | 🔲 Phase 5c — build in June |
+| `sync_from_positions` → `position_books` | 🔲 Phase 5c — build in June |
+
+### Pre-Flight Checklist (Before First Live Trade)
+
+**Step 1 — Close out the May paper-trade cycle**
+
+```powershell
+bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type small
+bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type large
+bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type small
+bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type large
+```
+
+Record final P&L, win rate, drawdown in the Current Baseline table above.
+
+**Step 2 — Verify current broker positions**
+
+Export positions from broker → `data\positions\positions.csv`, then:
+
+```powershell
+bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
+```
+
+Confirm at least one target symbol has ≥100 shares in a single account (required for stock-backed Bull Strangle).
+
+**Step 3 — Build Phase 5c** (`sync_from_positions`, `open_cycle_layer`, `close_cycle_layer`)
+
+See `references/BullStrangle_Implementation_Plan_v3.md` Phase 5c section for full function signatures and new tools list.
+
+**Step 4 — Run Sunday setup as normal**
+
+```powershell
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-06-XX --pdf data\newsletters\newsletter.pdf
+bullstrangle --db data\bullstrangle.db gate-report 2026-06-XX --output outputs\reports\gate_report_2026-06-XX.md
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-06-XX --output outputs\reports\action_plan_2026-06-XX.md
+```
+
+**Step 5 — Place the trade in the broker, then record it**
+
+After executing the strangle in the broker:
+
+```powershell
+# Phase 5c command (build first):
+bullstrangle --db data\bullstrangle.db open-cycle-layer SYMBOL --newsletter-date 2026-06-XX \
+  --account-id YOUR_ACCOUNT_ID \
+  --call-strike 55.00 --put-strike 45.00 \
+  --call-premium 1.20 --put-premium 0.85 \
+  --expiration 2026-07-17
+```
+
+**Step 6 — Daily routine stays the same**
+
+```powershell
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-06-XX --trading-date 2026-06-XX
+bullstrangle --db data\bullstrangle.db daily-brief
+```
+
+The `daily-brief` exit alerts will now show both paper-trade and live layers. Filter by your real account ID if you want live-only view (Phase 5c will add a `--account-id` flag).
+
+**Step 7 — At expiration, close the live layer manually**
+
+For live trades, use `close_cycle_layer` with broker-confirmed P&L instead of relying on `auto_resolve` (which uses yfinance — fine for paper, but live P&L should come from broker):
+
+```powershell
+# Phase 5c command (build first):
+bullstrangle --db data\bullstrangle.db close-cycle-layer LAYER_ID \
+  --action BOTH_OTM --close-price 0.00 --pnl 205.00
+```
+
+### Phase 8 Final — Clean Up Dead Code (Do Anytime In June)
+
+Delete these 7 functions from `src/bullstrangle_mcp/decisions.py` (all marked `# DEPRECATED`):
+
+```
+_build_strategy_context()
+_score_bull_strangle()
+_score_dca()
+_select_action()
+_upsert_batch()
+_insert_bull_decisions()
+_insert_dca_decisions()
+```
+
+Keep forever: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed Gate 1 (2-week consecutive confirmation).
+
+Tables `decision_batches`, `bull_strangle_decisions`, `dca_decisions` — leave in schema, just don't write to them.
