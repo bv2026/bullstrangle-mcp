@@ -71,7 +71,7 @@ Tests:
 Inputs:
 
 - `data/newsletters`: weekly newsletter PDFs.
-- `osamurai`: Option Samurai templates, field references, and PDFs used for formula design.
+- `references`: Option Samurai templates, field references, and PDFs used for formula design (`BullStrangle_Template.xlsx`, `os_Excel addin fields.xlsx`, `os-Excel & Google Sheets Integration.pdf`, `os_filters_june2025-1.pdf`).
 
 Generated local data:
 

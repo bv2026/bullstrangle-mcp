@@ -430,10 +430,10 @@ Status:
 
 Source artifacts reviewed:
 
-- `osamurai/BullStrangle_Template.xlsx`
-- `osamurai/os_Excel addin fields.xlsx`
-- `osamurai/os-Excel & Google Sheets Integration.pdf`
-- `osamurai/os_filters_june2025-1.pdf`
+- `references/BullStrangle_Template.xlsx`
+- `references/os_Excel addin fields.xlsx`
+- `references/os-Excel & Google Sheets Integration.pdf`
+- `references/os_filters_june2025-1.pdf`
 
 The existing `BullStrangle_Template.xlsx` is useful as a formula reference, but the MCP does not need to preserve its exact tab layout. The future generated workbook should be simpler and purpose-built for the MCP workflow.
 
