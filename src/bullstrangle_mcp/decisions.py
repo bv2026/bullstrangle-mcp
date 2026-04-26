@@ -13,6 +13,23 @@ from .positions import latest_position_state
 
 STRATEGY_LOGIC_VERSION = "score_branch_v1"
 
+# ---------------------------------------------------------------------------
+# DEPRECATION NOTICE (Phase 8)
+# ---------------------------------------------------------------------------
+# The v1 score engine (_build_strategy_context, _build_bull_decision,
+# _build_dca_decision, _build_rule_diagnostics, _decision_outcome_for_action,
+# _watch_reasons, _skip_reasons, _price_trend) is superseded by the v3
+# gate engine in entry_engine.py.
+#
+# generate_weekend_decisions() is retained for backward compatibility but
+# no longer writes to decision_batches, bull_strangle_decisions, or
+# dca_decisions.  Those tables are preserved for historical data only.
+#
+# Callers should migrate to:
+#   evaluate_newsletter()       -- entry_engine.py, Gates 1-9
+#   generate_entry_validation_report()  -- gate pass/fail report
+# ---------------------------------------------------------------------------
+
 
 # ── Weekly summary (moved from ingestion.py) ──────────────────────────────────
 # These functions compute deployment decisions from market environment facts
@@ -296,19 +313,10 @@ def generate_weekend_decisions(
         }
 
         loaded_rules = load_decision_rules(conn)
-        batch_id = _upsert_batch(
-            conn,
-            newsletter=dict(newsletter),
-            market=dict(market),
-            aggregate=aggregate,
-            decision_date=decision_date,
-            source_start=source_dates["start_date"],
-            source_end=source_dates["end_date"],
-            position_run_id=position_run_id,
-            rules=loaded_rules,
-        )
-        conn.execute("DELETE FROM bull_strangle_decisions WHERE decision_batch_id = ?", (batch_id,))
-        conn.execute("DELETE FROM dca_decisions WHERE decision_batch_id = ?", (batch_id,))
+        # NOTE: batch_id / DB writes to decision_batches, bull_strangle_decisions,
+        # and dca_decisions are intentionally removed (Phase 8 deprecation).
+        # Results are returned in-memory only.
+        batch_id = None
 
         rows = conn.execute(
             """
@@ -358,12 +366,10 @@ def generate_weekend_decisions(
 
         bull_rows = _rank_decisions(bull_rows)
         dca_rows = _rank_decisions(dca_rows)
-        _insert_bull_decisions(conn, bull_rows)
-        _insert_dca_decisions(conn, dca_rows)
-        conn.commit()
+        # DB inserts removed — results returned in-memory only (Phase 8)
 
     result = {
-        "decision_batch_id": batch_id,
+        "decision_batch_id": None,  # no longer written to DB (Phase 8)
         "newsletter_id": int(newsletter["newsletter_id"]),
         "newsletter_date": newsletter["publication_date"],
         "expiration_date": newsletter["target_expiration"],
@@ -412,6 +418,7 @@ def render_weekend_decisions_markdown(result: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+# DEPRECATED — no longer called; retained for reference only (Phase 8)
 def _upsert_batch(
     conn,
     newsletter: dict[str, Any],
@@ -588,6 +595,7 @@ def _rank_decisions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ranked
 
 
+# DEPRECATED — no longer called; retained for reference only (Phase 8)
 def _insert_bull_decisions(conn, rows: list[dict[str, Any]]) -> None:
     columns = [
         "decision_batch_id",
@@ -621,6 +629,7 @@ def _insert_bull_decisions(conn, rows: list[dict[str, Any]]) -> None:
     _insert_rows(conn, "bull_strangle_decisions", columns, rows)
 
 
+# DEPRECATED — no longer called; retained for reference only (Phase 8)
 def _insert_dca_decisions(conn, rows: list[dict[str, Any]]) -> None:
     columns = [
         "decision_batch_id",
@@ -702,6 +711,7 @@ def _source_snapshot(
     return json.dumps(snapshot, sort_keys=True)
 
 
+# DEPRECATED — v1 score engine; superseded by entry_engine.py Gates 1-9 (Phase 8)
 def _build_strategy_context(
     market: dict[str, Any],
     row: dict[str, Any],

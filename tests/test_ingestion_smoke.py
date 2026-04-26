@@ -160,36 +160,24 @@ def test_ingest_os_workbook(tmp_path):
     assert decisions["bull_strangle_counts"]["SKIP"] >= 1
     assert "Weekend Decisions" in decisions["markdown"]
     assert (tmp_path / "weekend_decisions.md").exists()
+    # Phase 8: generate_weekend_decisions no longer writes to decision_batches /
+    # bull_strangle_decisions / dca_decisions — results are in-memory only.
+    assert decisions["decision_batch_id"] is None
 
-    with connect(db) as conn:
-        batch = conn.execute(
-            """
-            SELECT position_run_id, strategy_logic_version
-            FROM decision_batches
-            WHERE newsletter_date = ? AND decision_date = ?
-            """,
-            ("2026-04-17", "2026-04-25"),
-        ).fetchone()
-        assert batch["position_run_id"] == positions["position_run_id"]
-        assert batch["strategy_logic_version"] == "score_branch_v1"
-        bull_row = conn.execute(
-            """
-            SELECT selected_action, strategy_score, strategy_band,
-                   rules_passed_json, rules_failed_json, source_snapshot_json
-            FROM bull_strangle_decisions
-            WHERE decision_batch_id = ? AND symbol = 'ZIM'
-            """,
-            (decisions["decision_batch_id"],),
-        ).fetchone()
-        assert bull_row["selected_action"] in {"BULL_STRANGLE", "WATCH", "SKIP"}
-        assert bull_row["strategy_score"] is not None
-        assert bull_row["strategy_band"] in {"strong", "moderate", "watch", "weak"}
-        passed = json.loads(bull_row["rules_passed_json"])
-        failed = json.loads(bull_row["rules_failed_json"])
-        snapshot = json.loads(bull_row["source_snapshot_json"])
-        assert passed["selected_action"] in {"BULL_STRANGLE", "DCA", "WATCH", "SKIP"}
-        assert isinstance(failed, dict)
-        assert snapshot["strategy_context"]["strategy_score"] is not None
+    # Verify in-memory result shape for ZIM (was previously verified via DB query).
+    zim_bull = next(
+        (r for r in decisions["bull_strangle_decisions"] if r["symbol"] == "ZIM"), None
+    )
+    assert zim_bull is not None
+    assert zim_bull["selected_action"] in {"BULL_STRANGLE", "WATCH", "SKIP"}
+    assert zim_bull["strategy_score"] is not None
+    assert zim_bull["strategy_band"] in {"strong", "moderate", "watch", "weak"}
+    passed = json.loads(zim_bull["rules_passed_json"])
+    failed = json.loads(zim_bull["rules_failed_json"])
+    snapshot = json.loads(zim_bull["source_snapshot_json"])
+    assert passed["selected_action"] in {"BULL_STRANGLE", "DCA", "WATCH", "SKIP"}
+    assert isinstance(failed, dict)
+    assert snapshot["strategy_context"]["strategy_score"] is not None
 
 
 @pytest.mark.integration
@@ -229,17 +217,20 @@ def test_ingest_os_workbook_uploaded_copy_keeps_workbook_lineage(tmp_path):
 
 @pytest.mark.integration
 def test_generate_weekend_decisions_rule_sensitivity_via_db(tmp_path):
-    """DB-modified thresholds are reflected in stored decisions; DCA path completes cleanly.
+    """DB-modified thresholds are reflected in in-memory decisions; DCA path completes cleanly.
 
     Two things are verified here:
 
-    1. Rules loaded from strategy_rules appear in rules_applied_json — confirming
+    1. Rules loaded from strategy_rules affect the in-memory results — confirming
        load_decision_rules() is actually wired into the pipeline (not bypassed).
 
     2. The DCA decision path completes without KeyError when rules are non-default.
        This is the regression test for the bug caught in the 2026-04-23 e2e review:
        _build_dca_decision was slicing rules to the DCA sub-dict and forwarding
        that slice to _build_rule_diagnostics, which needs bull_strangle.max_credit_deviation.
+
+    NOTE: As of Phase 8 deprecation, generate_weekend_decisions no longer writes to
+    decision_batches / bull_strangle_decisions / dca_decisions.  Results are in-memory only.
     """
     pdf = require_sample_pdf()
     db = tmp_path / "bullstrangle.db"
@@ -260,10 +251,11 @@ def test_generate_weekend_decisions_rule_sensitivity_via_db(tmp_path):
     )
     ingest_positions(positions_csv, db)
 
-    # Run once with default (seeded) rules so a baseline batch exists.
+    # Run once with default (seeded) rules.
     decisions_default = generate_weekend_decisions("2026-04-17", db, decision_date="2026-04-25")
     assert sum(decisions_default["bull_strangle_counts"].values()) == 24
     assert sum(decisions_default["dca_counts"].values()) == 24
+    assert decisions_default["decision_batch_id"] is None  # no longer written to DB
 
     # Tighten max_credit_deviation to a non-default value in the DB.
     custom_value = 0.50  # default is 2.50
@@ -280,29 +272,11 @@ def test_generate_weekend_decisions_rule_sensitivity_via_db(tmp_path):
     assert sum(decisions_tight["bull_strangle_counts"].values()) == 24
     assert sum(decisions_tight["dca_counts"].values()) == 24  # KeyError would abort this
 
-    # Verify the DB-modified value is stored in rules_applied_json — confirms
-    # load_decision_rules() is wired into the pipeline and not bypassed.
-    with connect(db) as conn:
-        sample = conn.execute(
-            """
-            SELECT rules_applied_json
-            FROM bull_strangle_decisions
-            WHERE decision_batch_id = ?
-            LIMIT 1
-            """,
-            (decisions_tight["decision_batch_id"],),
-        ).fetchone()
-        batch = conn.execute(
-            """
-            SELECT source_snapshot_json
-            FROM decision_batches
-            WHERE decision_batch_id = ?
-            """,
-            (decisions_tight["decision_batch_id"],),
-        ).fetchone()
-    applied = json.loads(sample["rules_applied_json"])
-    snapshot = json.loads(batch["source_snapshot_json"])
+    # Verify the DB-modified threshold is reflected in the in-memory result.
+    # rules_applied_json in the returned decision rows should show the tightened value.
+    import json as _json
+    sample_bull = decisions_tight["bull_strangle_decisions"][0]
+    applied = _json.loads(sample_bull["rules_applied_json"])
     assert applied["max_credit_deviation"] == pytest.approx(custom_value), (
         f"Expected rules_applied_json to reflect DB value {custom_value}, got {applied}"
     )
-    assert snapshot["rules"]["bull_strangle"]["max_credit_deviation"] == pytest.approx(custom_value)
