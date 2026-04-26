@@ -1,6 +1,7 @@
 # Claude Prompts For BullStrangle
 
-Date: 2026-04-23
+Date: 2026-04-23  
+Updated: 2026-04-26 (added prompts 16–30 for new market intelligence, watchlist, and report tools)  
 Audience: Claude Desktop operator
 
 Use these prompts after the BullStrangle MCP server is configured in Claude Desktop.
@@ -100,4 +101,136 @@ Using the BullStrangle workflow, give me only the next three PowerShell commands
 
 ```text
 Use the BullStrangle MCP tools to generate the weekend decision summary for newsletter date 2026-04-24 and write it like an operator handoff: what is approved now, what is DCA only, what is watch-only, and what still needs review.
+```
+
+---
+
+## Market Intelligence Prompts *(added 2026-04-26)*
+
+## 16. Check Current Deployment Status
+
+```text
+Use the BullStrangle MCP tools to check whether deployment is currently approved. Show the per-criterion breakdown (hybrid score, S&P vs 200-DMA, VIX, breadth), consecutive weeks met, and the recommended action.
+```
+
+## 17. Get Market Environment Snapshot
+
+```text
+Use the BullStrangle MCP tools to get the current market environment. Show hybrid score, market status, investment percent, VIX, breadth, S&P vs 200-DMA, scaling phase, and recommended position count.
+```
+
+## 18. Review Market History
+
+```text
+Use the BullStrangle MCP tools to show the last 8 weeks of market environment history. For each week show: date, hybrid score, market status, deployment approved, and consecutive weeks met.
+```
+
+## 19. Get Scaling Guidance
+
+```text
+Use the BullStrangle MCP tools to get scaling guidance for this week. Explain what scaling phase we are in, how many positions are recommended, and what that means for new deployments.
+```
+
+## 20. Check Active Cycles
+
+```text
+Use the BullStrangle MCP tools to show all active position cycles (newsletters with unexpired target expirations). For each cycle show the newsletter date, expiration date, days remaining, and market status. Flag any expiring within 7 days.
+```
+
+---
+
+## Watchlist & Symbol Prompts *(added 2026-04-26)*
+
+## 21. Get Full Watchlist
+
+```text
+Use the BullStrangle MCP tools to get the full watchlist for newsletter date 2026-04-24. Show symbol, price, IV, sector, strikes, bull strangle return %, and flag any WL Favorites.
+```
+
+## 22. Get DCA Candidates
+
+```text
+Use the BullStrangle MCP tools to get the DCA candidates for newsletter date 2026-04-24. Show rank, symbol, portfolio type, price, IV, and sector. Separate large-portfolio and small-portfolio lists.
+```
+
+## 23. Get Eligible Symbols (Approved Only)
+
+```text
+Use the BullStrangle MCP tools to get the symbols approved for bull strangle deployment from newsletter date 2026-04-24. Show rank, symbol, live credit, price deviation, selected account, shares held, and shares to 100.
+```
+
+## 24. Get Watch List Symbols
+
+```text
+Use the BullStrangle MCP tools to get all symbols on WATCH (not yet approved) for newsletter date 2026-04-24. For each, explain the strategy score, band, and what would need to change for it to move to APPROVE.
+```
+
+## 25. Deep Dive on WL Favorites
+
+```text
+Use the BullStrangle MCP tools to get the WL Favorites deep analysis for newsletter date 2026-04-24. For each favorite, summarize Darren's technical assessment, the proposed trade structure (strikes, premiums, total investment, max gain %), and key risk factors.
+```
+
+## 26. Explain One WL Favorite
+
+```text
+Use the BullStrangle MCP tools to get the WL Favorites deep analysis for newsletter date 2026-04-24, specifically for symbol NEE. Explain the proposed trade in plain English, including the total investment required, what max gain looks like, and the main risks.
+```
+
+## 27. Search Newsletter Commentary
+
+```text
+Use the BullStrangle MCP tools to search the newsletter commentary for "VIX" and show the top 5 matching sections with newsletter date, section name, and the relevant snippet.
+```
+
+## 28. Search For A Market Theme
+
+```text
+Use the BullStrangle MCP tools to search newsletter commentary for "breadth" and summarize how Darren has discussed market breadth across the last several newsletters. Note any trend or change in tone.
+```
+
+---
+
+## Report Generation Prompts *(added 2026-04-26)*
+
+## 29. Generate Sunday Action Plan
+
+```text
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24. Show the full report including market environment status, re-entry criteria table, DCA candidates, strangle eligibility summary, watchlist analysis, WL Favorites deep dives, action items for this week and next, and key reminders.
+```
+
+## 30. Generate Daily Brief
+
+```text
+Use the BullStrangle MCP tools to generate today's daily brief. Show the current market environment status, all active position cycles with days to expiration, and any alerts I should act on today.
+```
+
+## 31. Generate And Save Action Plan
+
+```text
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and save it to reports\2026-04-24\action_plan.md. Confirm the output path when done.
+```
+
+## 32. Review Previously Generated Reports
+
+```text
+Use the BullStrangle MCP tools to list all generated reports. Show report id, type, newsletter date, and when it was generated. Then retrieve the most recent weekly action plan and summarize the key action items from it.
+```
+
+## 33. Full Sunday Workflow In One Prompt
+
+```text
+Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-04-24:
+1. Check deployment approval status
+2. Get the watchlist and DCA candidates
+3. Get eligible symbols (APPROVE)
+4. Get WL Favorites deep analysis
+5. Generate the weekly action plan
+Summarize each step and end with the complete action plan report.
+```
+
+## 34. Morning Standup Brief
+
+```text
+Use the BullStrangle MCP tools to give me my morning trading standup. Check deployment approval, show active cycles with days to expiration, flag any cycles expiring this week, and tell me if there are any approved symbols from the latest decision run.
 ```
