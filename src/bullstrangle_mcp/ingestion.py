@@ -57,9 +57,7 @@ KNOWN_SINGLE_LETTER_TICKERS = {
     "X": ("UNITED STATES STEEL",),
 }
 
-TICKER_DESCRIPTION_CORRECTIONS = {
-    ("C", "RML CRITICAL METALS CORP"): "CRML",
-}
+TICKER_DESCRIPTION_CORRECTIONS: dict[tuple[str, str], str] = {}
 
 
 @dataclass
@@ -208,6 +206,32 @@ def normalize_pdf_text(text: str) -> str:
         "C AVA": "CAVA",
         "PAC S": "PACS",
         "IC LN": "ICLN",
+        # Ticker-split corrections: PDF splits one or more letters from the ticker
+        "C RML": "CRML",   # Critical Metals Corp
+        "C DE ": "CDE ",   # Coeur Mining Inc
+        "C ELH": "CELH",   # Celsius Holdings
+        "C OMM": "COMM",   # CommScope Holdings
+        "C NC ": "CNC ",   # Centene Corp
+        "C NK ": "CNK ",   # Cinemark Holdings
+        "C NQ ": "CNQ ",   # Canadian Natural Resources
+        "C ORZ": "CORZ",   # Core Scientific Inc
+        "C RSP": "CRSP",   # CRISPR Therapeutics
+        "C XW ": "CXW ",   # CoreCivic Inc
+        "C OPX": "COPX",   # Global X Copper Miners ETF
+        "FC EL": "FCEL",   # FuelCell Energy
+        "FC X ": "FCX ",   # Freeport-McMoRan Inc
+        "MC HP": "MCHP",   # Microchip Technology
+        "NC LH": "NCLH",   # Norwegian Cruise Line Holdings
+        "SC HW": "SCHW",   # Charles Schwab Corp
+        "TEC K": "TECK",   # Teck Resources Limited
+        "C LF ": "CLF ",   # Cleveland-Cliffs Inc
+        "C PRI": "CPRI",   # Capri Holdings Ltd
+        # Barrick Mining Corp — ticker is GOLD on NYSE; PDF splits both ticker and company name.
+        # "B BARRIC K" (watchlist uppercase) and "B Barrick" (screening mixed-case) must come
+        # BEFORE the generic "BARRIC K" → "BARRICK" fix below so the B→GOLD substitution fires first.
+        "B BARRIC K": "GOLD BARRIC K",   # Barrick Mining (watchlist option-price section)
+        "B Barrick": "GOLD Barrick",     # Barrick Mining (screening / short-list section)
+        "BARRIC K": "BARRICK",           # Normalise remaining BARRICK splits in descriptions
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
