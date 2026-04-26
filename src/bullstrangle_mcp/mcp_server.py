@@ -55,6 +55,8 @@ from .tools import (
     report_os_run_tool,
     search_commentary_tool,
     validate_all_newsletters_tool,
+    weekend_setup_tool,
+    daily_ingest_tool,
 )
 
 
@@ -213,9 +215,74 @@ def ingest_os_workbook(
     workbook_path: str,
     trading_date: str | None = None,
     db_path: str | None = None,
+    regenerate_if_stale: bool = False,
 ) -> dict[str, Any]:
-    """Ingest a refreshed Option Samurai workbook into daily OS snapshot tables."""
-    return ingest_os_workbook_tool(workbook_path, db_path or default_db_path(), trading_date)
+    """Ingest a refreshed Option Samurai workbook into daily OS snapshot tables.
+
+    Set regenerate_if_stale=True to automatically recover from a stale workbook
+    (newsletter_id mismatch caused by a DB rebuild). A fresh workbook will be
+    generated and ingested transparently.
+    """
+    return ingest_os_workbook_tool(
+        workbook_path,
+        db_path or default_db_path(),
+        trading_date,
+        regenerate_if_stale,
+    )
+
+
+@mcp.tool()
+def weekend_setup(
+    newsletter_date: str,
+    pdf_path: str | None = None,
+    output_dir: str | None = None,
+    force: bool = False,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Sunday newsletter workflow: ingest PDF + generate OS workbook in one step.
+
+    Steps performed automatically:
+      1. If pdf_path given: ingest the PDF into the newsletter DB (skip if already
+         ingested, unless force=True).
+      2. Generate the Option Samurai Excel workbook for newsletter_date and copy it
+         to data/os_uploads/ so it is ready to open in Excel.
+
+    After this completes: open the uploaded workbook in Excel, enable the Option
+    Samurai add-in, refresh, save — then call daily_ingest each trading day.
+    """
+    return weekend_setup_tool(
+        newsletter_date,
+        db_path or default_db_path(),
+        pdf_path,
+        output_dir,
+        force,
+    )
+
+
+@mcp.tool()
+def daily_ingest(
+    newsletter_date: str,
+    trading_date: str | None = None,
+    output_dir: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Daily OS workflow: ingest refreshed workbook from os_uploads + generate report.
+
+    Steps performed automatically:
+      1. Find data/os_uploads/BullStrangle_OS_Live_<newsletter_date>.xlsx.
+         If the workbook is stale (newsletter_id mismatch from a DB rebuild) it is
+         regenerated automatically — no manual intervention needed.
+      2. Ingest the workbook into os_evaluation_runs and os_evaluation_rows.
+      3. Write the OS run report to outputs/reports/os_run_<run_id>_<trading_date>.md.
+
+    Returns run_id, status, and report_path so you can immediately review the report.
+    """
+    return daily_ingest_tool(
+        newsletter_date,
+        db_path or default_db_path(),
+        trading_date,
+        output_dir,
+    )
 
 
 @mcp.tool()

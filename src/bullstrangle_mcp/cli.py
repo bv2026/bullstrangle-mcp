@@ -37,6 +37,8 @@ from .tools import (
     prepare_os_workbook_tool,
     report_os_run_tool,
     validate_all_newsletters_tool,
+    weekend_setup_tool,
+    daily_ingest_tool,
 )
 
 
@@ -106,6 +108,65 @@ def main(argv: list[str] | None = None) -> int:
     )
     ingest_os.add_argument("workbook_path")
     ingest_os.add_argument("--trading-date", help="Trading date for the OS snapshot, e.g. 2026-04-22")
+    ingest_os.add_argument(
+        "--regenerate-if-stale",
+        action="store_true",
+        default=False,
+        help=(
+            "If the workbook was generated from a different DB state (newsletter_id mismatch), "
+            "automatically regenerate it from the current DB and ingest the fresh copy. "
+            "Saves the regenerated file to the same directory as workbook_path."
+        ),
+    )
+
+    # --- Workflow commands ---------------------------------------------------
+
+    weekend_setup_p = subparsers.add_parser(
+        "weekend-setup",
+        help="Sunday workflow: ingest newsletter PDF + generate OS workbook in one step",
+    )
+    weekend_setup_p.add_argument(
+        "newsletter_date",
+        help="Newsletter publication date, e.g. 2026-04-24",
+    )
+    weekend_setup_p.add_argument(
+        "--pdf",
+        dest="pdf_path",
+        default=None,
+        help="Path to the newsletter PDF (required if newsletter not yet ingested)",
+    )
+    weekend_setup_p.add_argument(
+        "--output-dir",
+        default=None,
+        help="Directory for the generated .xlsx (default: outputs/workbooks)",
+    )
+    weekend_setup_p.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Re-ingest the PDF even if it is already in the DB",
+    )
+
+    daily_ingest_p = subparsers.add_parser(
+        "daily-ingest",
+        help="Daily workflow: ingest refreshed OS workbook from os_uploads + generate report",
+    )
+    daily_ingest_p.add_argument(
+        "newsletter_date",
+        help="Newsletter date this workbook belongs to, e.g. 2026-04-24",
+    )
+    daily_ingest_p.add_argument(
+        "--trading-date",
+        default=None,
+        help="Date the OS data was refreshed (default: today)",
+    )
+    daily_ingest_p.add_argument(
+        "--output-dir",
+        default=None,
+        help="Directory for the run report (default: outputs/reports)",
+    )
+
+    # --- End workflow commands -----------------------------------------------
 
     ingest_positions = subparsers.add_parser(
         "ingest-positions",
@@ -353,7 +414,39 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "ingest-os-workbook":
         print(
             json.dumps(
-                ingest_os_workbook_tool(args.workbook_path, args.db, args.trading_date),
+                ingest_os_workbook_tool(
+                    args.workbook_path,
+                    args.db,
+                    args.trading_date,
+                    getattr(args, "regenerate_if_stale", False),
+                ),
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "weekend-setup":
+        print(
+            json.dumps(
+                weekend_setup_tool(
+                    args.newsletter_date,
+                    args.db,
+                    getattr(args, "pdf_path", None),
+                    getattr(args, "output_dir", None),
+                    getattr(args, "force", False),
+                ),
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "daily-ingest":
+        print(
+            json.dumps(
+                daily_ingest_tool(
+                    args.newsletter_date,
+                    args.db,
+                    getattr(args, "trading_date", None),
+                    getattr(args, "output_dir", None),
+                ),
                 indent=2,
             )
         )

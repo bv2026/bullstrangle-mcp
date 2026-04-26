@@ -59,45 +59,36 @@ Prints: equity curve by week, cumulative P&L, overall return %, win rate, max dr
 
 ---
 
-### When New Newsletter Arrives (Sunday Night / Monday)
+### When New Newsletter Arrives (Sunday Night)
 
-**Step 1 — Ingest the PDF**
-
-```powershell
-bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\newsletter.pdf
-```
-
-Confirm it landed:
+Drop the PDF into `data\newsletters\`, then run one command:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db list-newsletters
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24 --pdf data\newsletters\newsletter.pdf
 ```
 
-**Step 2 — Generate OS workbook**
+This does everything in sequence:
+1. Ingests the PDF into the newsletter DB
+2. Generates the OS Excel workbook → `outputs\workbooks\`
+3. Auto-copies the workbook to `data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx`
+
+If the newsletter is already ingested (e.g. you ran `ingest-pdf` separately), omit `--pdf`:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\workbooks
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24
 ```
 
-File is auto-copied to `data\os_uploads`. Open it there in Excel.
+After `weekend-setup` completes, open `data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx` in Excel.
 
-**Step 3 — Evaluate gates (can do without OS data)**
-
-Checks all 9 entry gates for every watchlist symbol:
-
-```powershell
-bullstrangle --db data\bullstrangle.db evaluate-newsletter 2026-04-24
-```
-
-Generate and save the full gate report:
+**Step 2 — Evaluate gates (can do now, before OS data)**
 
 ```powershell
 bullstrangle --db data\bullstrangle.db gate-report 2026-04-24 --output outputs\reports\gate_report_2026-04-24.md
 ```
 
-**Step 4 — Seed paper-trade positions (if deployment approved)**
+**Step 3 — Seed paper-trade positions (if deployment approved)**
 
-Only needed once per new newsletter week:
+Only once per new newsletter week:
 
 ```powershell
 bullstrangle --db data\bullstrangle.db seed-cycle-layers 2026-04-24 --portfolio-type small
@@ -108,19 +99,30 @@ bullstrangle --db data\bullstrangle.db seed-cycle-layers 2026-04-24 --portfolio-
 
 ### Daily (Market Hours, Mon–Fri)
 
-Refresh the OS workbook in Excel (enable Option Samurai add-in, refresh, save), then ingest:
+Open `data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx` in Excel, enable the Option Samurai add-in, refresh, save. Then run one command:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
 ```
 
-Use the actual trading date for `--trading-date`.
-Capture the `run_id` from output for reporting.
+This does everything in sequence:
+1. Finds the refreshed workbook in `data\os_uploads\`
+2. Ingests it (auto-recovers from stale newsletter_id if needed — no manual fix required)
+3. Generates the OS run report → `outputs\reports\os_run_<run_id>_2026-04-28.md`
 
-Generate the daily OS report:
+Output includes `run_id` and `report_path` for reference.
+
+**Manual fallback** (if you need to split the steps):
 
 ```powershell
-bullstrangle --db data\bullstrangle.db report-os-run 5 --output outputs\reports\os_run_5.md
+# Step 1 — ingest only
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+
+# Step 2 — report only (use run_id from step 1)
+bullstrangle --db data\bullstrangle.db report-os-run 8 --output outputs\reports\os_run_8.md
+
+# If you get a stale workbook error, add --regenerate-if-stale:
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28 --regenerate-if-stale
 ```
 
 ---
@@ -152,6 +154,19 @@ bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions
 
 ## Full CLI Reference
 
+### Workflow Commands (preferred)
+
+```powershell
+# Sunday: ingest PDF + generate workbook in one step
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24 --pdf data\newsletters\newsletter.pdf
+
+# Sunday: newsletter already ingested, just regenerate workbook
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24
+
+# Daily: ingest refreshed workbook + generate report in one step
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
+```
+
 ### Database & Newsletters
 
 ```powershell
@@ -170,6 +185,7 @@ bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 202
 bullstrangle --db data\bullstrangle.db os-selectors 2026-04-24
 bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\workbooks
 bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28 --regenerate-if-stale
 bullstrangle --db data\bullstrangle.db list-os-runs --newsletter-date 2026-04-24
 bullstrangle --db data\bullstrangle.db report-os-run 5 --output outputs\reports\os_run_5.md
 bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24

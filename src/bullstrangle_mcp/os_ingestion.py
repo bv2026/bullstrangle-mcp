@@ -30,6 +30,7 @@ def ingest_os_workbook(
     workbook_path: str | Path,
     db_path: str | Path = DEFAULT_DB_PATH,
     trading_date: str | None = None,
+    regenerate_if_stale: bool = False,
 ) -> dict[str, Any]:
     initialize_database(db_path)
     path = Path(workbook_path)
@@ -76,7 +77,38 @@ def ingest_os_workbook(
             (newsletter_id,),
         ).fetchone()
         if not newsletter:
-            raise ValueError(f"Workbook references unknown newsletter_id: {newsletter_id}")
+            # newsletter_id mismatch — workbook was generated from a different DB state.
+            # Look up whether a newsletter for the same date exists under a different ID.
+            current = conn.execute(
+                "SELECT newsletter_id FROM newsletters WHERE publication_date = ?",
+                (newsletter_date,),
+            ).fetchone()
+            hint = (
+                f"  A newsletter for {newsletter_date} exists in this DB as "
+                f"newsletter_id={current['newsletter_id']}.\n"
+                f"  Re-generate: bullstrangle --db <db> generate-os-workbook "
+                f"{newsletter_date} --output-dir outputs/workbooks"
+                if current
+                else f"  No newsletter for {newsletter_date} found in this DB either — "
+                f"ingest the PDF first: bullstrangle --db <db> ingest-pdf <file.pdf>"
+            )
+            if regenerate_if_stale and current:
+                # Auto-regenerate the workbook and re-run ingest against the fresh file.
+                from .os_workbooks import generate_os_workbook
+
+                upload_dir = Path(workbook_path).parent
+                regen = generate_os_workbook(newsletter_date, db_path, upload_dir)
+                return ingest_os_workbook(
+                    regen["generated_path"],
+                    db_path=db_path,
+                    trading_date=trading_date,
+                    regenerate_if_stale=False,
+                )
+            raise ValueError(
+                f"Workbook references newsletter_id={newsletter_id} (date={newsletter_date}) "
+                f"which does not exist in this database — the workbook was generated from a "
+                f"different DB state and is stale.\n{hint}"
+            )
         if newsletter_date != newsletter["publication_date"]:
             raise ValueError(
                 "Workbook newsletter_date does not match database newsletter: "

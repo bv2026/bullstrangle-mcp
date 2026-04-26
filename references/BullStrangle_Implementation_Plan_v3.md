@@ -2,25 +2,26 @@
 
 Date: 2026-04-26
 Last updated: 2026-04-26
-Status: ACTIVE — Phases 0–6 + 5b complete; Phase 7 next
+Status: ACTIVE — Phases 0–6 + 5b + 8-partial complete; Phase 7 next
 
 ## Progress
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Master Document rule extraction → `master_document_rule_inventory.md` | ✅ Done (2026-04-26) |
-| 1 | Schema migration 3 + earnings calendar wiring | ✅ Done (2026-04-26) |
-| 1b | Parser bug fix — 20+ split-ticker PDF artifacts in `normalize_pdf_text` | ✅ Done (2026-04-26) |
-| M4 | Schema migration 4 — `portfolio_type` column on `cycle_layers` | ✅ Done (2026-04-26) |
-| 2 | `rule_catalog.py` — load and query `strategy_rule_catalog` | ✅ Done (2026-04-26) |
-| 3 | `entry_engine.py` — Gates 1–9 evaluation | ✅ Done (2026-04-26) |
-| 4 | `exit_engine.py` — exit trigger rules | ✅ Done (2026-04-26) |
-| 5a | `position_book.py` — Short List backtest validator with yfinance P&L | ✅ Done (2026-04-26) |
-| 5b | Active portfolio monitoring — live mark-to-market, auto-resolve, equity curve, portfolio_type separation | ✅ Done (2026-04-26) |
-| 5c | `position_book.py` — full live trading layer lifecycle + broker sync | 🔲 Pending |
-| 6 | Tool registration (18 new MCP tools + CLI) | ✅ Done (2026-04-26) |
-| 7 | Report updates (active cycle stack, Gate results in daily brief / weekly plan) | 🔲 Next |
-| 8 | v1 score engine deprecation | 🔲 Pending |
+| 0 | Master Document rule extraction → `master_document_rule_inventory.md` | ✅ Done |
+| 1 | Schema migration 3 + earnings calendar wiring | ✅ Done |
+| 1b | Parser bug fix — 20+ split-ticker PDF artifacts in `normalize_pdf_text` | ✅ Done |
+| M4 | Schema migration 4 — `portfolio_type` column on `cycle_layers` | ✅ Done |
+| 2 | `rule_catalog.py` — load and query `strategy_rule_catalog` | ✅ Done |
+| 3 | `entry_engine.py` — Gates 1–9 evaluation | ✅ Done |
+| 4 | `exit_engine.py` — exit trigger rules | ✅ Done |
+| 5a | `position_book.py` — Short List backtest validator with yfinance P&L | ✅ Done |
+| 5b | Active portfolio monitoring — live mark-to-market, auto-resolve, equity curve, portfolio_type separation | ✅ Done |
+| 5c | `position_book.py` — full live trading layer lifecycle + broker sync | 🔲 Deferred (June, after May cycle) |
+| 6 | Tool registration (18 new MCP tools + CLI) | ✅ Done |
+| W | Workflow commands — `weekend-setup`, `daily-ingest`; stale workbook detection + `--regenerate-if-stale` | ✅ Done |
+| 7 | Report updates (active cycle stack, Gate results in daily brief / weekly plan) | 🔲 **Next** |
+| 8 | v1 score engine deprecation | 🟡 Partial — DB writes stopped, DEPRECATED markers added; function removal deferred to June |
 
 ---
 
@@ -68,15 +69,15 @@ Architecture spec v3 and Implementation Guide v2 are written. This document defi
 | `database.py` | ✅ Migrations 3 + 4 added — `strategy_rule_catalog`, `position_books`, `cycle_layers`, `entry_decisions`, `exit_decisions`, `portfolio_type` column |
 | `ingestion.py` | ✅ Earnings wiring added (Phase 1) — `insert_earnings_calendar()` + `_parse_earnings_date()` |
 | `os_workbooks.py` | ✅ Keep |
-| `os_ingestion.py` | ✅ Keep |
+| `os_ingestion.py` | ✅ Updated — `regenerate_if_stale` param; actionable error messages (Phase W) |
 | `os_reports.py` | ✅ Keep |
 | `os_weekly.py` | ✅ Keep |
 | `positions.py` | ✅ Keep |
-| `decisions.py` | ⚠️ Partial keep — `compute_weekly_summary()` stays; v1 score functions deprecated in Phase 8 |
+| `decisions.py` | 🟡 Phase 8 partial — DB writes to dead tables removed; DEPRECATED markers added; v1 score functions still present (deletion deferred to June) |
 | `reports.py` | ✅ Keep — update in Phase 7 |
-| `tools.py` | ✅ Updated — 18 new tool wrappers added (Phase 6) |
-| `cli.py` | ✅ Updated — 18 new CLI commands added (Phase 6) |
-| `mcp_server.py` | ✅ Updated — 18 new tools registered (Phase 6) |
+| `tools.py` | ✅ Updated — 18 new tool wrappers (Phase 6) + `weekend_setup_tool`, `daily_ingest_tool` (Phase W) |
+| `cli.py` | ✅ Updated — 18 new CLI commands (Phase 6) + `weekend-setup`, `daily-ingest` (Phase W) |
+| `mcp_server.py` | ✅ Updated — 18 new tools (Phase 6) + `weekend_setup`, `daily_ingest` MCP tools (Phase W) |
 
 #### New modules built
 
@@ -273,6 +274,28 @@ All new engines wired into `tools.py`, `mcp_server.py`, and `cli.py`.
 
 ---
 
+#### Phase W — Workflow Commands ✅ DONE
+
+**`src/bullstrangle_mcp/os_ingestion.py`**
+- `regenerate_if_stale: bool = False` parameter added to `ingest_os_workbook`
+- Stale workbook detection: when `newsletter_id` in workbook doesn't match DB, error message now includes the correct date, the re-generate command, and — if `regenerate_if_stale=True` — silently regenerates and retries ingest automatically
+- Previous cryptic error: `ValueError: Workbook references unknown newsletter_id: 35`
+- New error: tells you exactly which date exists and which CLI command to run
+
+**`src/bullstrangle_mcp/tools.py`**
+- `weekend_setup_tool(newsletter_date, db_path, pdf_path, output_dir, force)` — Sunday workflow in one call: ingest PDF → generate workbook → auto-copy to os_uploads
+- `daily_ingest_tool(newsletter_date, db_path, trading_date, output_dir)` — daily workflow in one call: find workbook in os_uploads → ingest (with auto-stale-recovery) → generate run report → save to outputs/reports
+
+**`src/bullstrangle_mcp/cli.py`**
+- `weekend-setup <date> [--pdf <path>] [--force]`
+- `daily-ingest <date> [--trading-date <date>] [--output-dir <dir>]`
+- `ingest-os-workbook` extended with `--regenerate-if-stale` flag
+
+**`src/bullstrangle_mcp/mcp_server.py`**
+- `weekend_setup` and `daily_ingest` MCP tools registered
+
+---
+
 #### Phase 7 — Report Updates 🔲 NEXT
 
 **File:** `src/bullstrangle_mcp/reports.py`
@@ -289,15 +312,22 @@ Update `generate_daily_brief()`:
 
 ---
 
-#### Phase 8 — Deprecate v1 Score Engine 🔲 PENDING
+#### Phase 8 — Deprecate v1 Score Engine 🟡 PARTIAL
 
 **File:** `src/bullstrangle_mcp/decisions.py`
 
-Remove: `_build_strategy_context()`, `_score_bull_strangle()`, `_score_dca()`, `_select_action()`.
+**Done:**
+- `generate_weekend_decisions` no longer writes to `decision_batches`, `bull_strangle_decisions`, or `dca_decisions` — results are in-memory only, `decision_batch_id` returns `None`
+- `_upsert_batch`, `_insert_bull_decisions`, `_insert_dca_decisions` marked `# DEPRECATED — no longer called`
+- `_build_strategy_context` marked `# DEPRECATED — v1 score engine; superseded by entry_engine.py Gates 1–9`
+- Two smoke tests updated to assert in-memory results instead of querying dead tables
 
-Keep: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed Gate 1 (2-week consecutive confirmation).
+**Remaining (deferred to June after May cycle):**
+- Delete `_build_strategy_context()`, `_score_bull_strangle()`, `_score_dca()`, `_select_action()`, `_upsert_batch()`, `_insert_bull_decisions()`, `_insert_dca_decisions()`
 
-**Tables:** `decision_batches`, `bull_strangle_decisions`, `dca_decisions` — leave in schema for historical data, no longer written to.
+Keep always: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed Gate 1 (2-week consecutive confirmation).
+
+**Tables:** `decision_batches`, `bull_strangle_decisions`, `dca_decisions` — left in schema for historical data, no longer written to by any active code path.
 
 ---
 
@@ -306,44 +336,47 @@ Keep: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — these feed
 | Category | Existing | To Build | Built |
 |---|---|---|---|
 | DB tables | 24 | 5 + 1 col | 5 tables + portfolio_type col ✅ |
-| Source modules | 12 | 4 | 4 ✅ (`rule_catalog.py`, `entry_engine.py`, `exit_engine.py`, `position_book.py`) |
-| MCP tools | 30 | 18 new | 18 ✅ |
+| Source modules | 12 | 4 new + 3 updated | 4 new ✅ + `os_ingestion`, `tools`, `cli`, `mcp_server` updated ✅ |
+| MCP tools | 30 | 18 new + 2 workflow | 20 ✅ |
+| CLI commands | — | 18 new + 2 workflow + flags | 20 + portfolio_type flags ✅ |
 | Reference docs | 9 | 1 (rule inventory) | 1 ✅ |
 | Parser bug fixes | — | — | 20 tickers corrected ✅ |
 
 ### Remaining Work
 
-| Item | Phase | Effort |
-|---|---|---|
-| Inject active cycle stack into weekly action plan | 7 | Medium |
-| Inject gate results + exit alerts into daily brief | 7 | Medium |
-| `sync_from_positions` → `position_books` book sync | 5c | Medium (needs live broker data) |
-| Assignment risk alerts (stock near strike) | 5b deferred | Small |
-| Remove v1 score functions from `decisions.py` | 8 | Small |
-| Dashboard / monitoring UI | 5b deferred | Large |
+| Item | Phase | Effort | When |
+|---|---|---|---|
+| Inject active cycle stack into weekly action plan | 7 | Medium | Now |
+| Inject gate results + exit alerts into daily brief | 7 | Medium | Now |
+| Remove v1 score functions from `decisions.py` | 8 | Small | June (after May cycle) |
+| `sync_from_positions` → `position_books` book sync | 5c | Medium | June (needs live broker positions) |
+| Assignment risk alerts (stock near strike section in exit report) | 5b deferred | Small | June |
+| Dashboard / monitoring UI | 5b deferred | Large | TBD |
 
 ---
 
 ### Critical Path
 
 ```
-Master Document PDF (Phase 0)          ✅
+Master Document PDF (Phase 0)               ✅
         |
-schema migration + earnings wiring (Phase 1)  ✅
+schema migration + earnings wiring (Phase 1) ✅
         |
-rule_catalog.py (Phase 2)              ✅
+rule_catalog.py (Phase 2)                   ✅
         |
-entry_engine.py — Gates 1-9 (Phase 3) ✅
+entry_engine.py — Gates 1–9 (Phase 3)      ✅
         |
-exit_engine.py (Phase 4)              ✅
+exit_engine.py (Phase 4)                   ✅
         |
-position_book.py (Phase 5a/5b)        ✅
+position_book.py (Phase 5a/5b)             ✅
         |
-tool wrappers + CLI (Phase 6)          ✅
+tool wrappers + CLI (Phase 6)               ✅
         |
-report updates (Phase 7)              <- NEXT
+workflow commands + stale-workbook fix (W)  ✅
         |
-v1 score engine deprecation (Phase 8)
+report updates (Phase 7)                   ← NEXT
         |
-live trading lifecycle (Phase 5c)     <- needs live broker positions
+v1 score functions deleted (Phase 8 final) ← June
+        |
+live trading lifecycle (Phase 5c)          ← June, needs live broker positions
 ```

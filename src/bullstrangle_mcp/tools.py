@@ -269,10 +269,16 @@ def ingest_os_workbook_tool(
     workbook_path: str,
     db_path: str = str(DEFAULT_DB_PATH),
     trading_date: str | None = None,
+    regenerate_if_stale: bool = False,
 ) -> dict[str, Any]:
-    """Ingest a refreshed Option Samurai workbook into daily OS snapshot tables."""
+    """Ingest a refreshed Option Samurai workbook into daily OS snapshot tables.
+
+    If regenerate_if_stale=True and the workbook was generated from a different DB state
+    (newsletter_id mismatch), a fresh workbook is automatically generated and ingested
+    in its place without raising an error.
+    """
     initialize_database(db_path)
-    return ingest_os_workbook(workbook_path, db_path, trading_date)
+    return ingest_os_workbook(workbook_path, db_path, trading_date, regenerate_if_stale)
 
 
 def report_os_run_tool(
@@ -1167,4 +1173,157 @@ def get_rule_tool(
         "parameters_json": rule.parameters_json,
         "data_column_mapping": rule.data_column_mapping,
         "is_active": rule.is_active,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Workflow helpers — chain multiple steps into one command
+# ---------------------------------------------------------------------------
+
+def weekend_setup_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    pdf_path: str | None = None,
+    output_dir: str | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Sunday newsletter workflow in one command.
+
+    Steps:
+      1. Ingest the PDF (if pdf_path provided) — skipped if already ingested unless force=True.
+      2. Generate the Option Samurai Excel workbook for newsletter_date.
+         Written to output_dir (default: outputs/workbooks relative to DB) and
+         automatically copied to data/os_uploads/ so it is ready to open in Excel.
+
+    Returns a combined result with keys:
+      - newsletter_step: "ingested" | "already_exists" | "skipped"
+      - newsletter: the full ingest/lookup result
+      - workbook: the generate_os_workbook result (includes generated_path, uploaded_path)
+    """
+    initialize_database(db_path)
+    db = Path(db_path)
+
+    # Resolve output_dir
+    resolved_output_dir = output_dir or str(db.parent.parent / "outputs" / "workbooks")
+
+    # Step 1 — ingest PDF
+    newsletter_step = "skipped"
+    newsletter_result: dict[str, Any] = {}
+
+    if pdf_path:
+        pdf = Path(pdf_path)
+        if not pdf.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf}")
+        try:
+            newsletter_result = ingest_newsletter(pdf, db_path)
+            newsletter_step = "ingested"
+        except ValueError as exc:
+            if "already ingested" in str(exc).lower() or "already exists" in str(exc).lower():
+                if force:
+                    newsletter_result = ingest_newsletter(pdf, db_path)
+                    newsletter_step = "ingested"
+                else:
+                    # Pull existing record so we still have context
+                    from .database import connect as _connect
+                    with _connect(db_path) as conn:
+                        row = conn.execute(
+                            "SELECT newsletter_id, publication_date, target_expiration, "
+                            "option_type FROM newsletters "
+                            "WHERE publication_date = ?",
+                            (newsletter_date,),
+                        ).fetchone()
+                        newsletter_result = dict(row) if row else {}
+                    newsletter_step = "already_exists"
+            else:
+                raise
+    else:
+        # No PDF provided — check newsletter is already in DB
+        from .database import connect as _connect
+        with _connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT newsletter_id, publication_date, target_expiration, "
+                "option_type FROM newsletters "
+                "WHERE publication_date = ?",
+                (newsletter_date,),
+            ).fetchone()
+        if row:
+            newsletter_result = dict(row)
+            newsletter_step = "already_exists"
+        else:
+            raise ValueError(
+                f"No newsletter for {newsletter_date} found in DB and no --pdf supplied.\n"
+                f"Drop the PDF into data/newsletters/ and re-run with --pdf <path>."
+            )
+
+    # Step 2 — generate workbook (also auto-copies to os_uploads)
+    workbook_result = generate_os_workbook_tool(newsletter_date, db_path, resolved_output_dir)
+
+    return {
+        "newsletter_step": newsletter_step,
+        "newsletter": newsletter_result,
+        "workbook": workbook_result,
+        "next_step": (
+            f"Open {workbook_result.get('uploaded_path')} in Excel, "
+            "enable Option Samurai add-in, refresh, save — then run daily-ingest."
+        ),
+    }
+
+
+def daily_ingest_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    trading_date: str | None = None,
+    output_dir: str | None = None,
+) -> dict[str, Any]:
+    """Daily OS workflow in one command.
+
+    Steps:
+      1. Find the refreshed workbook in data/os_uploads/BullStrangle_OS_Live_<date>.xlsx.
+         If the workbook is stale (newsletter_id mismatch from a DB rebuild), it is
+         automatically regenerated — no manual intervention needed.
+      2. Ingest the workbook into os_evaluation_runs and os_evaluation_rows.
+      3. Generate the OS run report and save it to output_dir/os_run_<run_id>_<date>.md.
+
+    Returns a combined result with keys:
+      - ingest: the full ingest result (run_id, row_count, status, …)
+      - report: the report result (markdown, output_path)
+      - report_path: path where the report was saved (None if output_dir not writable)
+    """
+    initialize_database(db_path)
+    db = Path(db_path)
+
+    # Resolve paths
+    uploads_dir = db.parent / "os_uploads"
+    workbook_path = uploads_dir / f"BullStrangle_OS_Live_{newsletter_date}.xlsx"
+    if not workbook_path.exists():
+        raise FileNotFoundError(
+            f"Workbook not found: {workbook_path}\n"
+            f"Run 'weekend-setup {newsletter_date}' first to generate it, "
+            f"then open in Excel, refresh Option Samurai, and save."
+        )
+
+    resolved_output_dir = output_dir or str(db.parent.parent / "outputs" / "reports")
+    Path(resolved_output_dir).mkdir(parents=True, exist_ok=True)
+
+    td = trading_date or date.today().isoformat()
+
+    # Step 1+2 — ingest (with auto-stale recovery)
+    ingest_result = ingest_os_workbook(
+        workbook_path, db_path, td, regenerate_if_stale=True
+    )
+    run_id = ingest_result["run_id"]
+
+    # Step 3 — run report
+    report_filename = f"os_run_{run_id}_{td}.md"
+    report_path = str(Path(resolved_output_dir) / report_filename)
+    report_result = report_os_run(run_id, db_path, report_path)
+
+    return {
+        "newsletter_date": newsletter_date,
+        "trading_date": td,
+        "ingest": ingest_result,
+        "report": report_result,
+        "report_path": report_path,
+        "run_id": run_id,
+        "status": ingest_result["status"],
     }
