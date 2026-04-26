@@ -584,6 +584,7 @@ def generate_exit_report(
     db_path: str,
     output_path: str | None = None,
     include_live_price: bool = True,
+    portfolio_type: str = "small",
 ) -> str:
     """
     Generate a markdown exit monitoring report for all ACTIVE positions.
@@ -594,7 +595,7 @@ def generate_exit_report(
     """
     # Auto-resolve expired positions before building the report
     from .position_book import auto_resolve_expired
-    auto_result = auto_resolve_expired(db_path)
+    auto_result = auto_resolve_expired(db_path, portfolio_type)
 
     decisions = evaluate_exit_batch(db_path, include_live_price=include_live_price)
 

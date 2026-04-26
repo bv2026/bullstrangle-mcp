@@ -21,6 +21,7 @@ from .position_book import (
     auto_resolve_expired,
     backtest_all,
     generate_backtest_report,
+    get_portfolio_performance,
     resolve_outcomes,
     seed_from_short_list,
 )
@@ -854,8 +855,24 @@ def list_strategy_rules_tool(
     return result
 
 
+def get_portfolio_performance_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    portfolio_type: str = "small",
+) -> dict[str, Any]:
+    """Return structured week-by-week equity curve and performance stats.
+
+    Includes cumulative P&L, cumulative return %, drawdown from peak,
+    win/loss per week, and overall summary stats (win rate, max drawdown,
+    best/worst week).  Only closed positions appear in the curve; open
+    positions are listed separately as capital-at-risk.
+    """
+    initialize_database(db_path)
+    return get_portfolio_performance(db_path, portfolio_type)
+
+
 def auto_resolve_expired_tool(
     db_path: str = str(DEFAULT_DB_PATH),
+    portfolio_type: str = "small",
 ) -> dict[str, Any]:
     """Scan for ACTIVE layers whose expiration has passed and resolve them automatically.
 
@@ -864,7 +881,7 @@ def auto_resolve_expired_tool(
     what was resolved and the P&L for each position.
     """
     initialize_database(db_path)
-    return auto_resolve_expired(db_path)
+    return auto_resolve_expired(db_path, portfolio_type)
 
 
 def seed_cycle_layers_tool(
@@ -1062,6 +1079,7 @@ def generate_exit_report_tool(
     db_path: str = str(DEFAULT_DB_PATH),
     output_path: str | None = None,
     include_live_price: bool = True,
+    portfolio_type: str = "small",
 ) -> dict[str, Any]:
     """Generate a markdown exit monitoring report for all ACTIVE positions.
 
@@ -1069,7 +1087,7 @@ def generate_exit_report_tool(
     live price, % change from entry, strike proximity, and triggered rule citations.
     """
     initialize_database(db_path)
-    md = generate_exit_report(db_path, output_path, include_live_price)
+    md = generate_exit_report(db_path, output_path, include_live_price, portfolio_type)
     result: dict[str, Any] = {"markdown": md}
     if output_path:
         result["output_path"] = str(Path(output_path).resolve())

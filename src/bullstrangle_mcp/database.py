@@ -858,11 +858,23 @@ def _m001_decision_position_columns(conn: sqlite3.Connection) -> None:
         _ensure_column(conn, table, "shares_to_100", "REAL")
 
 
+def _m004_cycle_layers_portfolio_type(conn: sqlite3.Connection) -> None:
+    """Add portfolio_type column to cycle_layers so small/large portfolios are tracked
+    separately.  Existing rows (all small portfolio backtest data) are backfilled to
+    'small'.  Future inserts from seed_from_short_list will set this explicitly.
+    """
+    _ensure_column(conn, "cycle_layers", "portfolio_type", "TEXT DEFAULT 'small'")
+    conn.execute(
+        "UPDATE cycle_layers SET portfolio_type = 'small' WHERE portfolio_type IS NULL"
+    )
+
+
 # Ordered list of (version, migration_fn).  Append new entries here.
 _MIGRATIONS: list[tuple[int, Callable[[sqlite3.Connection], None]]] = [
     (1, _m001_decision_position_columns),
     (2, _m002_reports_and_earnings),
     (3, _m003_v3_cycle_model),
+    (4, _m004_cycle_layers_portfolio_type),
 ]
 
 

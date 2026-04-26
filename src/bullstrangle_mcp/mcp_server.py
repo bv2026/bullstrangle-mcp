@@ -11,6 +11,7 @@ from .tools import (
     aggregate_os_week_tool,
     auto_resolve_expired_tool,
     backtest_all_tool,
+    get_portfolio_performance_tool,
     calculate_os_selectors_tool,
     check_deployment_approval_tool,
     evaluate_entry_tool,
@@ -435,7 +436,26 @@ def search_commentary(
 
 
 @mcp.tool()
-def auto_resolve_expired(db_path: str | None = None) -> dict[str, Any]:
+def get_portfolio_performance(
+    portfolio_type: str = "small",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return structured week-by-week equity curve and performance stats.
+
+    Includes per-week P&L, cumulative return, drawdown from peak, and win/loss
+    counts.  Use this to answer: is the portfolio growing steadily, what is
+    the worst drawdown, and which weeks drove outperformance?
+
+    portfolio_type: 'small' (default, top-5 Short List) or 'large' (top-10).
+    """
+    return get_portfolio_performance_tool(db_path or default_db_path(), portfolio_type)
+
+
+@mcp.tool()
+def auto_resolve_expired(
+    db_path: str | None = None,
+    portfolio_type: str = "small",
+) -> dict[str, Any]:
     """Scan for ACTIVE cycle_layers whose expiration has passed and close them.
 
     Automatically calls resolve_outcomes for every expired newsletter week —
@@ -446,7 +466,7 @@ def auto_resolve_expired(db_path: str | None = None) -> dict[str, Any]:
     Run this every Monday morning (or schedule it) so the book is always
     current before you review the weekly action plan.
     """
-    return auto_resolve_expired_tool(db_path or default_db_path())
+    return auto_resolve_expired_tool(db_path or default_db_path(), portfolio_type)
 
 
 @mcp.tool()
@@ -583,6 +603,7 @@ def generate_exit_report(
     output_path: str | None = None,
     include_live_price: bool = True,
     db_path: str | None = None,
+    portfolio_type: str = "small",
 ) -> dict[str, Any]:
     """Generate a markdown exit monitoring report for all ACTIVE positions.
 
@@ -595,6 +616,7 @@ def generate_exit_report(
         db_path or default_db_path(),
         output_path,
         include_live_price,
+        portfolio_type,
     )
 
 

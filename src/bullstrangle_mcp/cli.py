@@ -9,6 +9,7 @@ from .tools import (
     aggregate_os_week_tool,
     auto_resolve_expired_tool,
     backtest_all_tool,
+    get_portfolio_performance_tool,
     calculate_os_selectors_tool,
     evaluate_entry_tool,
     evaluate_exit_batch_tool,
@@ -283,16 +284,31 @@ def main(argv: list[str] | None = None) -> int:
     exit_report_cmd.add_argument(
         "--no-price", action="store_true", help="Skip live price fetch (faster)"
     )
+    exit_report_cmd.add_argument(
+        "--portfolio-type", default="small", choices=["small", "large"],
+        help="Portfolio type to report on (default: small)",
+    )
 
     list_exit_decisions_cmd = subparsers.add_parser(
         "list-exit-decisions",
         help="List persisted exit_decisions rows",
     )
 
-    subparsers.add_parser(
+    auto_resolve_cmd = subparsers.add_parser(
         "auto-resolve",
         help="Auto-resolve expired ACTIVE positions (fetch yfinance close, compute P&L)",
     )
+    auto_resolve_cmd.add_argument(
+        "--portfolio-type", default="small", choices=["small", "large"],
+        help="Portfolio type to resolve (default: small)",
+    )
+
+    portfolio_perf_cmd = subparsers.add_parser(
+        "portfolio-performance",
+        help="Show week-by-week equity curve and performance stats",
+    )
+    portfolio_perf_cmd.add_argument("--portfolio-type", default="small", choices=["small", "large"])
+    portfolio_perf_cmd.add_argument("--json", action="store_true", help="Print full JSON")
 
     args = parser.parse_args(argv)
 
@@ -481,15 +497,50 @@ def main(argv: list[str] | None = None) -> int:
                 )
         return 0
     if args.command == "exit-report":
-        result = generate_exit_report_tool(args.db, args.output, not args.no_price)
+        result = generate_exit_report_tool(
+            args.db, args.output, not args.no_price,
+            getattr(args, "portfolio_type", "small"),
+        )
         # Print ASCII-safe to console (emoji survive in the saved file)
         print(result["markdown"].encode("ascii", errors="replace").decode("ascii"))
         return 0
     if args.command == "list-exit-decisions":
         print(json.dumps(list_exit_decisions_tool(args.db), indent=2))
         return 0
+    if args.command == "portfolio-performance":
+        perf = get_portfolio_performance_tool(args.db, args.portfolio_type)
+        if args.json:
+            print(json.dumps(perf, indent=2))
+        else:
+            s = perf["summary"]
+            print(f"\nPortfolio: {args.portfolio_type}  |  Closed weeks: {s['closed_weeks']}")
+            print(f"Trades: {s['total_trades']}  |  Win rate: {s['win_rate_pct']:.0f}%  |  "
+                  f"Total P&L: ${s['total_pnl']:+,.0f}  |  Return: {s['overall_return_pct']:+.2f}%")
+            print(f"Max drawdown: {s['max_drawdown_pct']:+.1f}%")
+            print()
+            print(f"{'Week':<12} {'Exp':<12} {'Cl':>3} {'Wk P&L':>8} {'Wk%':>7} {'Cum P&L':>9} {'Cum%':>7} {'Drawdown':>9} {'W/L':>5}")
+            print("-" * 85)
+            for wk in perf["weeks_closed"]:
+                dd_str = f"{wk['drawdown_from_peak_pct']:+.1f}%" if wk["drawdown_from_peak_pct"] < 0 else "  --"
+                print(
+                    f"{wk['newsletter_date']:<12} {wk['expiration_date']:<12} "
+                    f"{wk['closed_positions']:>3} "
+                    f"${wk['week_pnl']:>+7.0f} "
+                    f"{wk['week_return_pct']:>+6.2f}% "
+                    f"${wk['cumulative_pnl']:>+8.0f} "
+                    f"{wk['cumulative_return_pct']:>+6.2f}% "
+                    f"{dd_str:>9} "
+                    f"{wk['wins']}W/{wk['losses']}L"
+                )
+            if perf["weeks_open"]:
+                print()
+                print("Open (not in curve):")
+                for wk in perf["weeks_open"]:
+                    print(f"  {wk['newsletter_date']} exp {wk['expiration_date']} "
+                          f"({wk['active_positions']} pos, ${wk['capital_at_risk']:,.0f} at risk)")
+        return 0
     if args.command == "auto-resolve":
-        result = auto_resolve_expired_tool(args.db)
+        result = auto_resolve_expired_tool(args.db, getattr(args, "portfolio_type", "small"))
         if not result["auto_resolved"]:
             print(result["message"])
         else:

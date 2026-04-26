@@ -203,13 +203,15 @@ def seed_from_short_list(
                 skipped.append({"symbol": symbol, "reason": "no_watchlist_entry"})
                 continue
 
-            # Check if already seeded (idempotent)
+            # Check if already seeded (idempotent) — include portfolio_type so
+            # small and large runs each have their own independent rows
             existing = conn.execute(
                 """
                 SELECT layer_id FROM cycle_layers
                 WHERE newsletter_id = ? AND symbol = ? AND account_id = ?
+                  AND portfolio_type = ?
                 """,
-                (newsletter_id, symbol, PAPER_ACCOUNT),
+                (newsletter_id, symbol, PAPER_ACCOUNT, portfolio_type),
             ).fetchone()
             if existing:
                 already_exists.append(symbol)
@@ -227,14 +229,15 @@ def seed_from_short_list(
                     (newsletter_id, symbol, account_id, open_date, expiration_date,
                      status, shares, stock_price_at_entry, call_strike, put_strike,
                      call_premium_collected, put_premium_collected,
-                     total_credit_collected, invested_capital, notes)
-                VALUES (?, ?, ?, ?, ?, 'ACTIVE', 100, ?, ?, ?, ?, ?, ?, ?, ?)
+                     total_credit_collected, invested_capital, portfolio_type, notes)
+                VALUES (?, ?, ?, ?, ?, 'ACTIVE', 100, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     newsletter_id, symbol, PAPER_ACCOUNT,
                     open_date, expiration_date,
                     stock_price, row["call_strike"], row["put_strike"],
                     call_prem, put_prem, total_credit, invested_capital,
+                    portfolio_type,
                     f"paper_trade | rank={row['rank']} | expected={row['expected_return_pct']}%",
                 ),
             )
@@ -398,7 +401,10 @@ def resolve_outcomes(
     }
 
 
-def auto_resolve_expired(db_path: str | Path) -> dict[str, Any]:
+def auto_resolve_expired(
+    db_path: str | Path,
+    portfolio_type: str = "small",
+) -> dict[str, Any]:
     """Find all ACTIVE layers whose expiration_date has passed and resolve them.
 
     Calls ``resolve_outcomes`` for every unique newsletter date that has at least
@@ -419,9 +425,10 @@ def auto_resolve_expired(db_path: str | Path) -> dict[str, Any]:
             WHERE cl.status = 'ACTIVE'
               AND cl.expiration_date <= ?
               AND cl.account_id = ?
+              AND cl.portfolio_type = ?
             ORDER BY n.publication_date
             """,
-            (today, PAPER_ACCOUNT),
+            (today, PAPER_ACCOUNT, portfolio_type),
         ).fetchall()
 
     if not expired_weeks:
@@ -497,6 +504,123 @@ def backtest_all(
     return {"portfolio_type": portfolio_type, "weeks_processed": len(results), "results": results}
 
 
+def get_portfolio_performance(
+    db_path: str | Path,
+    portfolio_type: str = "small",
+) -> dict[str, Any]:
+    """Return structured week-by-week performance data for the paper-trade portfolio.
+
+    Includes:
+    - Per-week: P&L, return %, cumulative P&L, cumulative return %, drawdown from peak
+    - Overall: win rate, max drawdown, total return, best/worst week
+    - Open positions: current capital at risk
+    """
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        weeks_raw = conn.execute(
+            """
+            SELECT n.publication_date, n.target_expiration,
+                   COUNT(*) as total_positions,
+                   SUM(CASE WHEN cl.status = 'CLOSED' THEN 1 ELSE 0 END) as closed_count,
+                   SUM(CASE WHEN cl.status = 'ACTIVE'  THEN 1 ELSE 0 END) as active_count,
+                   SUM(CASE WHEN cl.status = 'CLOSED' THEN cl.pnl_total   ELSE 0 END) as week_pnl,
+                   SUM(cl.invested_capital) as week_invested,
+                   SUM(CASE WHEN cl.status = 'CLOSED' AND cl.pnl_total > 0 THEN 1 ELSE 0 END) as wins,
+                   SUM(CASE WHEN cl.status = 'CLOSED' AND cl.pnl_total <= 0 THEN 1 ELSE 0 END) as losses
+            FROM cycle_layers cl
+            JOIN newsletters n ON n.newsletter_id = cl.newsletter_id
+            WHERE cl.account_id = ? AND cl.portfolio_type = ?
+            GROUP BY cl.newsletter_id
+            ORDER BY n.publication_date
+            """,
+            (PAPER_ACCOUNT, portfolio_type),
+        ).fetchall()
+
+    if not weeks_raw:
+        return {"weeks": [], "summary": {}, "open": []}
+
+    # Build equity curve
+    cum_pnl = 0.0
+    cum_invested = 0.0
+    peak_pnl = 0.0
+    max_drawdown = 0.0
+    total_wins = 0
+    total_losses = 0
+    weeks_closed: list[dict] = []
+    weeks_open: list[dict] = []
+
+    for row in weeks_raw:
+        week_pnl = row["week_pnl"] or 0.0
+        week_invested = row["week_invested"] or 0.0
+        closed_count = row["closed_count"] or 0
+        active_count = row["active_count"] or 0
+
+        if closed_count > 0:
+            cum_pnl += week_pnl
+            cum_invested += week_invested
+            week_ret = (week_pnl / week_invested * 100) if week_invested else 0.0
+
+            # Drawdown from running peak, expressed as % of cumulative invested capital
+            # (avoids >100% artefacts when cum_pnl swings from positive to negative)
+            if cum_pnl > peak_pnl:
+                peak_pnl = cum_pnl
+            drawdown = ((cum_pnl - peak_pnl) / cum_invested * 100) if cum_invested else 0.0
+            max_drawdown = min(max_drawdown, drawdown)
+
+            total_wins += row["wins"] or 0
+            total_losses += row["losses"] or 0
+
+            weeks_closed.append({
+                "newsletter_date": row["publication_date"],
+                "expiration_date": row["target_expiration"],
+                "closed_positions": closed_count,
+                "week_pnl": round(week_pnl, 2),
+                "week_invested": round(week_invested, 2),
+                "week_return_pct": round(week_ret, 2),
+                "cumulative_pnl": round(cum_pnl, 2),
+                "cumulative_invested": round(cum_invested, 2),
+                "cumulative_return_pct": round(cum_pnl / cum_invested * 100, 2) if cum_invested else 0.0,
+                "drawdown_from_peak_pct": round(drawdown, 2),
+                "wins": row["wins"] or 0,
+                "losses": row["losses"] or 0,
+            })
+
+        if active_count > 0:
+            weeks_open.append({
+                "newsletter_date": row["publication_date"],
+                "expiration_date": row["target_expiration"],
+                "active_positions": active_count,
+                "capital_at_risk": round(week_invested, 2),
+            })
+
+    total_trades = total_wins + total_losses
+    win_rate = (total_wins / total_trades * 100) if total_trades else 0.0
+    overall_return = (cum_pnl / cum_invested * 100) if cum_invested else 0.0
+
+    # Best/worst weeks
+    best_week = max(weeks_closed, key=lambda w: w["week_pnl"]) if weeks_closed else None
+    worst_week = min(weeks_closed, key=lambda w: w["week_pnl"]) if weeks_closed else None
+
+    return {
+        "portfolio_type": portfolio_type,
+        "weeks_closed": weeks_closed,
+        "weeks_open": weeks_open,
+        "summary": {
+            "closed_weeks": len(weeks_closed),
+            "total_trades": total_trades,
+            "wins": total_wins,
+            "losses": total_losses,
+            "win_rate_pct": round(win_rate, 1),
+            "total_pnl": round(cum_pnl, 2),
+            "total_invested": round(cum_invested, 2),
+            "overall_return_pct": round(overall_return, 2),
+            "max_drawdown_pct": round(max_drawdown, 2),
+            "best_week": best_week,
+            "worst_week": worst_week,
+        },
+    }
+
+
 def generate_backtest_report(
     db_path: str | Path,
     portfolio_type: str = "small",
@@ -518,11 +642,11 @@ def generate_backtest_report(
                    SUM(cl.invested_capital) as week_invested
             FROM cycle_layers cl
             JOIN newsletters n ON n.newsletter_id = cl.newsletter_id
-            WHERE cl.account_id = ?
+            WHERE cl.account_id = ? AND cl.portfolio_type = ?
             GROUP BY cl.newsletter_id
             ORDER BY n.publication_date
             """,
-            (PAPER_ACCOUNT,),
+            (PAPER_ACCOUNT, portfolio_type),
         ).fetchall()
 
         layers = conn.execute(
@@ -535,10 +659,10 @@ def generate_backtest_report(
                    cl.notes
             FROM cycle_layers cl
             JOIN newsletters n ON n.newsletter_id = cl.newsletter_id
-            WHERE cl.account_id = ?
+            WHERE cl.account_id = ? AND cl.portfolio_type = ?
             ORDER BY n.publication_date, cl.symbol
             """,
-            (PAPER_ACCOUNT,),
+            (PAPER_ACCOUNT, portfolio_type),
         ).fetchall()
 
     if not layers:
@@ -644,6 +768,44 @@ def generate_backtest_report(
                 f"| Worst trade | {worst['symbol']} ({worst['publication_date']}) "
                 f"${worst['pnl_total']:+.0f} / {worst_ret:+.1f}% |"
             )
+
+    # Equity curve section
+    perf = get_portfolio_performance(db_path, portfolio_type)
+    if perf["weeks_closed"]:
+        lines.append("")
+        lines.append("---")
+        lines.append("## Equity Curve (closed weeks only)")
+        lines.append("")
+        lines.append("| Week | Exp | Closed | Week P&L | Week Ret% | Cum P&L | Cum Ret% | Drawdown | W/L |")
+        lines.append("|------|-----|--------|----------|-----------|---------|----------|----------|-----|")
+        for wk in perf["weeks_closed"]:
+            dd_str = f"{wk['drawdown_from_peak_pct']:+.1f}%" if wk["drawdown_from_peak_pct"] < 0 else "—"
+            lines.append(
+                f"| {wk['newsletter_date']} "
+                f"| {wk['expiration_date']} "
+                f"| {wk['closed_positions']} "
+                f"| ${wk['week_pnl']:+.0f} "
+                f"| {wk['week_return_pct']:+.2f}% "
+                f"| ${wk['cumulative_pnl']:+.0f} "
+                f"| {wk['cumulative_return_pct']:+.2f}% "
+                f"| {dd_str} "
+                f"| {wk['wins']}W/{wk['losses']}L |"
+            )
+
+        s = perf["summary"]
+        lines.append("")
+        lines.append(f"**Max drawdown:** {s['max_drawdown_pct']:+.1f}%  "
+                     f"| **Win rate:** {s['win_rate_pct']:.0f}%  "
+                     f"| **Overall return:** {s['overall_return_pct']:+.2f}%")
+
+        if perf["weeks_open"]:
+            lines.append("")
+            lines.append("**Open positions (not yet in equity curve):**")
+            for wk in perf["weeks_open"]:
+                lines.append(
+                    f"- {wk['newsletter_date']} exp {wk['expiration_date']} "
+                    f"({wk['active_positions']} positions, ${wk['capital_at_risk']:,.0f} at risk)"
+                )
 
     lines.append("")
     return "\n".join(lines)
