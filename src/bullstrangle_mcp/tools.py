@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,7 @@ from .os_workbooks import (
     prepare_os_workbook_record,
 )
 from .positions import ingest_positions
+from .reports import generate_daily_brief, generate_weekly_action_plan
 
 
 def ingest_newsletter_tool(
@@ -279,6 +282,476 @@ def ingest_positions_tool(
     """Ingest account-level positions and symbol rollups from a CSV export."""
     initialize_database(db_path)
     return ingest_positions(csv_path, db_path)
+
+
+# ── Phase B: Report generation tools ─────────────────────────────────────────
+
+
+def generate_weekly_action_plan_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    output_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate the Sunday Bull Strangle weekly action plan report."""
+    initialize_database(db_path)
+    return generate_weekly_action_plan(newsletter_date, db_path, output_path)
+
+
+def generate_daily_brief_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    output_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate the morning daily monitoring brief."""
+    initialize_database(db_path)
+    return generate_daily_brief(db_path, output_path)
+
+
+def list_generated_reports_tool(
+    report_type: str | None = None,
+    limit: int = 20,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> list[dict[str, Any]]:
+    """List previously generated reports, newest first."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        if report_type:
+            rows = conn.execute(
+                """
+                SELECT report_id, report_type, newsletter_id, report_date,
+                       output_filepath, generation_timestamp
+                FROM generated_reports
+                WHERE report_type = ?
+                ORDER BY generation_timestamp DESC
+                LIMIT ?
+                """,
+                (report_type, int(limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT report_id, report_type, newsletter_id, report_date,
+                       output_filepath, generation_timestamp
+                FROM generated_reports
+                ORDER BY generation_timestamp DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_generated_report_tool(
+    report_id: int,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Return the full content of a generated report by report_id."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM generated_reports WHERE report_id = ?", (report_id,)
+        ).fetchone()
+    if not row:
+        raise ValueError(f"Report not found: {report_id}")
+    return dict(row)
+
+
+# ── Phase A: Quick-win query tools ───────────────────────────────────────────
+
+
+def get_current_environment_tool(db_path: str = str(DEFAULT_DB_PATH)) -> dict[str, Any]:
+    """Return the latest market environment row with deployment status and criteria breakdown."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        env = conn.execute(
+            """
+            SELECT me.*, n.publication_date, n.target_expiration, n.option_type,
+                   wd.action_taken, wd.deployment_approved AS wd_deployment_approved,
+                   wd.consecutive_weeks_met AS wd_consecutive_weeks,
+                   wd.decision_rationale
+            FROM market_environment me
+            JOIN newsletters n ON n.newsletter_id = me.newsletter_id
+            LEFT JOIN weekly_decisions wd ON wd.newsletter_id = me.newsletter_id
+            ORDER BY me.publication_date DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    if not env:
+        return {"error": "No market environment data found"}
+    result = dict(env)
+    # Parse rationale JSON for clean embedding
+    raw_rationale = result.pop("decision_rationale", None)
+    try:
+        result["decision_rationale"] = json.loads(raw_rationale) if raw_rationale else None
+    except (ValueError, TypeError):
+        result["decision_rationale"] = raw_rationale
+    return result
+
+
+def check_deployment_approval_tool(db_path: str = str(DEFAULT_DB_PATH)) -> dict[str, Any]:
+    """Return full deployment approval status with per-criterion breakdown and recommended action."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        env = conn.execute(
+            """
+            SELECT me.*, wd.action_taken, wd.consecutive_weeks_met AS wd_consecutive_weeks,
+                   wd.decision_rationale
+            FROM market_environment me
+            LEFT JOIN weekly_decisions wd ON wd.newsletter_id = me.newsletter_id
+            ORDER BY me.publication_date DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    if not env:
+        return {"error": "No market environment data found"}
+    e = dict(env)
+    consecutive = e.get("consecutive_weeks_met") or e.get("wd_consecutive_weeks") or 0
+    approved = bool(e.get("deployment_approved"))
+    criteria = {
+        "hybrid_bullish": {
+            "passed": bool(e.get("hybrid_bullish")),
+            "value": e.get("hybrid_score"),
+            "threshold": ">= 0",
+        },
+        "sp500_above_200dma": {
+            "passed": bool(e.get("sp500_above_200dma")),
+            "sp500": e.get("sp500_price"),
+            "dma_200": e.get("sp500_200dma"),
+        },
+        "vix_below_25": {
+            "passed": bool(e.get("vix_below_25")),
+            "value": e.get("vix"),
+            "threshold": "< 25",
+        },
+        "breadth_above_40": {
+            "passed": bool(e.get("breadth_above_40")),
+            "value": e.get("breadth_pct"),
+            "threshold": "> 40%",
+        },
+    }
+    all_met = all(c["passed"] for c in criteria.values())
+    return {
+        "publication_date": e.get("publication_date"),
+        "approved": approved,
+        "all_criteria_met": all_met,
+        "consecutive_weeks_met": consecutive,
+        "weeks_needed": 2,
+        "action_taken": e.get("action_taken"),
+        "market_status": e.get("market_status"),
+        "hybrid_score": e.get("hybrid_score"),
+        "investment_percent": e.get("investment_percent"),
+        "scaling_phase": e.get("scaling_phase"),
+        "recommended_position_count": e.get("recommended_position_count"),
+        "criteria": criteria,
+        "reason": (
+            "Two-week confirmation met — deployment approved"
+            if approved
+            else (
+                f"Week {consecutive} of 2 — need consecutive week confirmation"
+                if all_met
+                else "One or more market criteria not met"
+            )
+        ),
+    }
+
+
+def get_watchlist_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Return the full watchlist for a newsletter date, with deep analysis for WL Favorites."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        nrow = conn.execute(
+            "SELECT newsletter_id, publication_date, target_expiration, option_type "
+            "FROM newsletters WHERE publication_date = ?",
+            (newsletter_date,),
+        ).fetchone()
+        if not nrow:
+            raise ValueError(f"Newsletter not found for date: {newsletter_date}")
+        watchlist = conn.execute(
+            """
+            SELECT we.*,
+                   da.analysis_data, da.favorite_rank, da.has_proposed_trade
+            FROM watchlist_entries we
+            LEFT JOIN watchlist_deep_analysis da
+              ON da.newsletter_id = we.newsletter_id AND da.symbol = we.symbol
+            WHERE we.newsletter_id = ?
+            ORDER BY we.is_favorite DESC, we.symbol
+            """,
+            (int(nrow["newsletter_id"]),),
+        ).fetchall()
+    rows = []
+    for row in watchlist:
+        d = dict(row)
+        raw = d.pop("analysis_data", None)
+        try:
+            d["deep_analysis"] = json.loads(raw) if raw else None
+        except (ValueError, TypeError):
+            d["deep_analysis"] = raw
+        rows.append(d)
+    return {
+        "newsletter_date": nrow["publication_date"],
+        "target_expiration": nrow["target_expiration"],
+        "option_type": nrow["option_type"],
+        "watchlist_count": len(rows),
+        "watchlist": rows,
+    }
+
+
+def get_dca_candidates_tool(
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Return the short-list (DCA candidate) entries for a newsletter date."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        nrow = conn.execute(
+            "SELECT newsletter_id, publication_date FROM newsletters WHERE publication_date = ?",
+            (newsletter_date,),
+        ).fetchone()
+        if not nrow:
+            raise ValueError(f"Newsletter not found for date: {newsletter_date}")
+        rows = conn.execute(
+            """
+            SELECT sl.*, we.stock_price, we.implied_volatility, we.sector,
+                   we.description, we.is_favorite
+            FROM short_list_entries sl
+            LEFT JOIN watchlist_entries we
+              ON we.newsletter_id = sl.newsletter_id AND we.symbol = sl.symbol
+            WHERE sl.newsletter_id = ?
+            ORDER BY sl.portfolio_type, sl.rank
+            """,
+            (int(nrow["newsletter_id"]),),
+        ).fetchall()
+    return {
+        "newsletter_date": nrow["publication_date"],
+        "count": len(rows),
+        "candidates": [dict(r) for r in rows],
+    }
+
+
+def get_active_cycles_tool(db_path: str = str(DEFAULT_DB_PATH)) -> list[dict[str, Any]]:
+    """Return all newsletters whose target_expiration is in the future (active position books)."""
+    initialize_database(db_path)
+    today = date.today().isoformat()
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT n.newsletter_id, n.publication_date, n.entry_date,
+                   n.target_expiration, n.option_type,
+                   COUNT(we.entry_id) AS watchlist_count,
+                   me.hybrid_score, me.market_status, me.deployment_approved,
+                   me.scaling_phase, me.recommended_position_count,
+                   julianday(n.target_expiration) - julianday(?) AS days_until_expiration
+            FROM newsletters n
+            LEFT JOIN watchlist_entries we ON we.newsletter_id = n.newsletter_id
+            LEFT JOIN market_environment me ON me.newsletter_id = n.newsletter_id
+            WHERE n.target_expiration >= ?
+            GROUP BY n.newsletter_id
+            ORDER BY n.target_expiration ASC
+            """,
+            (today, today),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_eligible_symbols_tool(
+    newsletter_date: str,
+    decision: str = "APPROVE",
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Return bull strangle decision rows filtered by final_decision (APPROVE/WATCH/SKIP)."""
+    initialize_database(db_path)
+    decision = decision.upper()
+    if decision not in {"APPROVE", "WATCH", "SKIP"}:
+        raise ValueError("decision must be one of: APPROVE, WATCH, SKIP")
+    with connect(db_path) as conn:
+        nrow = conn.execute(
+            "SELECT newsletter_id, publication_date, target_expiration "
+            "FROM newsletters WHERE publication_date = ?",
+            (newsletter_date,),
+        ).fetchone()
+        if not nrow:
+            raise ValueError(f"Newsletter not found for date: {newsletter_date}")
+        batch = conn.execute(
+            """
+            SELECT decision_batch_id, decision_date, status
+            FROM decision_batches
+            WHERE newsletter_id = ?
+            ORDER BY decision_date DESC
+            LIMIT 1
+            """,
+            (int(nrow["newsletter_id"]),),
+        ).fetchone()
+        if not batch:
+            return {
+                "newsletter_date": nrow["publication_date"],
+                "target_expiration": nrow["target_expiration"],
+                "decision_batch_id": None,
+                "decision_date": None,
+                "filter": decision,
+                "count": 0,
+                "symbols": [],
+                "warning": "No decision batch found — run generate_weekend_decisions first",
+            }
+        rows = conn.execute(
+            """
+            SELECT bsd.symbol, bsd.final_decision, bsd.selected_action, bsd.priority_rank,
+                   bsd.strategy_score, bsd.strategy_band, bsd.latest_total_credit,
+                   bsd.latest_live_stock_price, bsd.max_price_deviation_pct,
+                   bsd.selected_account, bsd.account_shares, bsd.shares_to_100,
+                   bsd.reason, we.sector, we.is_favorite
+            FROM bull_strangle_decisions bsd
+            LEFT JOIN watchlist_entries we
+              ON we.newsletter_id = bsd.newsletter_id AND we.symbol = bsd.symbol
+            WHERE bsd.decision_batch_id = ? AND bsd.final_decision = ?
+            ORDER BY bsd.priority_rank
+            """,
+            (int(batch["decision_batch_id"]), decision),
+        ).fetchall()
+    return {
+        "newsletter_date": nrow["publication_date"],
+        "target_expiration": nrow["target_expiration"],
+        "decision_batch_id": batch["decision_batch_id"],
+        "decision_date": batch["decision_date"],
+        "filter": decision,
+        "count": len(rows),
+        "symbols": [dict(r) for r in rows],
+    }
+
+
+def get_deep_analysis_tool(
+    newsletter_date: str,
+    symbol: str | None = None,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Return Darren's deep-dive WL Favorites analysis for a newsletter date."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        nrow = conn.execute(
+            "SELECT newsletter_id, publication_date FROM newsletters WHERE publication_date = ?",
+            (newsletter_date,),
+        ).fetchone()
+        if not nrow:
+            raise ValueError(f"Newsletter not found for date: {newsletter_date}")
+        if symbol:
+            rows = conn.execute(
+                "SELECT * FROM watchlist_deep_analysis WHERE newsletter_id = ? AND symbol = ?",
+                (int(nrow["newsletter_id"]), symbol.upper()),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM watchlist_deep_analysis WHERE newsletter_id = ? "
+                "ORDER BY favorite_rank",
+                (int(nrow["newsletter_id"]),),
+            ).fetchall()
+    result = {}
+    for row in rows:
+        d = dict(row)
+        sym = d.pop("symbol")
+        raw = d.pop("analysis_data", None)
+        try:
+            d["analysis_data"] = json.loads(raw) if raw else {}
+        except (ValueError, TypeError):
+            d["analysis_data"] = raw
+        result[sym] = d
+    return {
+        "newsletter_date": nrow["publication_date"],
+        "count": len(result),
+        "analysis": result,
+    }
+
+
+def get_market_environment_history_tool(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 12,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> list[dict[str, Any]]:
+    """Return market environment rows in date range, newest first."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        query = "SELECT me.*, wd.action_taken, wd.consecutive_weeks_met AS wd_consecutive FROM market_environment me LEFT JOIN weekly_decisions wd ON wd.newsletter_id = me.newsletter_id WHERE 1=1"
+        params: list[Any] = []
+        if start_date:
+            query += " AND me.publication_date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND me.publication_date <= ?"
+            params.append(end_date)
+        query += " ORDER BY me.publication_date DESC"
+        if limit:
+            query += f" LIMIT {int(limit)}"
+        rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_scaling_guidance_tool(db_path: str = str(DEFAULT_DB_PATH)) -> dict[str, Any]:
+    """Return scaling guidance from the latest market environment."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        env = conn.execute(
+            """
+            SELECT me.publication_date, me.market_status, me.hybrid_score,
+                   me.investment_percent, me.scaling_phase, me.recommended_position_count,
+                   me.deployment_approved, me.consecutive_weeks_met,
+                   wd.action_taken
+            FROM market_environment me
+            LEFT JOIN weekly_decisions wd ON wd.newsletter_id = me.newsletter_id
+            ORDER BY me.publication_date DESC LIMIT 1
+            """
+        ).fetchone()
+    if not env:
+        return {"error": "No market environment data found"}
+    e = dict(env)
+    phase = e.get("scaling_phase") or "pause"
+    phase_descriptions = {
+        "normal": "Full deployment — all criteria met for 2+ consecutive weeks",
+        "rebuild_week1": "Week 1 of recovery — 1 position only, await Week 2 confirmation",
+        "rebuild_week2": "Week 2 of recovery — 1–2 positions, confirm again next week",
+        "pause": "Paused — one or more market criteria not met",
+    }
+    return {
+        "publication_date": e.get("publication_date"),
+        "market_status": e.get("market_status"),
+        "hybrid_score": e.get("hybrid_score"),
+        "investment_percent": e.get("investment_percent"),
+        "deployment_approved": bool(e.get("deployment_approved")),
+        "consecutive_weeks_met": e.get("consecutive_weeks_met"),
+        "scaling_phase": phase,
+        "scaling_phase_description": phase_descriptions.get(phase, phase),
+        "recommended_position_count": e.get("recommended_position_count"),
+        "action_taken": e.get("action_taken"),
+    }
+
+
+def search_commentary_tool(
+    query: str,
+    limit: int = 10,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> list[dict[str, Any]]:
+    """Full-text search across all ingested newsletter commentary sections."""
+    initialize_database(db_path)
+    if not query or not query.strip():
+        raise ValueError("query must not be empty")
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT ft.newsletter_id, ft.newsletter_date, ft.section_name,
+                   ft.page_start, ft.page_end,
+                   snippet(newsletter_search, 1, '**', '**', '...', 30) AS snippet
+            FROM newsletter_search ns
+            JOIN newsletter_full_text ft ON ft.text_id = ns.rowid
+            WHERE newsletter_search MATCH ?
+            ORDER BY rank
+            LIMIT ?
+            """,
+            (query, int(limit)),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Phase A: list_strategy_rules (existing) ───────────────────────────────────
 
 
 def list_strategy_rules_tool(

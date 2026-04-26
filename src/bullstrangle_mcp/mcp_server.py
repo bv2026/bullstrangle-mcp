@@ -10,20 +10,34 @@ from .database import DEFAULT_DB_PATH
 from .tools import (
     aggregate_os_week_tool,
     calculate_os_selectors_tool,
+    check_deployment_approval_tool,
+    generate_daily_brief_tool,
     generate_os_workbook_tool,
+    generate_weekly_action_plan_tool,
     generate_weekend_decisions_tool,
+    get_active_cycles_tool,
+    get_current_environment_tool,
+    get_dca_candidates_tool,
+    get_deep_analysis_tool,
+    get_eligible_symbols_tool,
+    get_generated_report_tool,
+    get_market_environment_history_tool,
     get_newsletter_by_date_tool,
     get_newsletter_tool,
+    get_scaling_guidance_tool,
     get_symbol_history_tool,
+    get_watchlist_tool,
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
     ingest_positions_tool,
+    list_generated_reports_tool,
     list_newsletters_tool,
     list_os_runs_tool,
     list_strategy_rules_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
+    search_commentary_tool,
 )
 
 
@@ -253,6 +267,153 @@ def generate_weekend_decisions(
         decision_date,
         output_path,
     )
+
+
+@mcp.tool()
+def generate_weekly_action_plan(
+    newsletter_date: str,
+    output_path: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate the Sunday Bull Strangle weekly action plan report.
+
+    Produces a full Markdown report covering market environment, DCA candidates,
+    strangle eligibility, WL Favorites deep analysis, action items, and reminders.
+    Optionally writes to output_path and logs to generated_reports table.
+    """
+    return generate_weekly_action_plan_tool(
+        newsletter_date,
+        db_path or default_db_path(),
+        output_path,
+    )
+
+
+@mcp.tool()
+def generate_daily_brief(
+    output_path: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate the morning daily monitoring brief.
+
+    Covers: market environment check, active cycles with days-to-expiration,
+    and automated alerts (upcoming expirations, deployment status, approved symbols).
+    """
+    return generate_daily_brief_tool(db_path or default_db_path(), output_path)
+
+
+@mcp.tool()
+def list_generated_reports(
+    report_type: str | None = None,
+    limit: int = 20,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """List previously generated reports, newest first.
+
+    Pass report_type ('weekly_action_plan' or 'daily_brief') to filter.
+    Use the returned report_id with get_generated_report to retrieve full content.
+    """
+    return list_generated_reports_tool(report_type, limit, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_generated_report(
+    report_id: int,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return the full Markdown content of a previously generated report by report_id."""
+    return get_generated_report_tool(report_id, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_current_environment(db_path: str | None = None) -> dict[str, Any]:
+    """Return the latest market environment with deployment status and all raw metrics."""
+    return get_current_environment_tool(db_path or default_db_path())
+
+
+@mcp.tool()
+def check_deployment_approval(db_path: str | None = None) -> dict[str, Any]:
+    """Return deployment approval status with per-criterion breakdown and recommended action."""
+    return check_deployment_approval_tool(db_path or default_db_path())
+
+
+@mcp.tool()
+def get_watchlist(
+    newsletter_date: str,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return the full watchlist for a newsletter date, including WL Favorites deep analysis."""
+    return get_watchlist_tool(newsletter_date, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_dca_candidates(
+    newsletter_date: str,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return the short-list DCA candidates for a newsletter date."""
+    return get_dca_candidates_tool(newsletter_date, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_active_cycles(db_path: str | None = None) -> list[dict[str, Any]]:
+    """Return all newsletters with target_expiration >= today (active position books), soonest first."""
+    return get_active_cycles_tool(db_path or default_db_path())
+
+
+@mcp.tool()
+def get_eligible_symbols(
+    newsletter_date: str,
+    decision: str = "APPROVE",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return bull strangle decision rows filtered by final_decision (APPROVE / WATCH / SKIP)."""
+    return get_eligible_symbols_tool(newsletter_date, decision, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_deep_analysis(
+    newsletter_date: str,
+    symbol: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Return Darren's deep-dive WL Favorites analysis. Omit symbol to return all favorites."""
+    return get_deep_analysis_tool(newsletter_date, symbol, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_market_environment_history(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 12,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return market environment history rows in descending date order.
+
+    Pass start_date / end_date (YYYY-MM-DD) to filter the range.
+    limit controls maximum rows returned (default 12).
+    """
+    return get_market_environment_history_tool(start_date, end_date, limit, db_path or default_db_path())
+
+
+@mcp.tool()
+def get_scaling_guidance(db_path: str | None = None) -> dict[str, Any]:
+    """Return scaling phase, recommended position count, and deployment guidance from latest environment."""
+    return get_scaling_guidance_tool(db_path or default_db_path())
+
+
+@mcp.tool()
+def search_commentary(
+    query: str,
+    limit: int = 10,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Full-text search across all ingested newsletter commentary sections.
+
+    Uses SQLite FTS5. Supports phrase queries ("market uptrend") and
+    prefix queries (uptrend*). Returns matching section snippets with
+    newsletter date and section name.
+    """
+    return search_commentary_tool(query, limit, db_path or default_db_path())
 
 
 @mcp.resource("bullstrangle://database")

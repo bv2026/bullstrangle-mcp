@@ -644,6 +644,58 @@ def initialize_database(db_path: str | Path = DEFAULT_DB_PATH) -> None:
 #   • Each migration receives a live connection (inside the initialize_database
 #     transaction) and should be idempotent (use IF NOT EXISTS / ensure_column).
 
+def _m002_reports_and_earnings(conn: sqlite3.Connection) -> None:
+    """Add generated_reports, report_subscriptions, and earnings_calendar tables."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS generated_reports (
+            report_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_type         TEXT    NOT NULL,
+            newsletter_id       INTEGER REFERENCES newsletters(newsletter_id) ON DELETE SET NULL,
+            report_date         TEXT    NOT NULL,
+            report_content      TEXT    NOT NULL,
+            report_html         TEXT,
+            output_filepath     TEXT,
+            data_snapshot       TEXT,
+            generation_timestamp TEXT   DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_generated_reports_date
+        ON generated_reports(report_date);
+
+        CREATE INDEX IF NOT EXISTS idx_generated_reports_type
+        ON generated_reports(report_type);
+
+        CREATE TABLE IF NOT EXISTS report_subscriptions (
+            subscription_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_type     TEXT    NOT NULL,
+            frequency       TEXT    NOT NULL,
+            delivery_method TEXT    NOT NULL DEFAULT 'file',
+            delivery_config TEXT,
+            is_active       INTEGER DEFAULT 1,
+            created_date    TEXT    DEFAULT CURRENT_DATE
+        );
+
+        CREATE TABLE IF NOT EXISTS earnings_calendar (
+            earnings_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol          TEXT    NOT NULL,
+            earnings_date   TEXT    NOT NULL,
+            source          TEXT,
+            confirmed       INTEGER DEFAULT 0,
+            added_date      TEXT    DEFAULT CURRENT_DATE,
+            last_verified   TEXT,
+            UNIQUE(symbol, earnings_date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_earnings_symbol
+        ON earnings_calendar(symbol);
+
+        CREATE INDEX IF NOT EXISTS idx_earnings_date
+        ON earnings_calendar(earnings_date);
+        """
+    )
+
+
 def _m001_decision_position_columns(conn: sqlite3.Connection) -> None:
     """Add position-tracking columns to decision tables.
 
@@ -661,6 +713,7 @@ def _m001_decision_position_columns(conn: sqlite3.Connection) -> None:
 # Ordered list of (version, migration_fn).  Append new entries here.
 _MIGRATIONS: list[tuple[int, Callable[[sqlite3.Connection], None]]] = [
     (1, _m001_decision_position_columns),
+    (2, _m002_reports_and_earnings),
 ]
 
 
