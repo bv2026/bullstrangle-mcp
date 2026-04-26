@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 from bullstrangle_mcp import ingestion
-from bullstrangle_mcp.database import connect, initialize_database
+from bullstrangle_mcp.database import connect, initialize_database, _m003_v3_cycle_model
 from bullstrangle_mcp.decisions import compute_weekly_summary
+from bullstrangle_mcp.ingestion import _parse_earnings_date, insert_earnings_calendar
 from bullstrangle_mcp.mcp_server import default_newsletters_dir, default_os_workbooks_dir
 
 
@@ -199,3 +200,91 @@ def test_database_connect_enables_wal_and_composite_index(tmp_path):
 
     assert str(journal_mode).lower() == "wal"
     assert "idx_os_rows_newsletter_symbol" in indexes
+
+
+def test_m003_migration_is_idempotent(tmp_path):
+    """Running _m003_v3_cycle_model twice must not raise (all tables use IF NOT EXISTS)."""
+    db = tmp_path / "bullstrangle.db"
+    initialize_database(db)
+
+    with connect(db) as conn:
+        _m003_v3_cycle_model(conn)
+        conn.commit()
+
+    # Second call must succeed without raising
+    with connect(db) as conn:
+        _m003_v3_cycle_model(conn)
+        conn.commit()
+
+    # Verify all 5 tables exist
+    expected_tables = {
+        "strategy_rule_catalog",
+        "position_books",
+        "cycle_layers",
+        "entry_decisions",
+        "exit_decisions",
+    }
+    with connect(db) as conn:
+        existing = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+    assert expected_tables.issubset(existing)
+
+
+def test_earnings_calendar_populated_after_ingest(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Earnings dates from watchlist latest_earnings are inserted into earnings_calendar."""
+    _patch_minimal_ingestion(monkeypatch)
+
+    # Override parse_watchlist_option_prices to return a row with a latest_earnings date
+    monkeypatch.setattr(
+        ingestion,
+        "parse_watchlist_option_prices",
+        lambda pages: [
+            {
+                "symbol": "NTAP",
+                "description": "NetApp",
+                "stock_price": 100.0,
+                "implied_volatility": 0.34,
+                "sector": "Technology",
+                "sell_call_strike": 104.0,
+                "sell_call_premium": 1.25,
+                "sell_put_strike": 96.0,
+                "sell_put_premium": 1.10,
+                "buy_put_strike": 88.0,
+                "buy_put_premium": 0.55,
+                "bull_strangle_return_pct": 5.0,
+                "put_credit_spread_return_pct": 2.0,
+                "covered_call_return_pct": 1.0,
+                "source_page": 1,
+                "raw_line": "NTAP minimal row",
+                "latest_earnings": "5/21/2026",
+            }
+        ],
+    )
+
+    db = tmp_path / "bullstrangle.db"
+    pdf = tmp_path / "sample.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    ingestion.ingest_newsletter(pdf, db)
+
+    with connect(db) as conn:
+        rows = conn.execute(
+            "SELECT symbol, earnings_date, source FROM earnings_calendar"
+        ).fetchall()
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "NTAP"
+    assert rows[0]["earnings_date"] == "2026-05-21"
+    assert rows[0]["source"] == "newsletter"
+
+
+def test_parse_earnings_date_handles_formats():
+    """_parse_earnings_date parses M/D/YYYY, M/D/YY, and M/D correctly."""
+    assert _parse_earnings_date("5/21/2026", 2026) == "2026-05-21"
+    assert _parse_earnings_date("12/3/26", 2026) == "2026-12-03"
+    assert _parse_earnings_date("4/25", 2026) == "2026-04-25"
+    assert _parse_earnings_date("garbage", 2026) is None
+    assert _parse_earnings_date("", 2026) is None

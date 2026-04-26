@@ -139,6 +139,7 @@ def ingest_newsletter(
         insert_full_text_sections(conn, newsletter_id, publication_date, sections, full_text)
         insert_market_environment(conn, newsletter_id, publication_date, environment, market_commentary)
         insert_watchlist(conn, newsletter_id, publication_date, target_expiration, watchlist)
+        insert_earnings_calendar(conn, watchlist, publication_date)
         insert_short_list(conn, newsletter_id, publication_date, short_list)
         mark_favorites_and_insert_analysis(conn, newsletter_id, publication_date, favorites)
         insert_reference_sections(conn, newsletter_id, publication_date, pdf, sections)
@@ -877,6 +878,65 @@ def insert_watchlist(
             for row in watchlist
         ],
     )
+
+
+def insert_earnings_calendar(
+    conn,
+    watchlist: list[dict[str, Any]],
+    publication_date: date,
+) -> None:
+    """Populate earnings_calendar from watchlist latest_earnings dates.
+
+    Earnings dates in watchlist_entries are stored as M/D/YYYY strings
+    (e.g. "4/25/2026") or None when the newsletter shows N/A.
+    We convert to ISO YYYY-MM-DD and upsert with INSERT OR IGNORE so that
+    re-ingesting the same newsletter is safe.
+    """
+    rows: list[tuple[str, str, str, int]] = []
+    for row in watchlist:
+        raw = row.get("latest_earnings")
+        if not raw:
+            continue
+        parsed = _parse_earnings_date(raw, publication_date.year)
+        if parsed is None:
+            continue
+        rows.append((row["symbol"], parsed, "newsletter", 0))
+
+    if rows:
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO earnings_calendar
+            (symbol, earnings_date, source, confirmed)
+            VALUES (?, ?, ?, ?)
+            """,
+            rows,
+        )
+
+
+def _parse_earnings_date(raw: str, reference_year: int) -> str | None:
+    """Parse a newsletter earnings date string to ISO YYYY-MM-DD.
+
+    Handles formats:
+      - M/D/YYYY  → direct parse
+      - M/D/YY    → 2-digit year, assume 2000s
+      - M/D        → assume reference_year or reference_year+1 if month < pub_month
+    Returns None if parsing fails.
+    """
+    raw = raw.strip()
+    parts = raw.split("/")
+    try:
+        if len(parts) == 3:
+            month, day, year = int(parts[0]), int(parts[1]), int(parts[2])
+            if year < 100:
+                year += 2000
+        elif len(parts) == 2:
+            month, day = int(parts[0]), int(parts[1])
+            year = reference_year
+        else:
+            return None
+        return date(year, month, day).isoformat()
+    except (ValueError, TypeError):
+        return None
 
 
 def insert_short_list(

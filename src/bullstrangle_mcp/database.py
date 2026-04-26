@@ -644,6 +644,154 @@ def initialize_database(db_path: str | Path = DEFAULT_DB_PATH) -> None:
 #   • Each migration receives a live connection (inside the initialize_database
 #     transaction) and should be idempotent (use IF NOT EXISTS / ensure_column).
 
+def _m003_v3_cycle_model(conn: sqlite3.Connection) -> None:
+    """Add v3 gate engine tables: strategy_rule_catalog, position_books,
+    cycle_layers, entry_decisions, and exit_decisions.
+
+    These tables form the core of the gate-based decision engine described in
+    BullStrangle_Architecture_Spec_v3.md.  The migration is fully additive —
+    no existing table is altered.
+    """
+    conn.executescript(
+        """
+        -- ── Rule catalog (seed data from master_document_rule_inventory.md) ──
+        CREATE TABLE IF NOT EXISTS strategy_rule_catalog (
+            rule_id             TEXT    PRIMARY KEY,
+            rule_area           TEXT    NOT NULL,
+            rule_type           TEXT    NOT NULL,
+            source_section      TEXT,
+            description         TEXT    NOT NULL,
+            parameters_json     TEXT,
+            data_column_mapping TEXT,
+            is_active           INTEGER NOT NULL DEFAULT 1,
+            created_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rule_catalog_area
+        ON strategy_rule_catalog(rule_area);
+
+        CREATE INDEX IF NOT EXISTS idx_rule_catalog_type
+        ON strategy_rule_catalog(rule_type);
+
+        -- ── Position books (per-symbol/account accumulation state) ──────────
+        CREATE TABLE IF NOT EXISTS position_books (
+            book_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol              TEXT    NOT NULL,
+            account_id          TEXT    NOT NULL,
+            status              TEXT    NOT NULL DEFAULT 'ACCUMULATING',
+            total_shares        REAL    NOT NULL DEFAULT 0,
+            bull_strangle_ready INTEGER NOT NULL DEFAULT 0,
+            target_shares       INTEGER NOT NULL DEFAULT 100,
+            position_run_id     INTEGER REFERENCES position_import_runs(position_run_id) ON DELETE SET NULL,
+            first_seen_date     TEXT,
+            updated_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(symbol, account_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_position_books_symbol
+        ON position_books(symbol);
+
+        CREATE INDEX IF NOT EXISTS idx_position_books_status
+        ON position_books(status);
+
+        -- ── Cycle layers (one row per weekly entry in the 4-lane ladder) ─────
+        CREATE TABLE IF NOT EXISTS cycle_layers (
+            layer_id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id                 INTEGER REFERENCES position_books(book_id) ON DELETE SET NULL,
+            newsletter_id           INTEGER NOT NULL REFERENCES newsletters(newsletter_id) ON DELETE CASCADE,
+            os_run_id               INTEGER REFERENCES os_evaluation_runs(run_id) ON DELETE SET NULL,
+            symbol                  TEXT    NOT NULL,
+            account_id              TEXT    NOT NULL,
+            open_date               TEXT    NOT NULL,
+            expiration_date         TEXT    NOT NULL,
+            status                  TEXT    NOT NULL DEFAULT 'ACTIVE',
+            shares                  INTEGER NOT NULL DEFAULT 100,
+            stock_price_at_entry    REAL,
+            call_strike             REAL,
+            put_strike              REAL,
+            call_premium_collected  REAL,
+            put_premium_collected   REAL,
+            total_credit_collected  REAL,
+            invested_capital        REAL,
+            close_date              TEXT,
+            close_reason            TEXT,
+            close_stock_price       REAL,
+            pnl_stock               REAL,
+            pnl_call                REAL,
+            pnl_put                 REAL,
+            pnl_total               REAL,
+            entry_decision_id       INTEGER,
+            notes                   TEXT,
+            created_at              TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cycle_layers_symbol
+        ON cycle_layers(symbol);
+
+        CREATE INDEX IF NOT EXISTS idx_cycle_layers_status
+        ON cycle_layers(status);
+
+        CREATE INDEX IF NOT EXISTS idx_cycle_layers_expiration
+        ON cycle_layers(expiration_date);
+
+        CREATE INDEX IF NOT EXISTS idx_cycle_layers_newsletter
+        ON cycle_layers(newsletter_id);
+
+        -- ── Entry decisions (Gate 1-9 evaluation per symbol per OS run) ──────
+        CREATE TABLE IF NOT EXISTS entry_decisions (
+            decision_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            newsletter_id       INTEGER NOT NULL REFERENCES newsletters(newsletter_id) ON DELETE CASCADE,
+            os_run_id           INTEGER REFERENCES os_evaluation_runs(run_id) ON DELETE SET NULL,
+            symbol              TEXT    NOT NULL,
+            evaluation_date     TEXT    NOT NULL,
+            decision_type       TEXT    NOT NULL,
+            first_failing_gate  TEXT,
+            gates_json          TEXT    NOT NULL DEFAULT '[]',
+            live_stock_price    REAL,
+            live_iv             REAL,
+            live_total_credit   REAL,
+            live_call_strike    REAL,
+            live_put_strike     REAL,
+            executed            INTEGER NOT NULL DEFAULT 0,
+            executed_at         TEXT,
+            layer_id            INTEGER REFERENCES cycle_layers(layer_id) ON DELETE SET NULL,
+            created_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(newsletter_id, os_run_id, symbol)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_entry_decisions_symbol
+        ON entry_decisions(symbol);
+
+        CREATE INDEX IF NOT EXISTS idx_entry_decisions_newsletter
+        ON entry_decisions(newsletter_id);
+
+        CREATE INDEX IF NOT EXISTS idx_entry_decisions_type
+        ON entry_decisions(decision_type);
+
+        -- ── Exit decisions (exit recommendations per active layer) ────────────
+        CREATE TABLE IF NOT EXISTS exit_decisions (
+            exit_decision_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            layer_id            INTEGER NOT NULL REFERENCES cycle_layers(layer_id) ON DELETE CASCADE,
+            evaluation_date     TEXT    NOT NULL,
+            recommended_action  TEXT    NOT NULL,
+            rule_citations_json TEXT    NOT NULL DEFAULT '[]',
+            trigger_values_json TEXT,
+            actual_action       TEXT,
+            confirmed_at        TEXT,
+            confirmed_by        TEXT,
+            notes               TEXT,
+            created_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_exit_decisions_layer
+        ON exit_decisions(layer_id);
+
+        CREATE INDEX IF NOT EXISTS idx_exit_decisions_date
+        ON exit_decisions(evaluation_date);
+        """
+    )
+
+
 def _m002_reports_and_earnings(conn: sqlite3.Connection) -> None:
     """Add generated_reports, report_subscriptions, and earnings_calendar tables."""
     conn.executescript(
@@ -714,6 +862,7 @@ def _m001_decision_position_columns(conn: sqlite3.Connection) -> None:
 _MIGRATIONS: list[tuple[int, Callable[[sqlite3.Connection], None]]] = [
     (1, _m001_decision_position_columns),
     (2, _m002_reports_and_earnings),
+    (3, _m003_v3_cycle_model),
 ]
 
 
