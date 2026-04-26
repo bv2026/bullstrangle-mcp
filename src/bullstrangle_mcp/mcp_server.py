@@ -12,8 +12,11 @@ from .tools import (
     backtest_all_tool,
     calculate_os_selectors_tool,
     check_deployment_approval_tool,
+    evaluate_entry_tool,
+    evaluate_newsletter_tool,
     generate_backtest_report_tool,
     generate_daily_brief_tool,
+    generate_entry_validation_report_tool,
     generate_os_workbook_tool,
     generate_weekly_action_plan_tool,
     generate_weekend_decisions_tool,
@@ -33,6 +36,7 @@ from .tools import (
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
     ingest_positions_tool,
+    list_entry_decisions_tool,
     list_generated_reports_tool,
     list_newsletters_tool,
     list_os_runs_tool,
@@ -44,6 +48,7 @@ from .tools import (
     prepare_os_workbook_tool,
     report_os_run_tool,
     search_commentary_tool,
+    validate_all_newsletters_tool,
 )
 
 
@@ -517,6 +522,99 @@ def get_rule(rule_id: str, db_path: str | None = None) -> dict[str, Any]:
     RULE-EARN-003, RULE-ENV-002, FORMULA-002).
     """
     return get_rule_tool(rule_id, db_path or default_db_path())
+
+
+@mcp.tool()
+def evaluate_entry(
+    symbol: str,
+    newsletter_date: str,
+    entry_date: str | None = None,
+    persist: bool = True,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Evaluate Gates 1–9 for one symbol against one newsletter week.
+
+    Returns gate_results list, decision_type (BULL_STRANGLE / WATCH / SKIP),
+    first_failing_gate, Short List membership, and pricing data.
+
+    Gates 7 (MA alignment) and 8 (weekly deviation) are skipped when no
+    Option Samurai data has been ingested — they will not cause a failure.
+    """
+    return evaluate_entry_tool(
+        symbol,
+        newsletter_date,
+        db_path or default_db_path(),
+        entry_date,
+        persist,
+    )
+
+
+@mcp.tool()
+def evaluate_newsletter(
+    newsletter_ref: str,
+    persist: bool = True,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Evaluate Gates 1–9 for every watchlist symbol in one newsletter week.
+
+    newsletter_ref is a publication date (e.g. 2026-04-17) or a numeric
+    newsletter_id. Returns decisions list and a validation alignment summary
+    comparing gate outcomes to Darren's Short List selections.
+    """
+    return evaluate_newsletter_tool(newsletter_ref, db_path or default_db_path(), persist)
+
+
+@mcp.tool()
+def validate_all_newsletters(
+    persist: bool = True,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Run gate evaluation across ALL newsletter weeks and aggregate validation stats.
+
+    Answers: does the entry engine consistently explain the Short List selections?
+    Returns overall alignment percentages and a per-week breakdown.  Use
+    generate_entry_validation_report for a per-week markdown view.
+    """
+    return validate_all_newsletters_tool(db_path or default_db_path(), persist)
+
+
+@mcp.tool()
+def generate_entry_validation_report(
+    newsletter_ref: str,
+    output_path: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate a markdown gate validation report for one newsletter week.
+
+    Shows every watchlist symbol with pass/fail/skip per gate, the final
+    decision (BULL_STRANGLE / WATCH / SKIP), and Short List membership.
+    Includes an alignment summary and gate-failure breakdown table.
+    Optionally writes to output_path.  Returns ``markdown`` key.
+    """
+    return generate_entry_validation_report_tool(
+        newsletter_ref,
+        db_path or default_db_path(),
+        output_path,
+    )
+
+
+@mcp.tool()
+def list_entry_decisions(
+    newsletter_date: str | None = None,
+    decision_type: str | None = None,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return persisted entry_decisions rows.
+
+    Pass newsletter_date (e.g. 2026-04-17) to filter to one week.
+    Pass decision_type (BULL_STRANGLE / WATCH / SKIP) to filter by outcome.
+    Omit both to return all rows, newest week first.
+    """
+    return list_entry_decisions_tool(
+        newsletter_date,
+        db_path or default_db_path(),
+        decision_type,
+    )
 
 
 @mcp.resource("bullstrangle://database")

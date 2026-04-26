@@ -25,6 +25,12 @@ from .position_book import (
 )
 from .positions import ingest_positions
 from .reports import generate_daily_brief, generate_weekly_action_plan
+from .entry_engine import (
+    evaluate_entry,
+    evaluate_newsletter,
+    generate_entry_validation_report,
+    validate_all_newsletters,
+)
 from .rule_catalog import get_rule as _get_rule
 from .rule_catalog import list_rule_catalog as _list_rule_catalog
 from .rule_catalog import load_rule_catalog
@@ -922,6 +928,110 @@ def list_rule_catalog_tool(
     read numeric thresholds directly.
     """
     return _list_rule_catalog(db_path, rule_area=rule_area, rule_type=rule_type)
+
+
+# ── Phase 3: Entry Engine tools ───────────────────────────────────────────────
+
+
+def evaluate_entry_tool(
+    symbol: str,
+    newsletter_date: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    entry_date: str | None = None,
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Evaluate Gates 1–9 for one symbol against one newsletter week.
+
+    Returns the full gate result set, decision_type (BULL_STRANGLE/WATCH/SKIP),
+    first_failing_gate, and Short List membership.
+    """
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT newsletter_id FROM newsletters WHERE publication_date = ?",
+            (newsletter_date,),
+        ).fetchone()
+    if not row:
+        raise ValueError(f"Newsletter not found for date: {newsletter_date}")
+    decision = evaluate_entry(symbol, int(row["newsletter_id"]), db_path, entry_date, persist)
+    if decision is None:
+        raise ValueError(f"evaluate_entry returned None for {symbol} / {newsletter_date}")
+    return decision.to_dict()
+
+
+def evaluate_newsletter_tool(
+    newsletter_ref: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Evaluate Gates 1–9 for every watchlist symbol in one newsletter week.
+
+    newsletter_ref can be a publication date (2026-04-17) or a numeric newsletter_id.
+    Returns decisions list and validation alignment summary.
+    """
+    initialize_database(db_path)
+    return evaluate_newsletter(newsletter_ref, db_path, persist)
+
+
+def validate_all_newsletters_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Run gate evaluation across all newsletters and aggregate validation stats.
+
+    Answers: does the entry engine consistently predict the Short List selections?
+    Returns overall alignment stats and per-week summaries.
+    """
+    initialize_database(db_path)
+    return validate_all_newsletters(db_path, persist)
+
+
+def generate_entry_validation_report_tool(
+    newsletter_ref: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+    output_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate a markdown gate validation report for one newsletter week.
+
+    Shows per-symbol gate results and how they align with the Short List selections.
+    Optionally writes to output_path.  Returns ``markdown`` key with the full report.
+    """
+    initialize_database(db_path)
+    md = generate_entry_validation_report(newsletter_ref, db_path, output_path)
+    result: dict[str, Any] = {"markdown": md, "newsletter_ref": newsletter_ref}
+    if output_path:
+        result["output_path"] = str(Path(output_path).resolve())
+    return result
+
+
+def list_entry_decisions_tool(
+    newsletter_date: str | None = None,
+    db_path: str = str(DEFAULT_DB_PATH),
+    decision_type: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return entry_decisions rows, newest first.
+
+    Pass newsletter_date to filter to one week.
+    Pass decision_type (BULL_STRANGLE / WATCH / SKIP) to filter by decision.
+    """
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        query = """
+            SELECT ed.*, n.publication_date
+            FROM entry_decisions ed
+            JOIN newsletters n ON n.newsletter_id = ed.newsletter_id
+            WHERE 1=1
+        """
+        params: list[Any] = []
+        if newsletter_date:
+            query += " AND n.publication_date = ?"
+            params.append(newsletter_date)
+        if decision_type:
+            query += " AND ed.decision_type = ?"
+            params.append(decision_type.upper())
+        query += " ORDER BY n.publication_date DESC, ed.symbol"
+        rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_rule_tool(

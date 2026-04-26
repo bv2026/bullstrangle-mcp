@@ -9,6 +9,9 @@ from .tools import (
     aggregate_os_week_tool,
     backtest_all_tool,
     calculate_os_selectors_tool,
+    evaluate_entry_tool,
+    evaluate_newsletter_tool,
+    generate_entry_validation_report_tool,
     generate_os_workbook_tool,
     generate_weekend_decisions_tool,
     get_newsletter_by_ref_tool,
@@ -16,6 +19,7 @@ from .tools import (
     generate_backtest_report_tool,
     get_rule_tool,
     get_symbol_history_tool,
+    list_entry_decisions_tool,
     resolve_cycle_outcomes_tool,
     seed_cycle_layers_tool,
     ingest_os_workbook_tool,
@@ -26,6 +30,7 @@ from .tools import (
     list_rule_catalog_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
+    validate_all_newsletters_tool,
 )
 
 
@@ -188,6 +193,57 @@ def main(argv: list[str] | None = None) -> int:
         help="Print full JSON instead of the Markdown report",
     )
 
+    eval_entry_cmd = subparsers.add_parser(
+        "evaluate-entry",
+        help="Evaluate Gates 1-9 for one symbol against one newsletter week",
+    )
+    eval_entry_cmd.add_argument("symbol", help="Ticker symbol, e.g. NTAP")
+    eval_entry_cmd.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-17")
+    eval_entry_cmd.add_argument("--entry-date", help="Override entry date")
+    eval_entry_cmd.add_argument(
+        "--no-persist", action="store_true", help="Skip writing to entry_decisions table"
+    )
+
+    eval_newsletter_cmd = subparsers.add_parser(
+        "evaluate-newsletter",
+        help="Evaluate Gates 1-9 for all watchlist symbols in one newsletter week",
+    )
+    eval_newsletter_cmd.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-17")
+    eval_newsletter_cmd.add_argument(
+        "--no-persist", action="store_true", help="Skip writing to entry_decisions table"
+    )
+    eval_newsletter_cmd.add_argument(
+        "--json", action="store_true", help="Print full JSON instead of summary"
+    )
+
+    validate_all_cmd = subparsers.add_parser(
+        "validate-all",
+        help="Run gate evaluation across all newsletter weeks and report alignment",
+    )
+    validate_all_cmd.add_argument(
+        "--no-persist", action="store_true", help="Skip writing to entry_decisions table"
+    )
+
+    gate_report_cmd = subparsers.add_parser(
+        "gate-report",
+        help="Generate a markdown gate validation report for one newsletter week",
+    )
+    gate_report_cmd.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-17")
+    gate_report_cmd.add_argument("--output", help="Optional path to write the Markdown report")
+
+    list_entry_decisions_cmd = subparsers.add_parser(
+        "list-entry-decisions",
+        help="List persisted entry_decisions rows",
+    )
+    list_entry_decisions_cmd.add_argument(
+        "--newsletter-date", help="Filter to one week, e.g. 2026-04-17"
+    )
+    list_entry_decisions_cmd.add_argument(
+        "--decision-type",
+        choices=["BULL_STRANGLE", "WATCH", "SKIP"],
+        help="Filter by decision outcome",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "init-db":
@@ -288,6 +344,56 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(decisions, indent=2))
         else:
             print(decisions["markdown"])
+        return 0
+    if args.command == "evaluate-entry":
+        print(
+            json.dumps(
+                evaluate_entry_tool(
+                    args.symbol,
+                    args.newsletter_date,
+                    args.db,
+                    args.entry_date,
+                    not args.no_persist,
+                ),
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "evaluate-newsletter":
+        result = evaluate_newsletter_tool(args.newsletter_date, args.db, not args.no_persist)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            val = result["validation"]
+            print(f"\nNewsletter: {result['newsletter_date']}")
+            print(f"  Symbols evaluated : {val['watchlist_count']}")
+            print(f"  Passed hard gates : {val['passed_all_hard_gates']}")
+            print(f"  BULL_STRANGLE     : {val['bull_strangle_eligible']}")
+            print(f"  Small SL alignment: {val['small_alignment']['pass']}/{val['small_short_list_count']} "
+                  f"({val['small_alignment']['pct']}%)")
+            print(f"  Large SL alignment: {val['large_alignment']['pass']}/{val['large_short_list_count']} "
+                  f"({val['large_alignment']['pct']}%)")
+            if val["gate_failure_breakdown"]:
+                print("\n  Gate failure breakdown:")
+                for gate_name, syms in val["gate_failure_breakdown"].items():
+                    print(f"    {gate_name}: {len(syms)} ({', '.join(syms)})")
+        return 0
+    if args.command == "validate-all":
+        print(json.dumps(validate_all_newsletters_tool(args.db, not args.no_persist), indent=2))
+        return 0
+    if args.command == "gate-report":
+        result = generate_entry_validation_report_tool(
+            args.newsletter_date, args.db, args.output
+        )
+        print(result["markdown"])
+        return 0
+    if args.command == "list-entry-decisions":
+        print(
+            json.dumps(
+                list_entry_decisions_tool(args.newsletter_date, args.db, args.decision_type),
+                indent=2,
+            )
+        )
         return 0
 
     parser.error(f"Unknown command: {args.command}")
