@@ -1,6 +1,11 @@
-## BullStrangle v3 Implementation Plan
+# BullStrangle Implementation Plan v3
 
-**Status:** Architecture spec v3 and Implementation Guide v2 are written. No v3 code exists yet.
+Date: 2026-04-26
+Status: ACTIVE
+
+## Overview
+
+Architecture spec v3 and Implementation Guide v2 are written. No v3 code exists yet. This document defines what exists in the v1 baseline, what needs to be built, and the strict implementation order.
 
 ---
 

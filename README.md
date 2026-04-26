@@ -110,6 +110,7 @@ outputs/reports/YYYY-MM-DD/
 
 - [**Architecture Spec v3**](references/BullStrangle_Architecture_Spec_v3.md) — rolling cycle model, gate-based decisions, OS as execution data source
 - [**Implementation Guide v2**](references/BullStrangle_Implementation_Guide_v2.md) — what changes, phase plan, new modules, testing
+- [**Implementation Plan v3**](references/BullStrangle_Implementation_Plan_v3.md) — what exists vs what to build, 8-phase order, critical path
 
 ### Operator Guides
 
