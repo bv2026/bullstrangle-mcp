@@ -46,6 +46,17 @@ MONTHS = {
     "december": 12,
 }
 
+KNOWN_SINGLE_LETTER_TICKERS = {
+    "C": ("CITIGROUP",),
+    "F": ("FORD",),
+    "T": ("AT&T", "AT T"),
+    "X": ("UNITED STATES STEEL",),
+}
+
+TICKER_DESCRIPTION_CORRECTIONS = {
+    ("C", "RML CRITICAL METALS CORP"): "CRML",
+}
+
 
 @dataclass
 class PageText:
@@ -175,7 +186,10 @@ def normalize_pdf_text(text: str) -> str:
         "C all": "Call",
         "C ash": "Cash",
         "C orp": "Corp",
+        "C ORP": "CORP",
         "C ompany": "Company",
+        "C RITIC AL": "CRITICAL",
+        "C ritical": "Critical",
         "C omputers": "Computers",
         "C lean": "Clean",
         "C hemours": "Chemours",
@@ -328,6 +342,9 @@ def split_screening_symbol(
     for symbol in sorted(watchlist_symbols, key=len, reverse=True):
         if line.startswith(f"{symbol} "):
             return symbol, line[len(symbol) + 1 :].strip()
+        split_symbol = f"{symbol[0]} {symbol[1:]}"
+        if len(symbol) > 1 and line.startswith(f"{split_symbol} "):
+            return symbol, line[len(split_symbol) + 1 :].strip()
     return None, line
 
 
@@ -479,10 +496,12 @@ def parse_watchlist_option_prices(pages: list[PageText]) -> list[dict[str, Any]]
             if len(nums) < 9:
                 continue
             symbol = normalize_symbol(match.group("symbol"))
+            description = cleanup_name(match.group("description"))
+            symbol = correct_extracted_symbol(symbol, description)
             rows.append(
                 {
                     "symbol": symbol,
-                    "description": cleanup_name(match.group("description")),
+                    "description": description,
                     "stock_price": float(match.group("last")),
                     "implied_volatility": float(match.group("iv")) / 100.0,
                     "sector": match.group("sector"),
@@ -520,13 +539,13 @@ def parse_short_lists(pages: list[PageText], watchlist_symbols: set[str]) -> lis
                 continue
             if not compact:
                 continue
-            first = normalize_symbol(compact.split(" ", 1)[0])
-            if first in watchlist_symbols:
+            symbol, _ = split_screening_symbol(compact, watchlist_symbols)
+            if symbol:
                 ranks[portfolio] += 1
                 rows.append(
                     {
                         "portfolio_type": portfolio,
-                        "symbol": first,
+                        "symbol": symbol,
                         "rank": ranks[portfolio],
                         "source_page": page.page_number,
                         "raw_line": compact,
@@ -967,11 +986,36 @@ def cleanup_repeated_headers(text: str) -> str:
 
 
 def cleanup_name(value: str) -> str:
+    replacements = {
+        "C RITIC AL": "CRITICAL",
+        "C ritic al": "Critical",
+        "C ritical": "Critical",
+        "C ORP": "CORP",
+        "C orp": "Corp",
+    }
+    for old, new in replacements.items():
+        value = value.replace(old, new)
     return " ".join(value.replace("  ", " ").split()).strip()
 
 
 def normalize_symbol(value: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", value.upper())
+
+
+def correct_extracted_symbol(symbol: str, description: str) -> str:
+    """Fix known PDF split artifacts after the option-price row has parsed."""
+    normalized_description = cleanup_name(description).upper()
+    corrected = TICKER_DESCRIPTION_CORRECTIONS.get((symbol, normalized_description))
+    if corrected:
+        return corrected
+
+    expected_names = KNOWN_SINGLE_LETTER_TICKERS.get(symbol)
+    if len(symbol) == 1 and expected_names:
+        if not any(name in normalized_description for name in expected_names):
+            corrected = TICKER_DESCRIPTION_CORRECTIONS.get((symbol, normalized_description))
+            if corrected:
+                return corrected
+    return symbol
 
 
 def dedupe_by_symbol(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

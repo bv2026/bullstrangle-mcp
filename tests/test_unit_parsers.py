@@ -12,7 +12,13 @@ from typing import Any
 
 import pytest
 
-from bullstrangle_mcp.ingestion import PageText, parse_market_environment, parse_watchlist_option_prices
+from bullstrangle_mcp.ingestion import (
+    PageText,
+    parse_market_environment,
+    parse_short_lists,
+    parse_watchlist_option_prices,
+    parse_watchlist_screening_details,
+)
 from bullstrangle_mcp.decisions import DEFAULT_RULES, _build_strategy_context
 
 
@@ -169,6 +175,49 @@ def test_parse_watchlist_option_prices_ignores_non_matching_lines():
     page = PageText(page_number=1, text=text)
     rows = parse_watchlist_option_prices([page])
     assert len(rows) == 1
+
+
+@pytest.mark.unit
+def test_parse_watchlist_option_prices_corrects_split_crml_symbol():
+    line = (
+        "C RML C RITIC AL METALS C ORP 11.51$ 120% Materials "
+        "12.00$ 1.10$ 11.00$ 1.25$ 10.00$ 1.00$ 25.7% 13.3% 10.6%"
+    )
+    rows = parse_watchlist_option_prices([PageText(page_number=9, text=line)])
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "CRML"
+    assert rows[0]["description"] == "RML CRITICAL METALS CORP"
+    assert rows[0]["stock_price"] == 11.51
+
+
+@pytest.mark.unit
+def test_parse_watchlist_option_prices_keeps_valid_single_letter_symbol():
+    line = _watchlist_line(symbol="C", description="Citigroup Inc", price="128.00", sector="Financials")
+    rows = parse_watchlist_option_prices([PageText(page_number=1, text=line)])
+
+    assert rows[0]["symbol"] == "C"
+    assert rows[0]["description"] == "Citigroup Inc"
+
+
+@pytest.mark.unit
+def test_parse_watchlist_screening_details_matches_split_crml_symbol():
+    line = "C RML C ritical Metals Corp 11.51 121.31% 295597Mining - Misc Basic Materials Yes N/A Materials"
+    details = parse_watchlist_screening_details([PageText(page_number=8, text=line)], {"CRML"})
+
+    assert set(details) == {"CRML"}
+    assert details["CRML"]["screening_name"] == "Critical Metals Corp"
+    assert details["CRML"]["total_open_interest"] == 295597
+
+
+@pytest.mark.unit
+def test_parse_short_lists_matches_split_crml_symbol():
+    line = "C RML C ritical Metals Corp 11.51 121.31% 295597Mining - Misc Basic Materials Yes N/A Materials"
+    rows = parse_short_lists([PageText(page_number=10, text=line)], {"CRML"})
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "CRML"
+    assert rows[0]["portfolio_type"] == "large"
 
 
 # ── parse_market_environment ──────────────────────────────────────────────────
