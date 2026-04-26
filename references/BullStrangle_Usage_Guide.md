@@ -36,8 +36,8 @@ Use these as the standard locations going forward:
 
 Operator rule:
 
-- `outputs\workbooks` is template output only
-- `data\os_uploads` is the only place to save Excel-refreshed live workbooks before ingest
+- `outputs\workbooks` is template output only — never edit or save over these files
+- `data\os_uploads` is auto-populated on workbook generation; open the file there, refresh, and save in place before ingest
 - `data\positions\positions.csv` is the canonical positions input file
 
 ## One-Time Or Reset Setup
@@ -116,21 +116,21 @@ Inbound refreshed workbook folder:
 data\os_uploads
 ```
 
-Keep generated templates and refreshed uploads separate:
+The workbook is automatically copied to `data\os_uploads` after generation.
 
-- `outputs\workbooks`: MCP-generated workbook templates.
-- `data\os_uploads`: Excel-refreshed workbooks ready for ingestion.
+- `outputs\workbooks`: canonical generated templates (do not edit).
+- `data\os_uploads`: auto-populated copy, ready to open in Excel and refresh.
 
 ## Market-Hours Daily Workflow
 
 Use this after market opens and Option Samurai can return live data.
 
-1. Copy the generated workbook from `outputs\workbooks` into `data\os_uploads`.
-2. Open the copy in `data\os_uploads` in Excel.
-3. Make sure the Option Samurai add-in is enabled.
-4. Refresh/recalculate the workbook.
-5. Save the workbook.
-6. Ingest the saved workbook from `data\os_uploads`.
+1. Open `data\os_uploads\BullStrangle_OS_Live_YYYY-MM-DD.xlsx` in Excel.
+   *(The workbook is copied there automatically when generated — no manual copy needed.)*
+2. Make sure the Option Samurai add-in is enabled.
+3. Refresh/recalculate the workbook.
+4. Save the workbook.
+5. Ingest the saved workbook from `data\os_uploads`.
 
 Ingest command:
 
@@ -428,11 +428,11 @@ Current local April 17 status:
 
 When the market opens:
 
-1. Copy `outputs\workbooks\BullStrangle_OS_Live_2026-04-24.xlsx` to `data\os_uploads`.
-2. Open the copy in `data\os_uploads`.
-3. Refresh Option Samurai formulas in Excel.
-4. Save the workbook.
-5. Run `ingest-os-workbook` against the file in `data\os_uploads` with tomorrow's trading date.
+1. Open `data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx` in Excel.
+   *(Already there — copied automatically when the workbook was generated.)*
+2. Refresh Option Samurai formulas in Excel.
+3. Save the workbook.
+4. Run `ingest-os-workbook` against the file in `data\os_uploads` with tomorrow's trading date.
 6. Run `report-os-run` for the new `run_id`.
 7. Run `aggregate-os-week`.
 8. Review missing values and largest deviations.

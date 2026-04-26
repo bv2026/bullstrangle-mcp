@@ -29,7 +29,7 @@ These are the finalized working locations:
 Recommended operator rule:
 
 - never overwrite the generated template in `outputs/workbooks`
-- always refresh and save the live Excel copy in `data/os_uploads`
+- the workbook is auto-copied to `data/os_uploads` on generation — open it there, refresh, and save in place
 
 ## Documentation
 

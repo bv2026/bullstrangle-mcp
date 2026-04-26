@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -216,9 +217,30 @@ def generate_os_workbook_tool(
     db_path: str = str(DEFAULT_DB_PATH),
     output_dir: str = "outputs/workbooks",
 ) -> dict[str, Any]:
-    """Generate an Option Samurai-enabled Excel workbook from a newsletter watchlist."""
+    """Generate an Option Samurai-enabled Excel workbook from a newsletter watchlist.
+
+    After generation the workbook is automatically copied into the os_uploads
+    directory (sibling of the data directory) so it is ready for the operator
+    to open in Excel, refresh Option Samurai formulas, and save.
+    """
     initialize_database(db_path)
-    return generate_os_workbook(newsletter_date, db_path, output_dir)
+    result = generate_os_workbook(newsletter_date, db_path, output_dir)
+
+    # Auto-copy to os_uploads so the operator can open and refresh immediately.
+    generated_path = result.get("generated_path")
+    if generated_path:
+        uploads_dir = Path(db_path).parent / "os_uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        dest = uploads_dir / Path(generated_path).name
+        try:
+            shutil.copy2(generated_path, dest)
+            result["uploaded_path"] = str(dest)
+            result["upload_status"] = "copied"
+        except OSError as exc:
+            result["uploaded_path"] = None
+            result["upload_status"] = f"copy_failed: {exc}"
+
+    return result
 
 
 def ingest_os_workbook_tool(

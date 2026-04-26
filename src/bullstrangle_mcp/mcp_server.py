@@ -179,8 +179,10 @@ def generate_os_workbook(
 ) -> dict[str, Any]:
     """Generate an Option Samurai-enabled Excel workbook from the newsletter watchlist.
 
-    output_dir defaults to DATA_DIR/../outputs/workbooks when BULLSTRANGLE_DATA_DIR
-    is set, otherwise outputs/workbooks relative to the working directory.
+    The workbook is written to output_dir (defaults to DATA_DIR/../outputs/workbooks)
+    and automatically copied to DATA_DIR/os_uploads so it is ready for the operator
+    to open in Excel, refresh Option Samurai formulas, and save.
+    Returns generated_path, uploaded_path, and upload_status.
     """
     return generate_os_workbook_tool(
         newsletter_date,
