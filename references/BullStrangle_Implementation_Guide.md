@@ -78,7 +78,7 @@ Generated local data:
 - `data/bullstrangle.db`: SQLite database.
 - `data/os_uploads`: inbound Excel-refreshed OS workbooks ready for ingestion.
 - `outputs/workbooks`: generated OS workbooks for Excel/Option Samurai refresh.
-- `reports/YYYY-MM-DD`: generated Markdown reports.
+- `outputs/reports/YYYY-MM-DD`: generated Markdown reports.
 
 Audit/support files:
 

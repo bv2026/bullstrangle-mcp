@@ -128,7 +128,7 @@ Capture the returned `run_id`.
 ### 6. Generate Daily OS Report
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 2 --output reports\2026-04-23\os_run_2.md
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 2 --output outputs\reports\2026-04-23\os_run_2.md
 ```
 
 Review:
@@ -153,7 +153,7 @@ Review:
 ### 8. Aggregate Weekly OS Data
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-23\os_week_2026-04-17.md
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output outputs\reports\2026-04-23\os_week_2026-04-17.md
 ```
 
 Review:
@@ -166,7 +166,7 @@ Review:
 ### 9. Generate Weekend Decisions
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-23 --output reports\2026-04-23\weekend_decisions_2026-04-17.md
+& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-23 --output outputs\reports\2026-04-23\weekend_decisions_2026-04-17.md
 ```
 
 Review:

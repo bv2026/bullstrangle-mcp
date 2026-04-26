@@ -24,7 +24,7 @@ These are the finalized working locations:
 - Positions CSV: `data/positions/positions.csv`
 - Generated OS workbook templates: `outputs/workbooks`
 - Refreshed OS workbooks for ingestion: `data/os_uploads`
-- Generated reports: `reports/YYYY-MM-DD`
+- Generated reports: `outputs/reports/YYYY-MM-DD`
 
 Recommended operator rule:
 
@@ -68,10 +68,10 @@ bullstrangle --db data\bullstrangle.db prepare-os-workbook 2026-04-17
 bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\workbooks
 bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
 bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
-bullstrangle --db data\bullstrangle.db report-os-run 1 --output reports\2026-04-22\os_run_1.md
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-22\os_week_2026-04-17.md
+bullstrangle --db data\bullstrangle.db report-os-run 1 --output outputs\reports\2026-04-22\os_run_1.md
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output outputs\reports\2026-04-22\os_week_2026-04-17.md
 bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json
-bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output reports\2026-04-22\weekend_decisions_2026-04-17.md
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output outputs\reports\2026-04-22\weekend_decisions_2026-04-17.md
 ```
 
 ## Claude Desktop MCP
@@ -226,7 +226,7 @@ Current expected result:
 
 ### 2026-04-26 — Phase A/B gap-fill
 
-Added 14 MCP tools and a new `reports.py` module to close the largest gaps identified in the spec vs. implementation gap analysis (`reports/gap_analysis_spec_vs_impl_2026-04-26.md`).
+Added 14 MCP tools and a new `reports.py` module to close the largest gaps identified in the spec vs. implementation gap analysis (`references/gap_analysis_spec_vs_impl_2026-04-26.md`).
 
 **New tools:** `get_current_environment`, `check_deployment_approval`, `get_watchlist`, `get_dca_candidates`, `get_active_cycles`, `get_eligible_symbols`, `get_deep_analysis`, `get_market_environment_history`, `get_scaling_guidance`, `search_commentary`, `generate_weekly_action_plan`, `generate_daily_brief`, `list_generated_reports`, `get_generated_report`.
 

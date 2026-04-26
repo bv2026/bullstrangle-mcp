@@ -208,7 +208,7 @@ Use the BullStrangle MCP tools to generate today's daily brief. Show the current
 ## 31. Generate And Save Action Plan
 
 ```text
-Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and save it to reports\2026-04-24\action_plan.md. Confirm the output path when done.
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and save it to outputs\reports\2026-04-24\action_plan.md. Confirm the output path when done.
 ```
 
 ## 32. Review Previously Generated Reports

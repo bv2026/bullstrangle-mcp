@@ -13,7 +13,6 @@ dist/
 # Local runtime data and generated artifacts
 data/
 outputs/
-reports/
 
 # Local environment
 .env

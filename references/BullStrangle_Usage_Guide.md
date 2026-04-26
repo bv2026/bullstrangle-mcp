@@ -32,7 +32,7 @@ Use these as the standard locations going forward:
 - Positions CSV: `data\positions\positions.csv`
 - Generated OS workbook templates: `outputs\workbooks`
 - Refreshed OS workbook uploads: `data\os_uploads`
-- Generated reports: `reports\YYYY-MM-DD`
+- Generated reports: `outputs\reports\YYYY-MM-DD`
 
 Operator rule:
 
@@ -160,7 +160,7 @@ Use the `run_id` returned by `ingest-os-workbook`.
 Example:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db report-os-run 2 --output reports\2026-04-23\os_run_2.md
+bullstrangle --db data\bullstrangle.db report-os-run 2 --output outputs\reports\2026-04-23\os_run_2.md
 ```
 
 To print full JSON:
@@ -174,7 +174,7 @@ bullstrangle --db data\bullstrangle.db report-os-run 2 --json
 Run this after one or more daily OS uploads. It can be run any time; it recomputes the weekly aggregate table for the newsletter date.
 
 ```powershell
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output reports\2026-04-23\os_week_2026-04-24.md
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output outputs\reports\2026-04-23\os_week_2026-04-24.md
 ```
 
 To print full JSON:
@@ -219,7 +219,7 @@ Run after the weekly OS uploads are complete.
 Example:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-24 --decision-date 2026-04-25 --output reports\2026-04-25\weekend_decisions_2026-04-24.md
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-24 --decision-date 2026-04-25 --output outputs\reports\2026-04-25\weekend_decisions_2026-04-24.md
 ```
 
 To print full JSON:
@@ -402,9 +402,9 @@ data\os_uploads
 Generated reports:
 
 ```text
-reports\2026-04-22\os_run_1.md
-reports\2026-04-22\os_week_2026-04-24.md
-reports\2026-04-22\weekend_decisions_2026-04-24.md
+outputs\reports\2026-04-22\os_run_1.md
+outputs\reports\2026-04-22\os_week_2026-04-24.md
+outputs\reports\2026-04-22\weekend_decisions_2026-04-24.md
 ```
 
 Canonical current files:

@@ -863,12 +863,12 @@ Implemented fields:
 Current daily report command:
 
 ```powershell
-python -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 1 --output reports\2026-04-22\os_run_1.md
+python -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 1 --output outputs\reports\2026-04-22\os_run_1.md
 ```
 
 Current daily report example:
 
-- report path: `reports/2026-04-22/os_run_1.md`
+- report path: `outputs/reports/2026-04-22/os_run_1.md`
 - missing/error rows: `1` (`IMVT`)
 - largest price deviations: `DJT`, `NTAP`, `SHLD`, `GDS`, `NFLX`
 
@@ -911,12 +911,12 @@ Implemented fields:
 Current weekly aggregation command:
 
 ```powershell
-python -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output reports\2026-04-22\os_week_2026-04-17.md
+python -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output outputs\reports\2026-04-22\os_week_2026-04-17.md
 ```
 
 Current weekly aggregation report example:
 
-- report path: `reports/2026-04-22/os_week_2026-04-17.md`
+- report path: `outputs/reports/2026-04-22/os_week_2026-04-17.md`
 - OS run count: `1`
 - symbols: `24`
 - valid symbols: `23`
@@ -1203,7 +1203,7 @@ Bull Strangle should therefore consider:
 Current weekend decision command:
 
 ```powershell
-python -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output reports\2026-04-22\weekend_decisions_2026-04-17.md
+python -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output outputs\reports\2026-04-22\weekend_decisions_2026-04-17.md
 ```
 
 Current April 17 v1 decision output using one OS upload:
@@ -1425,7 +1425,7 @@ Purpose:
 6. Exact weekend aggregation policy: latest OS upload plus weekly max deviations is the recommended v1 default.
 7. Thresholds for acceptable deviation from newsletter baseline.
 7. Report template format and final output directory convention.
-8. Whether generated reports are stored only in DB or also written to files under `reports/`.
+8. Whether generated reports are stored only in DB or also written to files under `outputs/reports/`.
 
 ## Next Steps
 
@@ -1581,7 +1581,7 @@ Reports can live only in DB, only as files, or both.
 Mitigation:
 
 - Store all reports in DB.
-- Also write Markdown files under `reports/YYYY-MM-DD/` for user access.
+- Also write Markdown files under `outputs/reports/YYYY-MM-DD/` for user access.
 
 ### Recommended Implementation Order
 
