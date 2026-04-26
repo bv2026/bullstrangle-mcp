@@ -33,6 +33,7 @@ Recommended operator rule:
 
 ## Documentation
 
+- [Architecture Spec v1.1](references/BullStrangle_Newsletter_MCP_Architecture_Spec_v1.1_JSONB.md) — canonical spec (32 tables, 34 tools)
 - [Workflow Architecture](references/BullStrangle_MCP_Workflow_Architecture.md)
 - [Implementation Guide](references/BullStrangle_Implementation_Guide.md)
 - [Decision Logic Design](references/BullStrangle_Decision_Logic_Design.md)
