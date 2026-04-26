@@ -19,6 +19,9 @@ from .os_workbooks import (
 )
 from .positions import ingest_positions
 from .reports import generate_daily_brief, generate_weekly_action_plan
+from .rule_catalog import get_rule as _get_rule
+from .rule_catalog import list_rule_catalog as _list_rule_catalog
+from .rule_catalog import load_rule_catalog
 
 
 def ingest_newsletter_tool(
@@ -831,3 +834,52 @@ def list_strategy_rules_tool(
         result.append(entry)
 
     return result
+
+
+def list_rule_catalog_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    rule_area: str | None = None,
+    rule_type: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return strategy rules from the v3 rule catalog.
+
+    Auto-seeds the catalog on first call (INSERT OR IGNORE — safe to repeat).
+
+    *rule_area* filters by area: stock_selection, earnings, strike_selection,
+    capital, cycle, exit, market_environment, formula.
+
+    *rule_type* filters by type: hard_gate, soft_gate, hard_rule, guideline,
+    optional_overlay, formula.
+
+    Omit both to return all 43 rules.  Each row includes parsed ``parameters``
+    (dict) in addition to the raw ``parameters_json`` string so callers can
+    read numeric thresholds directly.
+    """
+    return _list_rule_catalog(db_path, rule_area=rule_area, rule_type=rule_type)
+
+
+def get_rule_tool(
+    rule_id: str,
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> dict[str, Any]:
+    """Fetch a single strategy rule by its rule_id.
+
+    Raises ``ValueError`` if the rule is not found.  Call
+    ``list_rule_catalog`` to discover available rule_ids (e.g. GATE-SS-001,
+    RULE-EARN-003, FORMULA-002).
+    """
+    try:
+        rule = _get_rule(db_path, rule_id)
+    except KeyError as exc:
+        raise ValueError(str(exc)) from exc
+    return {
+        "rule_id": rule.rule_id,
+        "rule_area": rule.rule_area,
+        "rule_type": rule.rule_type,
+        "source_section": rule.source_section,
+        "description": rule.description,
+        "parameters": rule.parameters,
+        "parameters_json": rule.parameters_json,
+        "data_column_mapping": rule.data_column_mapping,
+        "is_active": rule.is_active,
+    }

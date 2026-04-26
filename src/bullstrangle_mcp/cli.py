@@ -12,12 +12,14 @@ from .tools import (
     generate_weekend_decisions_tool,
     get_newsletter_by_ref_tool,
     get_newsletter_tool,
+    get_rule_tool,
     get_symbol_history_tool,
     ingest_os_workbook_tool,
     ingest_newsletter_directory_tool,
     ingest_newsletter_tool,
     ingest_positions_tool,
     list_newsletters_tool,
+    list_rule_catalog_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
 )
@@ -120,6 +122,29 @@ def main(argv: list[str] | None = None) -> int:
         help="Print full JSON instead of the Markdown report",
     )
 
+    list_rules = subparsers.add_parser(
+        "list-rule-catalog",
+        help="List v3 strategy rules from the Master Document catalog",
+    )
+    list_rules.add_argument(
+        "--area",
+        dest="rule_area",
+        help="Filter by area: stock_selection, earnings, strike_selection, capital, "
+             "cycle, exit, market_environment, formula",
+    )
+    list_rules.add_argument(
+        "--type",
+        dest="rule_type",
+        help="Filter by type: hard_gate, soft_gate, hard_rule, guideline, "
+             "optional_overlay, formula",
+    )
+
+    get_rule_p = subparsers.add_parser(
+        "get-rule",
+        help="Fetch a single strategy rule by rule_id",
+    )
+    get_rule_p.add_argument("rule_id", help="Rule id, e.g. GATE-SS-001 or RULE-EARN-003")
+
     weekend_decisions = subparsers.add_parser(
         "generate-weekend-decisions",
         help="Generate weekend Bull Strangle and DCA decisions for a newsletter date",
@@ -197,6 +222,17 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(aggregate, indent=2))
         else:
             print(aggregate["markdown"])
+        return 0
+    if args.command == "list-rule-catalog":
+        print(
+            json.dumps(
+                list_rule_catalog_tool(args.db, args.rule_area, args.rule_type),
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "get-rule":
+        print(json.dumps(get_rule_tool(args.rule_id, args.db), indent=2))
         return 0
     if args.command == "generate-weekend-decisions":
         decisions = generate_weekend_decisions_tool(

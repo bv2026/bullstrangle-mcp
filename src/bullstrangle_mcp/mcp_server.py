@@ -34,7 +34,9 @@ from .tools import (
     list_generated_reports_tool,
     list_newsletters_tool,
     list_os_runs_tool,
+    list_rule_catalog_tool,
     list_strategy_rules_tool,
+    get_rule_tool,
     prepare_os_workbook_tool,
     report_os_run_tool,
     search_commentary_tool,
@@ -416,6 +418,46 @@ def search_commentary(
     newsletter date and section name.
     """
     return search_commentary_tool(query, limit, db_path or default_db_path())
+
+
+@mcp.tool()
+def list_rule_catalog(
+    rule_area: str | None = None,
+    rule_type: str | None = None,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return strategy rules from the v3 Master Document rule catalog.
+
+    Auto-seeds all 43 canonical rules on first call (idempotent).
+
+    *rule_area* filters by area: stock_selection, earnings, strike_selection,
+    capital, cycle, exit, market_environment, formula.
+
+    *rule_type* filters by type: hard_gate, soft_gate, hard_rule, guideline,
+    optional_overlay, formula.
+
+    Omit both to return all 43 rules. Each row includes a parsed ``parameters``
+    dict so callers can read numeric thresholds directly without parsing JSON.
+    """
+    return list_rule_catalog_tool(
+        db_path or default_db_path(),
+        rule_area=rule_area,
+        rule_type=rule_type,
+    )
+
+
+@mcp.tool()
+def get_rule(rule_id: str, db_path: str | None = None) -> dict[str, Any]:
+    """Fetch a single strategy rule by rule_id.
+
+    Returns rule_id, rule_area, rule_type, source_section, description,
+    parameters (parsed dict), parameters_json (raw), data_column_mapping,
+    is_active.
+
+    Use list_rule_catalog to discover available rule_ids (e.g. GATE-SS-001,
+    RULE-EARN-003, RULE-ENV-002, FORMULA-002).
+    """
+    return get_rule_tool(rule_id, db_path or default_db_path())
 
 
 @mcp.resource("bullstrangle://database")
