@@ -1,7 +1,7 @@
 # Claude Prompts For BullStrangle
 
 Date: 2026-04-26
-Updated: 2026-04-26 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring)
+Updated: 2026-04-26 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring; added prompts 56–63 for workflow commands and Phase 7 reports)
 Audience: Claude Desktop operator
 
 Use these prompts after the BullStrangle MCP server is configured in Claude Desktop.
@@ -416,4 +416,69 @@ Use the BullStrangle MCP tools to audit what has been ingested. List all newslet
 
 ```text
 Using the BullStrangle workflow, give me only the PowerShell CLI commands I need to run today's Monday morning routine: auto-resolve expired positions, check exit status, and see the current portfolio performance. Use the small portfolio. No explanations — just the exact commands.
+```
+
+---
+
+## Workflow Commands (Phase W)
+
+## 56. Sunday Setup — New Newsletter
+
+```text
+Use the BullStrangle MCP tools to run the Sunday setup for newsletter date 2026-04-24. The PDF is at data\newsletters\newsletter.pdf. Run weekend-setup, confirm the workbook was generated and copied to data\os_uploads, and tell me the output path so I know what to open in Excel.
+```
+
+## 57. Daily Ingest + Report
+
+```text
+Use the BullStrangle MCP tools to run the daily ingest for newsletter date 2026-04-24 with trading date 2026-04-28. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report. Give me the run_id, row count, and the report file path.
+```
+
+## 58. Recover From Stale Workbook
+
+```text
+Use the BullStrangle MCP tools to ingest the OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx for trading date 2026-04-28 with regenerate-if-stale enabled. Explain whether the workbook was stale, whether a fresh one was generated, and what run_id was produced.
+```
+
+---
+
+## Daily Brief & Weekly Plan (Phase 7)
+
+## 59. Morning Daily Brief
+
+```text
+Use the BullStrangle MCP tools to generate today's daily brief. Show:
+1. Any exit alerts that need action today (CLOSE_IMMEDIATELY, EXIT_MONDAY, REVIEW)
+2. All open positions with days to expiration
+3. Gate status for the latest newsletter week
+Start with the most urgent items.
+```
+
+## 60. Daily Brief — Exits Only
+
+```text
+Use the BullStrangle MCP tools to generate the daily brief and focus only on exit alerts. For each alert show: symbol, expiration, DTE, recommended action, and the trigger that fired. Sort by urgency: CLOSE_IMMEDIATELY first, then EXIT_MONDAY, then REVIEW.
+```
+
+## 61. Weekly Action Plan — Gate Summary Focus
+
+```text
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and focus on the gate validation summary. Show: how many symbols passed all gates, how many are on WATCH, how many were skipped. Then show the Short List alignment percentage and which gate is causing the most rejections.
+```
+
+## 62. Weekly Action Plan — Active Positions Focus
+
+```text
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and focus on the active positions section. For each open position show: symbol, expiration, days to expiration, call strike, put strike, credit received, and capital at risk. Flag any positions expiring in the next 10 days.
+```
+
+## 63. Full Sunday Workflow — Action Plan + Gate Report + Exit Check
+
+```text
+Use the BullStrangle MCP tools to run the complete Sunday workflow for newsletter date 2026-04-24:
+1. Run weekend-setup to confirm the workbook is ready
+2. Generate the gate report and show the Short List alignment summary
+3. Generate the weekly action plan — include gate summary, active positions, and DCA candidates
+4. Generate the exit report for the small portfolio and flag anything needing attention this week
+End with a priority-ordered action list for Monday.
 ```

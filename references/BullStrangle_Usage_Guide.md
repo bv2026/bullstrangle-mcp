@@ -53,6 +53,31 @@ Operator rules:
 This is the primary workflow for the May 2026 validation period.
 Run these commands each week to track open positions and strategy alignment.
 
+### Sunday Night — New Newsletter Setup
+
+Drop the PDF into `data\newsletters\`, then run one command:
+
+```powershell
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24 --pdf data\newsletters\newsletter.pdf
+```
+
+This does everything in sequence: ingest PDF → generate OS workbook → auto-copy to `data\os_uploads\`.
+
+If the newsletter is already ingested, omit `--pdf`:
+
+```powershell
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24
+```
+
+Then evaluate gates and generate the action plan:
+
+```powershell
+bullstrangle --db data\bullstrangle.db gate-report 2026-04-24 --output outputs\reports\gate_report_2026-04-24.md
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output outputs\reports\action_plan_2026-04-24.md
+```
+
+The weekly action plan includes: market environment, gate validation summary (pass/watch/skip with Short List alignment %), active open positions with DTE, DCA candidates, WL Favorites deep dives, and next-week workflow checklist.
+
 ### Monday Morning — Auto-Resolve + Exit Check
 
 Auto-close any positions that expired over the weekend:
@@ -61,36 +86,57 @@ Auto-close any positions that expired over the weekend:
 bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type small
 ```
 
-Then review the exit monitoring report for all still-open positions:
+Then get a concise morning summary (exit alerts, open positions, gate status):
+
+```powershell
+bullstrangle --db data\bullstrangle.db daily-brief
+```
+
+The daily brief highlights: 🚨 CLOSE_IMMEDIATELY alerts (earnings or extreme drop), ⚠️ EXIT_MONDAY (DTE ≤ 7), 👀 REVIEW (stock near a strike), all open positions with DTE, and gate status for the latest newsletter.
+
+Full exit monitoring report (if you need detail beyond the brief):
 
 ```powershell
 bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --output outputs\reports\exit_report_small.md
 ```
 
-Print to console (no file save):
-
-```powershell
-bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small
-```
-
-Skip live price fetch (faster, offline):
+Offline version (skip live price fetch):
 
 ```powershell
 bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --no-price
 ```
 
-### After Newsletter Arrives — Ingest + Gate Validation
+### Daily (Market Hours) — OS Workbook Refresh
+
+Open `data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx` in Excel, enable Option Samurai add-in, refresh, save. Then:
+
+```powershell
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
+```
+
+This finds the refreshed workbook in `data\os_uploads\`, ingests it (with auto-stale recovery if the workbook is from an old DB state), and generates the OS run report to `outputs\reports\`.
+
+Manual fallback (split steps):
+
+```powershell
+# Ingest only
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+
+# Report only (use run_id from ingest output)
+bullstrangle --db data\bullstrangle.db report-os-run 8 --output outputs\reports\os_run_8.md
+
+# If stale workbook error, auto-recover:
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28 --regenerate-if-stale
+```
+
+### After Newsletter Arrives — Ingest + Gate Validation (manual steps)
+
+If not using `weekend-setup`, you can run each step individually:
 
 Ingest the new PDF:
 
 ```powershell
 bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\newsletter.pdf
-```
-
-Check whether the market is deployed this week:
-
-```powershell
-bullstrangle --db data\bullstrangle.db check-deployment 2026-04-24
 ```
 
 Evaluate all watchlist symbols against Gates 1–9:
@@ -103,20 +149,6 @@ Generate and save the full gate validation report:
 
 ```powershell
 bullstrangle --db data\bullstrangle.db gate-report 2026-04-24 --output outputs\reports\gate_report_2026-04-24.md
-```
-
-### After OS Workbook Refresh — Ingest + Aggregate
-
-Ingest the refreshed workbook (use actual trading date):
-
-```powershell
-bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
-```
-
-Aggregate for the week:
-
-```powershell
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output outputs\reports\os_week_2026-04-24.md
 ```
 
 ### Weekend — Portfolio Performance
@@ -135,12 +167,39 @@ bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type small --
 bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type large --output outputs\reports\backtest_large.md
 ```
 
+Aggregate the week's OS runs:
+
+```powershell
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output outputs\reports\os_week_2026-04-24.md
+```
+
 ---
 
 ## CLI Fallback Reference
 
 **Use this section if Claude Desktop is unavailable due to usage limits.**
 All monitoring tasks can be performed from PowerShell alone.
+
+### Workflow Commands (preferred)
+
+```powershell
+# Sunday: ingest PDF + generate workbook
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24 --pdf data\newsletters\newsletter.pdf
+
+# Sunday: newsletter already ingested, just regenerate workbook
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24
+
+# Daily: ingest refreshed workbook + generate report
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
+
+# Sunday action plan (gate summary, active positions, DCA, WL Favorites)
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output outputs\reports\action_plan_2026-04-24.md
+
+# Morning daily brief (exit alerts, open positions, gate status)
+bullstrangle --db data\bullstrangle.db daily-brief
+bullstrangle --db data\bullstrangle.db daily-brief --output outputs\reports\daily_brief_2026-04-28.md
+```
 
 ### Database & Newsletter
 
@@ -332,14 +391,28 @@ bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters --force
 2. Make sure the Option Samurai add-in is enabled.
 3. Refresh / recalculate the workbook.
 4. Save the workbook.
-5. Ingest from `data\os_uploads`:
+5. Run the combined ingest + report command:
 
 ```powershell
-bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
 ```
 
-The command returns `run_id`, `row_count`, `populated_live_value_count`, `status`.
-If Excel did not save cached formula values, open the workbook, refresh, save again, and re-ingest.
+Returns `run_id` and `report_path`. The report is saved to `outputs\reports\os_run_<run_id>_<date>.md`.
+
+If Excel did not save cached formula values, open the workbook, refresh, save again, and re-run `daily-ingest`.
+
+**Manual fallback (split steps):**
+
+```powershell
+# Ingest only
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+
+# Report only (use run_id from ingest output)
+bullstrangle --db data\bullstrangle.db report-os-run 5 --output outputs\reports\os_run_5.md
+
+# Stale workbook recovery (if workbook was generated from a different DB state):
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28 --regenerate-if-stale
+```
 
 ---
 

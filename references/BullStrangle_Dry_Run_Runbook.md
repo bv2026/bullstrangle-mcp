@@ -57,6 +57,14 @@ bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type sm
 
 Prints: equity curve by week, cumulative P&L, overall return %, win rate, max drawdown, open positions.
 
+**Step 4 — Daily brief (optional, for a concise action-oriented summary)**
+
+```powershell
+bullstrangle --db data\bullstrangle.db daily-brief
+```
+
+Prints: exit alerts (🚨 CLOSE_IMMEDIATELY / ⚠️ EXIT_MONDAY / 👀 REVIEW), all open positions with DTE, gate status for the latest newsletter week.
+
 ---
 
 ### When New Newsletter Arrives (Sunday Night)
@@ -150,6 +158,14 @@ After exporting from broker:
 bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
 ```
 
+**Step 4 — Weekly action plan (optional, for Sunday review)**
+
+```powershell
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output outputs\reports\action_plan_2026-04-24.md
+```
+
+Contains: market environment, gate validation summary, active position table, DCA candidates, WL Favorites deep dives, and next-week workflow checklist.
+
 ---
 
 ## Full CLI Reference
@@ -165,6 +181,18 @@ bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24
 
 # Daily: ingest refreshed workbook + generate report in one step
 bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
+```
+
+### Report Commands
+
+```powershell
+# Full Sunday action plan (gate summary, active positions, DCA candidates, WL Favorites)
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output outputs\reports\action_plan_2026-04-24.md
+
+# Morning daily brief (exit alerts, open positions, gate status)
+bullstrangle --db data\bullstrangle.db daily-brief
+bullstrangle --db data\bullstrangle.db daily-brief --output outputs\reports\daily_brief_2026-04-28.md
 ```
 
 ### Database & Newsletters

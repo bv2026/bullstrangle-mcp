@@ -2,7 +2,7 @@
 
 Date: 2026-04-26
 Last updated: 2026-04-26
-Status: ACTIVE — Phases 0–6 + 5b + 8-partial complete; Phase 7 next
+Status: ACTIVE — Phases 0–7 + 5b + W + 8-partial complete; Phase 5c next (June)
 
 ## Progress
 
@@ -20,7 +20,7 @@ Status: ACTIVE — Phases 0–6 + 5b + 8-partial complete; Phase 7 next
 | 5c | `position_book.py` — full live trading layer lifecycle + broker sync | 🔲 Deferred (June, after May cycle) |
 | 6 | Tool registration (18 new MCP tools + CLI) | ✅ Done |
 | W | Workflow commands — `weekend-setup`, `daily-ingest`; stale workbook detection + `--regenerate-if-stale` | ✅ Done |
-| 7 | Report updates (active cycle stack, Gate results in daily brief / weekly plan) | 🔲 **Next** |
+| 7 | Report updates (active cycle stack, Gate results in daily brief / weekly plan) | ✅ Done |
 | 8 | v1 score engine deprecation | 🟡 Partial — DB writes stopped, DEPRECATED markers added; function removal deferred to June |
 
 ---
@@ -296,19 +296,30 @@ All new engines wired into `tools.py`, `mcp_server.py`, and `cli.py`.
 
 ---
 
-#### Phase 7 — Report Updates 🔲 NEXT
+#### Phase 7 — Report Updates ✅ DONE
 
 **File:** `src/bullstrangle_mcp/reports.py`
 
-Update `generate_weekly_action_plan()`:
-- Section: Active cycle stack — all ACTIVE layers with days-to-expiry, strikes, current credit
-- Section: Expiring this week — layers where DTE ≤ 7
-- Section: Gate validation summary — which symbols passed/failed and why
+**`generate_weekly_action_plan()` additions:**
+- **Section 4 — Gate Validation Summary:** pass/watch/skip counts, Short List alignment %, gate failure breakdown table, ⭐ markers on Short List symbols that failed gates
+- **Section 5 — Active Positions This Cycle:** full table of ACTIVE cycle_layers — symbol, portfolio type, expiration, DTE, call/put strikes, credit, capital
 
-Update `generate_daily_brief()`:
-- Gate 9 status per symbol — live credit vs threshold, pass/fail
-- Layers needing attention — exit triggers fired (EXIT_MONDAY, REVIEW, CLOSE_IMMEDIATELY)
-- Open position summary — count, capital at risk, nearest expiration
+All dead-table helpers removed: `_fetch_latest_batch`, `_fetch_latest_any_batch`, `_fetch_symbol_decisions` (queried deprecated `decision_batches` / `bull_strangle_decisions`). Replaced by:
+- `_fetch_entry_decisions_latest(conn, newsletter_id)` — `MAX(decision_id) GROUP BY symbol` for latest evaluation
+- `_fetch_latest_newsletter_entry_decisions(conn)` — finds most-recently-evaluated newsletter
+- `_fetch_active_layers_for_newsletter(conn, newsletter_id, today)` — ACTIVE cycle_layers with DTE
+- `_fetch_all_active_layers(conn, today)` — all ACTIVE layers across all newsletters
+
+**`generate_daily_brief()` additions:**
+- **Section 2 — Active Cycles & Open Positions:** per-newsletter DTE table + full open position list + capital at risk summary
+- **Section 3 — Exit Alerts:** 🚨 CLOSE_IMMEDIATELY / ⚠️ EXIT_MONDAY / 👀 REVIEW, ordered by urgency; capped at 10 with overflow note
+- **Section 4 — Gate Status:** latest newsletter pass/watch/skip counts + eligible symbols table
+
+New helper: `_fetch_exit_alerts(conn)` — most recent exit_decision per ACTIVE layer where `recommended_action != 'HOLD'`, ordered by urgency.
+
+**Bug fix — Windows UTF-8:** `cli.py` `main()` now calls `sys.stdout.reconfigure(encoding="utf-8")` so emoji-containing Markdown reports render correctly on Windows PowerShell (which defaults to cp1252).
+
+**New CLI commands registered:** `weekly-action-plan`, `daily-brief`
 
 ---
 
@@ -337,8 +348,8 @@ Keep always: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — the
 |---|---|---|---|
 | DB tables | 24 | 5 + 1 col | 5 tables + portfolio_type col ✅ |
 | Source modules | 12 | 4 new + 3 updated | 4 new ✅ + `os_ingestion`, `tools`, `cli`, `mcp_server` updated ✅ |
-| MCP tools | 30 | 18 new + 2 workflow | 20 ✅ |
-| CLI commands | — | 18 new + 2 workflow + flags | 20 + portfolio_type flags ✅ |
+| MCP tools | 30 | 18 new + 2 workflow | 20 ✅ + reports updated (Phase 7) ✅ |
+| CLI commands | — | 18 new + 2 workflow + 2 report + flags | 22 + portfolio_type flags ✅ |
 | Reference docs | 9 | 1 (rule inventory) | 1 ✅ |
 | Parser bug fixes | — | — | 20 tickers corrected ✅ |
 
@@ -346,8 +357,6 @@ Keep always: `compute_weekly_summary()`, `calculate_consecutive_weeks()` — the
 
 | Item | Phase | Effort | When |
 |---|---|---|---|
-| Inject active cycle stack into weekly action plan | 7 | Medium | Now |
-| Inject gate results + exit alerts into daily brief | 7 | Medium | Now |
 | Remove v1 score functions from `decisions.py` | 8 | Small | June (after May cycle) |
 | `sync_from_positions` → `position_books` book sync | 5c | Medium | June (needs live broker positions) |
 | Assignment risk alerts (stock near strike section in exit report) | 5b deferred | Small | June |
@@ -374,7 +383,7 @@ tool wrappers + CLI (Phase 6)               ✅
         |
 workflow commands + stale-workbook fix (W)  ✅
         |
-report updates (Phase 7)                   ← NEXT
+report updates (Phase 7)                   ✅
         |
 v1 score functions deleted (Phase 8 final) ← June
         |

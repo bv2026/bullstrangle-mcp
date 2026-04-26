@@ -41,18 +41,19 @@ WEEKLY (Sunday night / Monday)
 
 data/newsletters/newsletter.pdf
         │
-        │  ingest-pdf
+        │  weekend-setup YYYY-MM-DD --pdf <path>
+        │  (or: ingest-pdf → generate-os-workbook separately)
         ▼
   bullstrangle.db
   (watchlist, market env, short list, deep analysis)
         │
-        │  generate-os-workbook
-        ▼
-outputs/workbooks/BullStrangle_OS_Live_YYYY-MM-DD.xlsx   ← template (do not edit)
-        │
-        │  auto-copied on generation
+        │  auto-generates workbook + copies to os_uploads
         ▼
 data/os_uploads/BullStrangle_OS_Live_YYYY-MM-DD.xlsx     ← operator working copy
+
+        │  gate-report + weekly-action-plan
+        ▼
+outputs/reports/action_plan_YYYY-MM-DD.md                ← gate summary, positions, DCA list
 
 
 DAILY (market hours, Mon–Fri)
@@ -63,10 +64,15 @@ data/os_uploads/BullStrangle_OS_Live_YYYY-MM-DD.xlsx
         │  open in Excel → enable Option Samurai add-in
         │  → refresh formulas → save
         │
-        │  ingest-os-workbook --trading-date YYYY-MM-DD
+        │  daily-ingest YYYY-MM-DD --trading-date YYYY-MM-DD
+        │  (auto-stale-recovery if DB was rebuilt)
         ▼
-  bullstrangle.db
-  (os_evaluation_runs, os_evaluation_rows, watchlist_deviations)
+  bullstrangle.db                             outputs/reports/os_run_N_YYYY-MM-DD.md
+  (os_evaluation_runs, os_evaluation_rows)
+
+        │  daily-brief (morning)
+        ▼
+  exit alerts + open positions + gate status  ← printed to console or saved
 
 
 ONCE PER WEEK (before weekend decisions)
@@ -117,7 +123,7 @@ outputs/reports/YYYY-MM-DD/
 
 - [Usage Guide](references/BullStrangle_Usage_Guide.md)
 - [Dry Run Runbook](references/BullStrangle_Dry_Run_Runbook.md)
-- [Claude Prompts](references/Claude_Prompts_BullStrangle.md) — 34 ready-to-use prompts for Claude Desktop
+- [Claude Prompts](references/Claude_Prompts_BullStrangle.md) — 63 ready-to-use prompts for Claude Desktop
 
 ### Historical / Reference
 
@@ -170,6 +176,14 @@ bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --outp
 bullstrangle --db data\bullstrangle.db backtest-all --portfolio-type small
 bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type small
 bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type small --output outputs\reports\backtest_small.md
+
+# Workflow commands (preferred)
+bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24 --pdf data\newsletters\newsletter.pdf
+bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
+
+# Reports
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output outputs\reports\action_plan_2026-04-24.md
+bullstrangle --db data\bullstrangle.db daily-brief
 
 # Positions & decisions
 bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
@@ -232,10 +246,10 @@ bullstrangle-mcp-server
 
 - `search_commentary` — full-text search (FTS5) over all ingested newsletter commentary sections
 
-### Report generation tools *(added 2026-04-26)*
+### Report generation tools *(added 2026-04-26; updated Phase 7)*
 
-- `generate_weekly_action_plan` — 10-section Sunday action plan: market status, criteria table, DCA list, strangle eligibility, watchlist, WL Favorites deep dives, action items, reminders, workflow, appendix
-- `generate_daily_brief` — morning monitoring brief: market env, active cycles with days-to-expiry, automated alerts
+- `generate_weekly_action_plan` — 10-section Sunday action plan: market status, criteria table, DCA list, strangle eligibility, watchlist, WL Favorites deep dives, **gate validation summary (pass/watch/skip + Short List alignment %)**, **active position table (DTE, strikes, credit, capital)**, action items, reminders, workflow, appendix
+- `generate_daily_brief` — morning monitoring brief: market env, **active positions with DTE + capital at risk**, **exit alerts (🚨/⚠️/👀 grouped by urgency)**, **gate status for latest newsletter**
 - `list_generated_reports` — list previously generated reports (newest first)
 - `get_generated_report` — retrieve full Markdown content of a generated report by id
 
@@ -280,6 +294,11 @@ bullstrangle-mcp-server
 - `get_portfolio_performance` — week-by-week equity curve with cumulative P&L, return %, and drawdown
 - `generate_backtest_report` — full markdown backtest report with per-symbol tables and equity curve
 
+### Workflow tools *(added Phase W)*
+
+- `weekend_setup` — Sunday in one call: ingest PDF (optional) → generate OS workbook → auto-copy to `data/os_uploads`
+- `daily_ingest` — daily in one call: find workbook in `data/os_uploads` → ingest (with stale-workbook auto-recovery) → generate OS run report to `outputs/reports`
+
 ### Portfolio tools
 
 - `ingest_positions` — ingest account positions from `data/positions/positions.csv`
@@ -295,12 +314,16 @@ bullstrangle-mcp-server
 ```
 mcp_server.py     MCP stdio server — thin wrappers only, no logic
 cli.py            PowerShell-friendly CLI — same tool functions as MCP
+                  Phase W commands: weekend-setup, daily-ingest
+                  Phase 7 commands: weekly-action-plan, daily-brief
 tools.py          Anti-corruption layer — parameter coercion and db_path defaults
+                  Phase W: weekend_setup_tool, daily_ingest_tool
 ingestion.py      PDF parsing and fact storage (stores data, no business rules)
                   insert_earnings_calendar() populates earnings_calendar on every ingest
 decisions.py      Business rule evaluation — weekly summary, scoring, weekend decisions
                   compute_weekly_summary() and calculate_consecutive_weeks() live here
 reports.py        Report generation — weekly action plan, daily brief, report history
+                  Phase 7: gate validation summary + active positions + exit alerts wired in
 os_workbooks.py   Option Samurai Excel workbook generation
 os_ingestion.py   Refreshed workbook ingestion and deviation recording
 os_reports.py     Daily OS run reports (read-only)
@@ -366,6 +389,16 @@ Current expected result:
 ```
 
 ## Changelog
+
+### 2026-04-26 — Phase W + Phase 7: workflow commands, stale workbook detection, Phase 7 report updates
+
+**Phase W — Workflow commands:**
+`weekend-setup` and `daily-ingest` replace the previous multi-step Sunday/daily sequences with single commands. Stale workbook detection added to `ingest_os_workbook`: when the workbook's embedded `newsletter_id` doesn't match the DB (e.g. after a DB rebuild), the error message names the correct date and the re-generate command; `--regenerate-if-stale` flag silently regenerates and retries. **New tools:** `weekend_setup`, `daily_ingest`. **New CLI commands:** `weekend-setup`, `daily-ingest`, `ingest-os-workbook --regenerate-if-stale`.
+
+**Phase 7 — Report updates:**
+`generate_daily_brief` now shows: active positions with DTE + capital at risk, exit alerts (🚨 CLOSE_IMMEDIATELY / ⚠️ EXIT_MONDAY / 👀 REVIEW) grouped by urgency, gate status for the latest newsletter. `generate_weekly_action_plan` now includes: Section 4 gate validation summary (pass/watch/skip, Short List alignment %, gate failure breakdown), Section 5 active position table (DTE, strikes, credit, capital). Dead `decision_batches` / `bull_strangle_decisions` table queries replaced with live `entry_decisions` and `exit_decisions` engine tables. Windows UTF-8 fix in CLI (`sys.stdout.reconfigure`). **New CLI commands:** `weekly-action-plan`, `daily-brief`.
+
+---
 
 ### 2026-04-26 — Phases 3–6 + 5b + M4: entry engine, exit engine, backtest, portfolio_type
 
