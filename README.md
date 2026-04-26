@@ -106,15 +106,26 @@ outputs/reports/YYYY-MM-DD/
 
 ## Documentation
 
-- [Architecture Spec v1.1](references/BullStrangle_Newsletter_MCP_Architecture_Spec_v1.1_JSONB.md) — canonical spec (32 tables, 34 tools)
-- [Workflow Architecture](references/BullStrangle_MCP_Workflow_Architecture.md)
-- [Implementation Guide](references/BullStrangle_Implementation_Guide.md)
-- [Decision Logic Design](references/BullStrangle_Decision_Logic_Design.md)
-- [Master Document Implementation Plan](references/BullStrangle_Master_Document_Implementation_Plan.md)
-- [Dry Run Runbook](references/BullStrangle_Dry_Run_Runbook.md)
+### Current (v3)
+
+- [**Architecture Spec v3**](references/BullStrangle_Architecture_Spec_v3.md) — rolling cycle model, gate-based decisions, OS as execution data source
+- [**Implementation Guide v2**](references/BullStrangle_Implementation_Guide_v2.md) — what changes, phase plan, new modules, testing
+
+### Operator Guides
+
 - [Usage Guide](references/BullStrangle_Usage_Guide.md)
+- [Dry Run Runbook](references/BullStrangle_Dry_Run_Runbook.md)
 - [Claude Prompts](references/Claude_Prompts_BullStrangle.md) — 34 ready-to-use prompts for Claude Desktop
-- [Gap Analysis (2026-04-26)](references/gap_analysis_spec_vs_impl_2026-04-26.md) — spec vs. implementation status, remaining TODO
+
+### Historical / Reference
+
+- [Architecture Spec v1.1](references/BullStrangle_Newsletter_MCP_Architecture_Spec_v1.1_JSONB.md) — superseded by v3
+- [System Architecture v2](references/BullStrangle_SystemArchitecture_v2.md) — superseded by v3
+- [Workflow Architecture](references/BullStrangle_MCP_Workflow_Architecture.md)
+- [Implementation Guide v1](references/BullStrangle_Implementation_Guide.md) — superseded by v2
+- [Decision Logic Design](references/BullStrangle_Decision_Logic_Design.md) — superseded by v3 gate engine
+- [Master Document Implementation Plan](references/BullStrangle_Master_Document_Implementation_Plan.md)
+- [Gap Analysis (2026-04-26)](references/gap_analysis_spec_vs_impl_2026-04-26.md)
 
 ## Implemented Extraction
 

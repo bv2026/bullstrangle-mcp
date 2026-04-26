@@ -1,7 +1,11 @@
 # BullStrangle MCP Implementation Guide
 
 Date: 2026-04-23
-Status: score-branch decision pass implemented locally
+Status: SUPERSEDED — see BullStrangle_Implementation_Guide_v2.md
+
+> **This document is superseded by BullStrangle_Implementation_Guide_v2.md (2026-04-26).**
+> It describes the v1 score-based decision engine which is replaced by the v3 gate engine.
+> Retained for historical reference only.
 
 ## Overview
 

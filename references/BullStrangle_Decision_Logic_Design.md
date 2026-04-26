@@ -1,7 +1,11 @@
 # BullStrangle Decision Logic Design
 
 Date: 2026-04-23
-Status: initial implementation in place
+Status: SUPERSEDED — see BullStrangle_Architecture_Spec_v3.md Section 5
+
+> **This document is superseded by BullStrangle_Architecture_Spec_v3.md (2026-04-26).**
+> The score-based approach described here is replaced by the gate-based engine
+> derived directly from the Master Document. Retained for historical reference only.
 
 ## Core Principle
 
