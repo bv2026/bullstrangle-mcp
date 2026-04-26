@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "bullstrangle-mcp": {
+      "type": "stdio",
+      "command": "C:\\Users\\vsbra\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\bullstrangle-mcp-server.exe",
+      "args": []
+    }
+  }
+}

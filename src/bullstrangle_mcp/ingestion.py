@@ -49,7 +49,11 @@ MONTHS = {
 KNOWN_SINGLE_LETTER_TICKERS = {
     "C": ("CITIGROUP",),
     "F": ("FORD",),
+    "M": ("MACYS", "MACY'S"),
+    "S": ("SENTINELONE",),
     "T": ("AT&T", "AT T"),
+    "U": ("UNITY SOFTWARE",),
+    "W": ("WAYFAIR",),
     "X": ("UNITED STATES STEEL",),
 }
 
@@ -90,6 +94,7 @@ def ingest_newsletter(
     environment = parse_market_environment(sections.get("market_environment", []), publication_date)
     market_commentary = build_market_commentary(sections.get("market_commentary", []), environment)
     favorites = parse_watchlist_favorites(sections.get("watchlist_favorites", []), watchlist)
+    quality_report = build_ingestion_quality_report(watchlist, sections)
 
     target_expiration = expiration_date
     days_to_expiration = (target_expiration - entry_date).days if entry_date else 28
@@ -157,7 +162,8 @@ def ingest_newsletter(
         "deployment_approved": bool(environment.get("deployment_approved")),
         "consecutive_weeks_met": environment.get("consecutive_weeks_met", 0),
         "ingestion_method": "pypdf",
-        "warnings": build_warnings(watchlist, environment, sections),
+        "warnings": build_warnings(watchlist, environment, sections, quality_report),
+        "quality_report": quality_report,
         "status": "ingested",
     }
 
@@ -188,8 +194,10 @@ def normalize_pdf_text(text: str) -> str:
         "C orp": "Corp",
         "C ORP": "CORP",
         "C ompany": "Company",
+        "C ITIGROUP": "CITIGROUP",
         "C RITIC AL": "CRITICAL",
         "C ritical": "Critical",
+        "C lass": "Class",
         "C omputers": "Computers",
         "C lean": "Clean",
         "C hemours": "Chemours",
@@ -495,28 +503,38 @@ def parse_watchlist_option_prices(pages: list[PageText]) -> list[dict[str, Any]]
             nums = [float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", rest)]
             if len(nums) < 9:
                 continue
-            symbol = normalize_symbol(match.group("symbol"))
+            extracted_symbol = normalize_symbol(match.group("symbol"))
             description = cleanup_name(match.group("description"))
-            symbol = correct_extracted_symbol(symbol, description)
-            rows.append(
-                {
-                    "symbol": symbol,
-                    "description": description,
-                    "stock_price": float(match.group("last")),
-                    "implied_volatility": float(match.group("iv")) / 100.0,
-                    "sector": match.group("sector"),
-                    "sell_call_strike": nums[0],
-                    "sell_call_premium": nums[1],
-                    "sell_put_strike": nums[2],
-                    "sell_put_premium": nums[3],
-                    "buy_put_strike": nums[4],
-                    "buy_put_premium": nums[5],
-                    "bull_strangle_return_pct": nums[6],
-                    "put_credit_spread_return_pct": nums[7],
-                    "covered_call_return_pct": nums[8],
-                    "source_page": page.page_number,
-                    "raw_line": line,
+            symbol = correct_extracted_symbol(extracted_symbol, description)
+            row: dict[str, Any] = {
+                "symbol": symbol,
+                "description": description,
+                "stock_price": float(match.group("last")),
+                "implied_volatility": float(match.group("iv")) / 100.0,
+                "sector": match.group("sector"),
+                "sell_call_strike": nums[0],
+                "sell_call_premium": nums[1],
+                "sell_put_strike": nums[2],
+                "sell_put_premium": nums[3],
+                "buy_put_strike": nums[4],
+                "buy_put_premium": nums[5],
+                "bull_strangle_return_pct": nums[6],
+                "put_credit_spread_return_pct": nums[7],
+                "covered_call_return_pct": nums[8],
+                "source_page": page.page_number,
+                "raw_line": line,
+            }
+            if symbol != extracted_symbol:
+                row["parser_correction"] = {
+                    "from_symbol": extracted_symbol,
+                    "to_symbol": symbol,
+                    "reason": "description_correction",
                 }
+            warning = single_letter_symbol_warning(symbol, description)
+            if warning:
+                row["validation_warning"] = warning
+            rows.append(
+                row
             )
     return dedupe_by_symbol(rows)
 
@@ -963,7 +981,12 @@ def section_page_map(sections: dict[str, list[PageText]]) -> dict[str, list[int]
     return {name: [page.page_number for page in pages] for name, pages in sections.items() if pages}
 
 
-def build_warnings(watchlist: list[dict[str, Any]], env: dict[str, Any], sections: dict[str, list[PageText]]) -> list[str]:
+def build_warnings(
+    watchlist: list[dict[str, Any]],
+    env: dict[str, Any],
+    sections: dict[str, list[PageText]],
+    quality_report: dict[str, Any] | None = None,
+) -> list[str]:
     warnings: list[str] = []
     if not watchlist:
         warnings.append("No watchlist option-price rows extracted")
@@ -972,7 +995,61 @@ def build_warnings(watchlist: list[dict[str, Any]], env: dict[str, Any], section
     for required in ["stock_market_weekly_recap", "short_lists", "strategy_reference"]:
         if not sections.get(required):
             warnings.append(f"Section missing: {required}")
+    if quality_report:
+        for row in quality_report["suspicious_single_letter_symbols"]:
+            warnings.append(
+                "Suspicious single-letter ticker "
+                f"{row['symbol']} for '{row['description']}' on page {row['source_page']}"
+            )
+        for row in quality_report["parser_corrections"]:
+            warnings.append(
+                "Corrected parsed ticker "
+                f"{row['from_symbol']} -> {row['to_symbol']} for '{row['description']}'"
+            )
     return warnings
+
+
+def build_ingestion_quality_report(
+    watchlist: list[dict[str, Any]],
+    sections: dict[str, list[PageText]],
+) -> dict[str, Any]:
+    suspicious = [
+        {
+            "symbol": row["symbol"],
+            "description": row["description"],
+            "source_page": row.get("source_page"),
+            "raw_line": row.get("raw_line"),
+            "warning": row["validation_warning"],
+        }
+        for row in watchlist
+        if row.get("validation_warning")
+    ]
+    corrections = [
+        {
+            "from_symbol": row["parser_correction"]["from_symbol"],
+            "to_symbol": row["parser_correction"]["to_symbol"],
+            "description": row["description"],
+            "source_page": row.get("source_page"),
+            "raw_line": row.get("raw_line"),
+            "reason": row["parser_correction"]["reason"],
+        }
+        for row in watchlist
+        if row.get("parser_correction")
+    ]
+    missing_sections = [
+        name
+        for name in ["watchlist_option_prices", "watchlist_screening", "short_lists", "market_environment"]
+        if not sections.get(name)
+    ]
+    return {
+        "watchlist_row_count": len(watchlist),
+        "parser_correction_count": len(corrections),
+        "suspicious_single_letter_count": len(suspicious),
+        "missing_core_sections": missing_sections,
+        "parser_corrections": corrections,
+        "suspicious_single_letter_symbols": suspicious,
+        "status": "needs_review" if suspicious else "ok",
+    }
 
 
 def cleanup_repeated_headers(text: str) -> str:
@@ -992,6 +1069,9 @@ def cleanup_name(value: str) -> str:
         "C ritical": "Critical",
         "C ORP": "CORP",
         "C orp": "Corp",
+        "C ITIGROUP": "CITIGROUP",
+        "C lass": "Class",
+        "MAC YS": "MACYS",
     }
     for old, new in replacements.items():
         value = value.replace(old, new)
@@ -1016,6 +1096,21 @@ def correct_extracted_symbol(symbol: str, description: str) -> str:
             if corrected:
                 return corrected
     return symbol
+
+
+def single_letter_symbol_warning(symbol: str, description: str) -> str | None:
+    if len(symbol) != 1:
+        return None
+    normalized_description = cleanup_name(description).upper()
+    expected_names = KNOWN_SINGLE_LETTER_TICKERS.get(symbol)
+    if not expected_names:
+        return "Single-letter ticker is not in known single-letter ticker allowlist"
+    if any(name in normalized_description for name in expected_names):
+        return None
+    return (
+        "Single-letter ticker does not match known company name hints: "
+        + ", ".join(expected_names)
+    )
 
 
 def dedupe_by_symbol(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

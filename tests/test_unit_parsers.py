@@ -14,6 +14,8 @@ import pytest
 
 from bullstrangle_mcp.ingestion import (
     PageText,
+    build_ingestion_quality_report,
+    build_warnings,
     parse_market_environment,
     parse_short_lists,
     parse_watchlist_option_prices,
@@ -189,6 +191,16 @@ def test_parse_watchlist_option_prices_corrects_split_crml_symbol():
     assert rows[0]["symbol"] == "CRML"
     assert rows[0]["description"] == "RML CRITICAL METALS CORP"
     assert rows[0]["stock_price"] == 11.51
+    assert rows[0]["parser_correction"] == {
+        "from_symbol": "C",
+        "to_symbol": "CRML",
+        "reason": "description_correction",
+    }
+
+    report = build_ingestion_quality_report(rows, {"watchlist_option_prices": [PageText(9, line)]})
+    assert report["parser_correction_count"] == 1
+    assert report["suspicious_single_letter_count"] == 0
+    assert report["parser_corrections"][0]["to_symbol"] == "CRML"
 
 
 @pytest.mark.unit
@@ -198,6 +210,33 @@ def test_parse_watchlist_option_prices_keeps_valid_single_letter_symbol():
 
     assert rows[0]["symbol"] == "C"
     assert rows[0]["description"] == "Citigroup Inc"
+    assert "validation_warning" not in rows[0]
+
+
+@pytest.mark.unit
+def test_parse_watchlist_option_prices_keeps_known_single_letter_growth_symbol():
+    line = _watchlist_line(symbol="S", description="SentinelOne Inc Class A", price="14.24", sector="Technology")
+    rows = parse_watchlist_option_prices([PageText(page_number=1, text=line)])
+
+    assert rows[0]["symbol"] == "S"
+    assert rows[0]["description"] == "SentinelOne Inc Class A"
+    assert "validation_warning" not in rows[0]
+
+
+@pytest.mark.unit
+def test_parse_watchlist_option_prices_flags_unknown_single_letter_symbol():
+    line = _watchlist_line(symbol="Q", description="Quantum Widgets Inc", sector="Technology")
+    rows = parse_watchlist_option_prices([PageText(page_number=1, text=line)])
+
+    assert rows[0]["symbol"] == "Q"
+    assert "Single-letter ticker is not in known single-letter ticker allowlist" in rows[0]["validation_warning"]
+
+    report = build_ingestion_quality_report(rows, {"watchlist_option_prices": [PageText(1, line)]})
+    warnings = build_warnings(rows, {}, {"watchlist_option_prices": [PageText(1, line)]}, report)
+
+    assert report["status"] == "needs_review"
+    assert report["suspicious_single_letter_count"] == 1
+    assert any("Suspicious single-letter ticker Q" in warning for warning in warnings)
 
 
 @pytest.mark.unit

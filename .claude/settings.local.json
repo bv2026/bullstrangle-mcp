@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Read(//c/Users/vsbra/**)",
+      "Read(//c/Users/vsbra/AppData/Roaming/Claude/**)",
+      "Bash(where bullstrangle-mcp-server *)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(xargs grep *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(python -c \"import ast,sys; f=open\\('C:/work/bullstrangle-mcp/src/bullstrangle_mcp/database.py'\\); tree=ast.parse\\(f.read\\(\\)\\); f.close\\(\\); funcs=[n.name for n in ast.walk\\(tree\\) if isinstance\\(n,ast.FunctionDef\\)]; print\\('\\\\n'.join\\(funcs\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/test_unit_os_workbooks.py tests/test_unit_positions.py -q)",
+      "Bash(python -m compileall -q src)",
+      "Bash(pytest -q)",
+      "Bash(pytest tests/test_unit_parsers.py -v)",
+      "Bash(pytest -v)",
+      "Bash(bullstrangle --db data\\\\bullstrangle.db aggregate-os-week 2026-04-17 --json)",
+      "Bash(bullstrangle --db \"C:\\\\work\\\\bullstrangle-mcp\\\\data\\\\bullstrangle.db\" aggregate-os-week 2026-04-17 --json)",
+      "Bash(bullstrangle --db \"C:\\\\work\\\\bullstrangle-mcp\\\\data\\\\bullstrangle.db\" generate-weekend-decisions 2026-04-17 --decision-date 2026-04-23 --json)",
+      "Bash(bullstrangle --db \"C:\\\\work\\\\bullstrangle-mcp\\\\data\\\\bullstrangle.db\" generate-weekend-decisions 2026-04-17 --decision-date 2026-04-23)",
+      "Bash(bullstrangle --db \"C:\\\\work\\\\bullstrangle-mcp\\\\data\\\\bullstrangle.db\" report-os-run 2)"
+    ]
+  }
+}
