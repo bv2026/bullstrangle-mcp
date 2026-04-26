@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .database import DEFAULT_DB_PATH, initialize_database
@@ -19,6 +20,8 @@ from .tools import (
     generate_exit_report_tool,
     generate_os_workbook_tool,
     generate_weekend_decisions_tool,
+    generate_weekly_action_plan_tool,
+    generate_daily_brief_tool,
     get_newsletter_by_ref_tool,
     get_newsletter_tool,
     generate_backtest_report_tool,
@@ -43,6 +46,13 @@ from .tools import (
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Ensure UTF-8 output on Windows (emojis in reports).
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
     parser = argparse.ArgumentParser(prog="bullstrangle")
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="SQLite database path")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -246,6 +256,19 @@ def main(argv: list[str] | None = None) -> int:
         help="Fetch a single strategy rule by rule_id",
     )
     get_rule_p.add_argument("rule_id", help="Rule id, e.g. GATE-SS-001 or RULE-EARN-003")
+
+    weekly_plan_p = subparsers.add_parser(
+        "weekly-action-plan",
+        help="Generate the Sunday weekly action plan report for a newsletter date",
+    )
+    weekly_plan_p.add_argument("newsletter_date", help="Newsletter date, e.g. 2026-04-24")
+    weekly_plan_p.add_argument("--output", help="Optional path to write the Markdown report")
+
+    daily_brief_p = subparsers.add_parser(
+        "daily-brief",
+        help="Generate a daily morning monitoring brief (no date required)",
+    )
+    daily_brief_p.add_argument("--output", help="Optional path to write the Markdown report")
 
     weekend_decisions = subparsers.add_parser(
         "generate-weekend-decisions",
@@ -491,6 +514,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "get-rule":
         print(json.dumps(get_rule_tool(args.rule_id, args.db), indent=2))
+        return 0
+    if args.command == "weekly-action-plan":
+        result = generate_weekly_action_plan_tool(args.newsletter_date, args.db, args.output)
+        print(result["markdown"])
+        return 0
+    if args.command == "daily-brief":
+        result = generate_daily_brief_tool(args.db, args.output)
+        print(result["markdown"])
         return 0
     if args.command == "generate-weekend-decisions":
         decisions = generate_weekend_decisions_tool(

@@ -5,9 +5,16 @@ the architecture spec (Section 6).  Reports are rendered as Markdown
 strings and optionally written to disk.  Generated reports are logged in
 the generated_reports table so they can be retrieved later.
 
-Table dependencies (created via migration _m002 in database.py):
+Phase 7 update: reports now pull from the live gate engine (entry_decisions),
+exit engine (exit_decisions), and position book (cycle_layers) instead of the
+deprecated v1 decision_batches / bull_strangle_decisions tables.
+
+Table dependencies (created via migration _m002 and _m003 in database.py):
   - generated_reports
   - report_subscriptions  (reserved for future scheduling)
+  - entry_decisions        (Phase 7 — gate engine output)
+  - exit_decisions         (Phase 7 — exit engine output)
+  - cycle_layers           (Phase 7 — open position book)
 """
 
 from __future__ import annotations
@@ -30,17 +37,18 @@ def generate_weekly_action_plan(
 ) -> dict[str, Any]:
     """Generate the Sunday weekly action plan report for one newsletter date.
 
-    Covers all 10 sections from the spec:
+    Sections:
       1. Market Environment Status
       2. Re-Entry Criteria Table
-      3. DCA Candidate Updates
-      4. Strangle Trades Eligibility Summary
-      5. Watch List Analysis
-      6. Action Items
-      7. Portfolio Summary
-      8. Key Reminders
-      9. Next Sunday Workflow
-      10. Appendix (Data Reconciliation Issues)
+      3. DCA Candidate Updates (Short List)
+      4. Gate Validation Summary  ← Phase 7: entry_decisions
+      5. Active Positions This Cycle  ← Phase 7: cycle_layers
+      6. Watch List Analysis
+      7. WL Favorites Deep Analysis
+      8. Action Items
+      9. Key Reminders
+      10. Next Sunday Workflow
+      11. Appendix
     """
     initialize_database(db_path)
     today = date.today().isoformat()
@@ -52,13 +60,20 @@ def generate_weekly_action_plan(
         watchlist = _fetch_watchlist(conn, newsletter["newsletter_id"])
         short_list = _fetch_short_list(conn, newsletter["newsletter_id"])
         deep_analysis = _fetch_deep_analysis(conn, newsletter["newsletter_id"])
-        batch = _fetch_latest_batch(conn, newsletter["newsletter_id"])
-        approved_symbols, watch_symbols, skip_symbols = _fetch_symbol_decisions(conn, batch)
+        entry_decisions = _fetch_entry_decisions_latest(conn, newsletter["newsletter_id"])
+        active_layers = _fetch_active_layers_for_newsletter(conn, newsletter["newsletter_id"], today)
 
-    ctx = _build_context(
-        newsletter, env, wd, watchlist, short_list,
-        deep_analysis, approved_symbols, watch_symbols, today,
-    )
+    ctx = {
+        "newsletter": newsletter,
+        "env": env,
+        "wd": wd,
+        "watchlist": watchlist,
+        "short_list": short_list,
+        "deep_analysis": deep_analysis,
+        "entry_decisions": entry_decisions,
+        "active_layers": active_layers,
+        "today": today,
+    }
     markdown = _render_weekly_action_plan(ctx)
 
     _save_report(
@@ -67,7 +82,12 @@ def generate_weekly_action_plan(
         newsletter_id=newsletter["newsletter_id"],
         report_date=today,
         markdown=markdown,
-        data_snapshot=ctx,
+        data_snapshot={
+            "newsletter_date": newsletter_date,
+            "env": env,
+            "active_layers": len(active_layers),
+            "gate_decisions": len(entry_decisions),
+        },
         output_path=output_path,
     )
 
@@ -92,8 +112,8 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
     watchlist = ctx["watchlist"]
     short_list = ctx["short_list"]
     deep_analysis = ctx["deep_analysis"]
-    approved = ctx["approved_symbols"]
-    watching = ctx["watch_symbols"]
+    entry_decisions = ctx["entry_decisions"]  # list of dicts from entry_decisions table
+    active_layers = ctx["active_layers"]
     today = ctx["today"]
 
     approved_marker = "✅" if env.get("deployment_approved") else "⚠️"
@@ -101,6 +121,14 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
     action = wd.get("action_taken", "monitor_only") if wd else "unknown"
     market_status = env.get("market_status", "unknown").upper()
     status_emoji = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(market_status, "⚪")
+
+    # Categorise gate decisions
+    gate_pass = [d for d in entry_decisions if d["decision_type"] == "BULL_STRANGLE"]
+    gate_watch = [d for d in entry_decisions if d["decision_type"] == "WATCH"]
+    gate_skip = [d for d in entry_decisions if d["decision_type"] == "SKIP"]
+
+    # Short list sets for alignment check
+    sl_symbols = {r["symbol"] for r in short_list}
 
     lines: list[str] = [
         f"# Bull Strangle Strategy — {newsletter['publication_date']}",
@@ -158,50 +186,124 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
     else:
         lines.append("*No DCA candidates extracted for this newsletter.*")
 
+    # ── Section 4 — Gate Validation Summary ──────────────────────────────────
     lines += [
         "",
-        # ── Section 4 ──
-        "## 4. STRANGLE TRADES ELIGIBILITY SUMMARY",
-        "",
-        f"- **Total watchlist symbols:** {len(watchlist)}",
-        f"- **Approved (APPROVE):** {len(approved)}",
-        f"- **On watch (WATCH):** {len(watching)}",
+        "## 4. GATE VALIDATION SUMMARY",
         "",
     ]
 
-    if approved:
-        lines += ["### ✅ Approved for Deployment", ""]
+    if entry_decisions:
+        # Short list alignment
+        sl_pass = [d for d in gate_pass if d["symbol"] in sl_symbols]
+        sl_total = len(sl_symbols)
+        alignment_pct = round(len(sl_pass) / sl_total * 100) if sl_total else 0
+
         lines += [
-            "| Rank | Symbol | Credit | Live Price | Price Dev | Account | Acct Shares | To 100 | Score |",
-            "|------|--------|--------|------------|-----------|---------|-------------|--------|-------|",
+            f"- **Symbols evaluated:** {len(entry_decisions)}",
+            f"- **Passed all gates (BULL_STRANGLE):** {len(gate_pass)}",
+            f"- **Watch (soft gate miss):** {len(gate_watch)}",
+            f"- **Skip (hard gate fail):** {len(gate_skip)}",
+            f"- **Short List gate alignment:** {len(sl_pass)}/{sl_total} ({alignment_pct}%)",
+            "",
         ]
-        for row in approved[:15]:
+
+        if gate_pass:
+            lines += ["### ✅ Passed All Gates — BULL_STRANGLE Eligible", ""]
+            lines += [
+                "| Symbol | Live Price | IV | Credit | Call Strike | Put Strike | Short List |",
+                "|--------|------------|----|----|-------------|------------|------------|",
+            ]
+            for d in gate_pass:
+                sl_marker = "⭐" if d["symbol"] in sl_symbols else ""
+                lines.append(
+                    f"| **{d['symbol']}** {sl_marker} "
+                    f"| {_fmt_price(d.get('live_stock_price'))} "
+                    f"| {_fmt_pct(d.get('live_iv'))} "
+                    f"| {_fmt_price(d.get('live_total_credit'))} "
+                    f"| {_fmt(d.get('live_call_strike'))} "
+                    f"| {_fmt(d.get('live_put_strike'))} "
+                    f"| {sl_marker} |"
+                )
+            lines.append("")
+
+        if gate_watch:
+            lines += ["### 👀 Watch — Soft Gate Miss", ""]
+            lines += ["| Symbol | First Failing Gate | Short List |", "|--------|--------------------|------------|"]
+            for d in gate_watch:
+                sl_marker = "⭐" if d["symbol"] in sl_symbols else ""
+                lines.append(
+                    f"| {d['symbol']} | {d.get('first_failing_gate') or 'soft gate'} | {sl_marker} |"
+                )
+            lines.append("")
+
+        # Gate failure breakdown
+        fail_counts: dict[str, list[str]] = {}
+        for d in gate_skip:
+            gate = d.get("first_failing_gate") or "unknown"
+            fail_counts.setdefault(gate, []).append(d["symbol"])
+        if fail_counts:
+            lines += ["### ❌ Hard Gate Failures", ""]
+            lines += ["| Gate | Count | Symbols |", "|------|-------|---------|"]
+            for gate, syms in sorted(fail_counts.items()):
+                lines.append(f"| {gate} | {len(syms)} | {', '.join(syms)} |")
+            lines.append("")
+
+        # Short list symbols that failed gates
+        sl_fail = [d for d in (gate_watch + gate_skip) if d["symbol"] in sl_symbols]
+        if sl_fail:
+            lines += ["### ⚠️ Short List Symbols That Failed Gates", ""]
+            for d in sl_fail:
+                gate = d.get("first_failing_gate") or "soft gate"
+                lines.append(f"- **{d['symbol']}** ⭐ failed {gate}")
+            lines.append("")
+    else:
+        lines += [
+            "*No gate evaluations found for this newsletter. Run:*",
+            f"```",
+            f"bullstrangle --db <db> evaluate-newsletter {newsletter['publication_date']}",
+            f"```",
+            "",
+        ]
+
+    # ── Section 5 — Active Positions This Cycle ───────────────────────────────
+    lines += ["## 5. ACTIVE POSITIONS THIS CYCLE", ""]
+
+    if active_layers:
+        total_credit = sum(r.get("total_credit_collected") or 0 for r in active_layers)
+        total_capital = sum(r.get("invested_capital") or 0 for r in active_layers)
+        lines += [
+            f"- **Open positions:** {len(active_layers)}",
+            f"- **Total credit collected:** {_fmt_price(total_credit)}",
+            f"- **Capital at risk:** {_fmt_price(total_capital)}",
+            "",
+            "| Symbol | Account | Expiry | DTE | Entry | Call | Put | Credit | Capital |",
+            "|--------|---------|--------|-----|-------|------|-----|--------|---------|",
+        ]
+        for r in active_layers:
+            dte = r.get("dte")
+            dte_str = f"{int(dte)}d" if dte is not None else "?"
+            dte_flag = " ⚠️" if dte is not None and dte <= 7 else ""
             lines.append(
-                f"| {row.get('priority_rank', '')} | **{row['symbol']}** "
-                f"| {_fmt_price(row.get('latest_total_credit'))} "
-                f"| {_fmt_price(row.get('latest_live_stock_price'))} "
-                f"| {_fmt_pct_raw(row.get('max_price_deviation_pct'))} "
-                f"| {row.get('selected_account') or ''} "
-                f"| {_fmt_int(row.get('account_shares'))} "
-                f"| {_fmt_int(row.get('shares_to_100'))} "
-                f"| {_fmt(row.get('strategy_score'))} |"
+                f"| **{r['symbol']}** | {r.get('account_id', '')} "
+                f"| {r.get('expiration_date', '')} | {dte_str}{dte_flag} "
+                f"| {_fmt_price(r.get('stock_price_at_entry'))} "
+                f"| {_fmt(r.get('call_strike'))} "
+                f"| {_fmt(r.get('put_strike'))} "
+                f"| {_fmt_price(r.get('total_credit_collected'))} "
+                f"| {_fmt_price(r.get('invested_capital'))} |"
             )
         lines.append("")
-
-    if watching:
-        lines += ["### 👀 On Watch", ""]
-        lines += ["| Rank | Symbol | Score | Band | Reason |", "|------|--------|-------|------|--------|"]
-        for row in watching[:10]:
-            lines.append(
-                f"| {row.get('priority_rank', '')} | {row['symbol']} "
-                f"| {_fmt(row.get('strategy_score'))} | {row.get('strategy_band', '')} "
-                f"| {(row.get('reason') or '')[:80]} |"
-            )
+    else:
+        lines.append(
+            "*No active positions for this newsletter week. "
+            "Seed positions with: `seed-cycle-layers`*"
+        )
         lines.append("")
 
+    # ── Section 6 — Watch List Analysis ──────────────────────────────────────
     lines += [
-        # ── Section 5 ──
-        "## 5. WATCH LIST ANALYSIS",
+        "## 6. WATCH LIST ANALYSIS",
         "",
         "| # | Symbol | Price | IV | Sector | Fav | Call | Put | Credit% |",
         "|---|--------|-------|----|--------|-----|------|-----|---------|",
@@ -215,22 +317,18 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
             f"| {_fmt_pct(row.get('bull_strangle_return_pct'))} |"
         )
 
-    lines += ["", "## 6. WL FAVORITES — DEEP ANALYSIS", ""]
+    # ── Section 7 — WL Favorites ─────────────────────────────────────────────
+    lines += ["", "## 7. WL FAVORITES — DEEP ANALYSIS", ""]
     if deep_analysis:
         for sym, da in deep_analysis.items():
             analysis = da.get("analysis_data") or {}
-            lines += [
-                f"### {sym}",
-                "",
-                f"**Rank:** {da.get('favorite_rank', '?')}  ",
-            ]
+            lines += [f"### {sym}", "", f"**Rank:** {da.get('favorite_rank', '?')}  "]
             if isinstance(analysis, dict):
                 company = analysis.get("company_name") or analysis.get("sector") or ""
                 if company:
                     lines.append(f"**Company:** {company}  ")
                 summary = analysis.get("source_summary") or ""
                 if summary:
-                    # Show first 500 chars
                     lines.append("")
                     lines.append(summary[:500].strip() + ("..." if len(summary) > 500 else ""))
                 trade = analysis.get("proposed_trade") or {}
@@ -258,19 +356,22 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
         lines.append("*No WL Favorites deep analysis available for this newsletter.*")
         lines.append("")
 
-    lines += [
-        # ── Section 6 ──
-        "## 7. ACTION ITEMS",
-        "",
-        "### This Week",
-    ]
+    # ── Section 8 — Action Items ──────────────────────────────────────────────
+    lines += ["## 8. ACTION ITEMS", "", "### This Week"]
     if env.get("deployment_approved"):
-        lines += [
-            "- [ ] Review APPROVE list above and confirm position sizing",
-            "- [ ] Run Option Samurai on generated Excel workbook",
-            "- [ ] Execute approved trades via broker",
-            "- [ ] Update position tracker after execution",
-        ]
+        if gate_pass:
+            lines += [
+                f"- [ ] {len(gate_pass)} symbol(s) cleared all gates: "
+                f"{', '.join(d['symbol'] for d in gate_pass[:8])}",
+                "- [ ] Confirm position sizing and execute via broker",
+                "- [ ] Open Excel workbook, refresh Option Samurai, ingest via daily-ingest",
+                "- [ ] Update position tracker after execution",
+            ]
+        else:
+            lines += [
+                "- [ ] Deployment approved but 0 symbols cleared all gates — review gate failures above",
+                "- [ ] Check Gate 9 (live credit) — may need OS data refresh",
+            ]
     elif env.get("all_criteria_met"):
         lines += [
             "- [ ] Monitor — Week 1 of confirmation, do NOT deploy new strangles",
@@ -284,6 +385,14 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
             "- [ ] Monitor DCA candidates for accumulation at favorable prices",
         ]
 
+    if active_layers:
+        expiring_soon = [r for r in active_layers if (r.get("dte") or 999) <= 7]
+        if expiring_soon:
+            lines.append(
+                f"- [ ] ⚠️ {len(expiring_soon)} position(s) expire within 7 days: "
+                f"{', '.join(r['symbol'] for r in expiring_soon)} — review exit report"
+            )
+
     lines += [
         "",
         "### Next Week",
@@ -291,8 +400,8 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
         "- [ ] Verify market criteria status again",
         "- [ ] Review any open positions approaching expiration",
         "",
-        # ── Section 8 ──
-        "## 8. KEY REMINDERS",
+        # ── Section 9 ──
+        "## 9. KEY REMINDERS",
         "",
         "- **2-Consecutive-Week Rule:** All 4 criteria must be met for 2 consecutive weeks before deploying",
         "- **100-Share Requirement:** Bull Strangle requires exactly 100 shares per position",
@@ -300,26 +409,30 @@ def _render_weekly_action_plan(ctx: dict[str, Any]) -> str:
         "- **Exit at 50%:** Close positions when 50% of max profit is reached",
         "- **Stock Called Away:** Close naked puts for small debit; let calls expire",
         "",
-        # ── Section 9 ──
-        "## 9. NEXT SUNDAY WORKFLOW",
-        "",
-        "```",
-        "1. Receive Darren's PDF newsletter",
-        "2. Run: ingest_newsletter(pdf_path)",
-        "3. Run: generate_os_workbook(newsletter_date)",
-        "4. Open Excel, run Option Samurai (Ctrl+Shift+Alt+F9)",
-        "5. Review TRADE? column, add notes",
-        "6. Save as _evaluated.xlsx",
-        "7. Run: generate_weekend_decisions(newsletter_date)",
-        "8. Run: generate_weekly_action_plan(newsletter_date)",
-        "```",
-        "",
         # ── Section 10 ──
-        "## 10. APPENDIX — DATA NOTES",
+        "## 10. NEXT SUNDAY WORKFLOW",
+        "",
+        "```",
+        "1. Drop Darren's PDF into data/newsletters/",
+        "2. Run: bullstrangle --db <db> weekend-setup <date> --pdf <path>",
+        "   (ingests PDF + generates OS workbook + copies to data/os_uploads/)",
+        "3. Open data/os_uploads/BullStrangle_OS_Live_<date>.xlsx in Excel",
+        "4. Enable Option Samurai add-in → Ctrl+Shift+Alt+F9 to refresh → Save",
+        "5. Run: bullstrangle --db <db> daily-ingest <date> --trading-date <date>",
+        "   (ingests OS data + generates run report in outputs/reports/)",
+        "6. Run: bullstrangle --db <db> gate-report <date>",
+        "7. Run: bullstrangle --db <db> generate-weekend-decisions <date>",
+        "8. Run: bullstrangle --db <db> generate-weekly-action-plan <date>",
+        "```",
+        "",
+        # ── Section 11 ──
+        "## 11. APPENDIX — DATA NOTES",
         "",
         f"- Newsletter ingested: {newsletter.get('publication_date')}",
         f"- Watchlist symbols: {len(watchlist)}",
         f"- Short-list DCA candidates: {len(short_list)}",
+        f"- Gate evaluations available: {len(entry_decisions)}",
+        f"- Active positions this cycle: {len(active_layers)}",
         f"- WL Favorites with deep analysis: {len(deep_analysis)}",
         f"- Report generated: {today}",
         "",
@@ -338,21 +451,26 @@ def generate_daily_brief(
 ) -> dict[str, Any]:
     """Generate a daily morning monitoring brief.
 
-    Covers:
-      1. Market Environment Check (latest state)
-      2. Active Cycles (open position books)
-      3. Alerts & Actions (upcoming expirations, scaling guidance)
+    Sections:
+      1. Market Environment
+      2. Active Cycles + Open Positions  ← Phase 7: cycle_layers
+      3. Exit Alerts  ← Phase 7: exit_decisions
+      4. Gate Status (latest newsletter)  ← Phase 7: entry_decisions
+      5. Deployment Guidance
     """
     initialize_database(db_path)
     today = date.today().isoformat()
 
     with connect(db_path) as conn:
         env = _fetch_latest_env(conn)
-        active = _fetch_active_cycles(conn, today)
-        latest_batch = _fetch_latest_any_batch(conn)
-        approved, watching, _ = _fetch_symbol_decisions(conn, latest_batch)
+        active_cycles = _fetch_active_cycles(conn, today)
+        all_active_layers = _fetch_all_active_layers(conn, today)
+        exit_alerts = _fetch_exit_alerts(conn)
+        latest_entry_decisions = _fetch_latest_newsletter_entry_decisions(conn)
 
-    markdown = _render_daily_brief(today, env, active, approved, watching)
+    markdown = _render_daily_brief(
+        today, env, active_cycles, all_active_layers, exit_alerts, latest_entry_decisions
+    )
 
     _save_report(
         db_path,
@@ -360,7 +478,12 @@ def generate_daily_brief(
         newsletter_id=env.get("newsletter_id") if env else None,
         report_date=today,
         markdown=markdown,
-        data_snapshot={"env": env, "active_cycles": len(active)},
+        data_snapshot={
+            "env": env,
+            "active_cycles": len(active_cycles),
+            "open_positions": len(all_active_layers),
+            "exit_alerts": len(exit_alerts),
+        },
         output_path=output_path,
     )
 
@@ -380,9 +503,10 @@ def generate_daily_brief(
 def _render_daily_brief(
     today: str,
     env: dict[str, Any] | None,
-    active: list[dict[str, Any]],
-    approved: list[dict[str, Any]],
-    watching: list[dict[str, Any]],
+    active_cycles: list[dict[str, Any]],
+    all_active_layers: list[dict[str, Any]],
+    exit_alerts: list[dict[str, Any]],
+    latest_entry_decisions: list[dict[str, Any]],
 ) -> str:
     lines: list[str] = [
         f"# Bull Strangle Daily Brief — {today}",
@@ -410,68 +534,189 @@ def _render_daily_brief(
     else:
         lines += ["*No market environment data available.*", ""]
 
-    lines += ["## 2. ACTIVE CYCLES", ""]
-    if active:
+    # ── Section 2 — Active Cycles + Open Positions ────────────────────────────
+    lines += ["## 2. ACTIVE CYCLES & OPEN POSITIONS", ""]
+
+    if active_cycles:
         lines += [
-            "| Newsletter Date | Expiration | Days Left | Status | Positions |",
-            "|-----------------|------------|-----------|--------|-----------|",
+            "| Newsletter | Expiration | DTE | Status | Symbols |",
+            "|------------|------------|-----|--------|---------|",
         ]
-        for row in active:
+        for row in active_cycles:
             days_left = row.get("days_until_expiration")
-            days_str = f"{days_left:.0f}" if days_left is not None else "?"
+            dte_str = f"{int(days_left)}d" if days_left is not None else "?"
             alert = " ⚠️" if days_left is not None and days_left <= 7 else ""
             lines.append(
                 f"| {row['publication_date']} | {row.get('target_expiration', 'N/A')} "
-                f"| {days_str}{alert} | {(row.get('market_status') or '').upper()} "
+                f"| {dte_str}{alert} | {(row.get('market_status') or '').upper()} "
                 f"| {row.get('watchlist_count', 0)} |"
             )
+        lines.append("")
     else:
-        lines.append("*No active cycles (all expirations are in the past).*")
+        lines.append("*No active newsletter cycles.*")
+        lines.append("")
 
-    lines += [
-        "",
-        "## 3. ALERTS & ACTIONS",
-        "",
-    ]
-    alerts: list[str] = []
-    for row in active:
-        days_left = row.get("days_until_expiration")
-        if days_left is not None and days_left <= 7:
-            alerts.append(
-                f"⚠️ **{row['publication_date']}** cycle expires in **{days_left:.0f} days** "
-                f"({row.get('target_expiration')}) — review open positions"
+    if all_active_layers:
+        total_capital = sum(r.get("invested_capital") or 0 for r in all_active_layers)
+        total_credit = sum(r.get("total_credit_collected") or 0 for r in all_active_layers)
+        expiring_soon = [r for r in all_active_layers if (r.get("dte") or 999) <= 7]
+
+        lines += [
+            f"**Open positions:** {len(all_active_layers)} | "
+            f"**Capital at risk:** {_fmt_price(total_capital)} | "
+            f"**Total credit collected:** {_fmt_price(total_credit)}",
+            "",
+        ]
+
+        if expiring_soon:
+            lines += [f"⚠️ **{len(expiring_soon)} position(s) expire within 7 days:**", ""]
+            for r in expiring_soon:
+                dte = int(r.get("dte") or 0)
+                lines.append(
+                    f"- **{r['symbol']}** — exp {r.get('expiration_date')} ({dte}d) | "
+                    f"call {_fmt(r.get('call_strike'))} / put {_fmt(r.get('put_strike'))} | "
+                    f"entry {_fmt_price(r.get('stock_price_at_entry'))}"
+                )
+            lines.append("")
+
+        lines += [
+            "| Symbol | Newsletter | Expiry | DTE | Entry | Call | Put | Credit | Capital |",
+            "|--------|------------|--------|-----|-------|------|-----|--------|---------|",
+        ]
+        for r in all_active_layers:
+            dte = r.get("dte")
+            dte_str = f"{int(dte)}d" if dte is not None else "?"
+            dte_flag = " ⚠️" if dte is not None and dte <= 7 else ""
+            lines.append(
+                f"| **{r['symbol']}** | {r.get('newsletter_date', '')} "
+                f"| {r.get('expiration_date', '')} | {dte_str}{dte_flag} "
+                f"| {_fmt_price(r.get('stock_price_at_entry'))} "
+                f"| {_fmt(r.get('call_strike'))} "
+                f"| {_fmt(r.get('put_strike'))} "
+                f"| {_fmt_price(r.get('total_credit_collected'))} "
+                f"| {_fmt_price(r.get('invested_capital'))} |"
             )
+        lines.append("")
+    else:
+        lines.append("*No open positions (cycle_layers) in the position book.*")
+        lines.append("")
+
+    # ── Section 3 — Exit Alerts ───────────────────────────────────────────────
+    lines += ["## 3. EXIT ALERTS", ""]
+
+    immediate = [a for a in exit_alerts if a["recommended_action"] == "CLOSE_IMMEDIATELY"]
+    exit_mon = [a for a in exit_alerts if a["recommended_action"] == "EXIT_MONDAY"]
+    review = [a for a in exit_alerts if a["recommended_action"] == "REVIEW"]
+
+    if immediate:
+        lines += [f"### 🚨 CLOSE IMMEDIATELY ({len(immediate)})", ""]
+        for a in immediate:
+            lines.append(
+                f"- **{a['symbol']}** (layer {a['layer_id']}) — {a['action_reason']} "
+                f"| eval {a['evaluation_date']}"
+            )
+        lines.append("")
+
+    if exit_mon:
+        lines += [f"### ⚠️ EXIT MONDAY ({len(exit_mon)})", ""]
+        for a in exit_mon:
+            lines.append(
+                f"- **{a['symbol']}** (layer {a['layer_id']}) — {a['action_reason']} "
+                f"| eval {a['evaluation_date']}"
+            )
+        lines.append("")
+
+    if review:
+        lines += [f"### 👀 REVIEW ({len(review)})", ""]
+        for a in review[:10]:  # cap at 10 to avoid overwhelming the brief
+            lines.append(
+                f"- **{a['symbol']}** — {a['action_reason']} "
+                f"| eval {a['evaluation_date']}"
+            )
+        if len(review) > 10:
+            lines.append(f"- *...and {len(review) - 10} more — run exit-report for full list*")
+        lines.append("")
+
+    if not immediate and not exit_mon and not review:
+        lines.append("*No active exit alerts. Run `exit-report` to refresh.*")
+        lines.append("")
+
+    # ── Section 4 — Gate Status (latest newsletter) ───────────────────────────
+    lines += ["## 4. GATE STATUS — LATEST NEWSLETTER", ""]
+
+    if latest_entry_decisions:
+        newsletter_date = latest_entry_decisions[0].get("newsletter_date", "unknown")
+        gate_pass = [d for d in latest_entry_decisions if d["decision_type"] == "BULL_STRANGLE"]
+        gate_watch = [d for d in latest_entry_decisions if d["decision_type"] == "WATCH"]
+        gate_skip = [d for d in latest_entry_decisions if d["decision_type"] == "SKIP"]
+
+        lines += [
+            f"**Newsletter:** {newsletter_date}",
+            f"- ✅ Passed all gates: {len(gate_pass)} symbols"
+            + (f" — {', '.join(d['symbol'] for d in gate_pass[:6])}" if gate_pass else ""),
+            f"- 👀 Watch: {len(gate_watch)} symbols",
+            f"- ❌ Skip: {len(gate_skip)} symbols",
+            "",
+        ]
+
+        if gate_pass:
+            lines += [
+                "| Symbol | Live Price | Credit | Call | Put |",
+                "|--------|------------|--------|------|-----|",
+            ]
+            for d in gate_pass:
+                lines.append(
+                    f"| **{d['symbol']}** "
+                    f"| {_fmt_price(d.get('live_stock_price'))} "
+                    f"| {_fmt_price(d.get('live_total_credit'))} "
+                    f"| {_fmt(d.get('live_call_strike'))} "
+                    f"| {_fmt(d.get('live_put_strike'))} |"
+                )
+            lines.append("")
+    else:
+        lines += [
+            "*No gate evaluations found. Run:*",
+            "```",
+            "bullstrangle --db <db> evaluate-newsletter <date>",
+            "```",
+            "",
+        ]
+
+    # ── Section 5 — Deployment Guidance ──────────────────────────────────────
+    lines += ["## 5. DEPLOYMENT GUIDANCE", ""]
+
+    dep_alerts: list[str] = []
+
+    # Expiration alerts from active cycles
+    for row in active_cycles:
+        days_left = row.get("days_until_expiration")
         if days_left is not None and days_left <= 3:
-            alerts.append(
-                f"🚨 **URGENT:** {row['publication_date']} cycle expires in {days_left:.0f} days "
-                "— close or roll positions today"
+            dep_alerts.append(
+                f"🚨 **URGENT:** {row['publication_date']} cycle expires in {int(days_left)}d "
+                f"({row.get('target_expiration')}) — close or roll positions today"
+            )
+        elif days_left is not None and days_left <= 7:
+            dep_alerts.append(
+                f"⚠️ **{row['publication_date']}** cycle expires in {int(days_left)}d "
+                f"({row.get('target_expiration')}) — review open positions"
             )
 
     if env and not env.get("deployment_approved"):
         if env.get("all_criteria_met"):
             consecutive = env.get("consecutive_weeks_met") or 0
-            alerts.append(
+            dep_alerts.append(
                 f"⏳ Market Week {consecutive}/2 — hold off new strangles until next newsletter confirms"
             )
         else:
-            alerts.append("🔴 Market criteria NOT met — no new strangle deployments")
+            dep_alerts.append("🔴 Market criteria NOT met — no new strangle deployments")
+    elif env and env.get("deployment_approved"):
+        dep_alerts.append("✅ Deployment approved — gate-eligible symbols listed in Section 4")
 
-    if approved:
-        alerts.append(
-            f"✅ {len(approved)} symbol(s) APPROVED in latest decision batch — "
-            f"see: {', '.join(r['symbol'] for r in approved[:5])}"
-        )
-    if watching:
-        alerts.append(
-            f"👀 {len(watching)} symbol(s) on WATCH — "
-            f"{', '.join(r['symbol'] for r in watching[:5])}"
-        )
-
-    if alerts:
-        for alert in alerts:
+    if dep_alerts:
+        for alert in dep_alerts:
             lines.append(f"- {alert}")
     else:
-        lines.append("- No active alerts.")
+        lines.append("- No active deployment alerts.")
 
     lines += [
         "",
@@ -555,48 +800,125 @@ def _fetch_deep_analysis(conn, newsletter_id: int) -> dict[str, Any]:
     return result
 
 
-def _fetch_latest_batch(conn, newsletter_id: int) -> dict[str, Any] | None:
-    row = conn.execute(
-        """
-        SELECT * FROM decision_batches
-        WHERE newsletter_id = ?
-        ORDER BY decision_date DESC
-        LIMIT 1
-        """,
-        (newsletter_id,),
-    ).fetchone()
-    return dict(row) if row else None
+def _fetch_entry_decisions_latest(conn, newsletter_id: int) -> list[dict[str, Any]]:
+    """Fetch the most recent gate evaluation per symbol for this newsletter.
 
-
-def _fetch_latest_any_batch(conn) -> dict[str, Any] | None:
-    row = conn.execute(
-        "SELECT * FROM decision_batches ORDER BY decision_date DESC, newsletter_date DESC LIMIT 1"
-    ).fetchone()
-    return dict(row) if row else None
-
-
-def _fetch_symbol_decisions(
-    conn, batch: dict[str, Any] | None
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    if not batch:
-        return [], [], []
-    batch_id = batch["decision_batch_id"]
+    Uses the highest decision_id per symbol so repeated evaluations don't
+    produce duplicate rows in the report.
+    """
     rows = conn.execute(
         """
-        SELECT bsd.symbol, bsd.final_decision, bsd.selected_action, bsd.priority_rank,
-               bsd.strategy_score, bsd.strategy_band, bsd.latest_total_credit,
-               bsd.latest_live_stock_price, bsd.max_price_deviation_pct,
-               bsd.selected_account, bsd.account_shares, bsd.shares_to_100, bsd.reason
-        FROM bull_strangle_decisions bsd
-        WHERE bsd.decision_batch_id = ?
-        ORDER BY bsd.priority_rank
+        SELECT ed.decision_id, ed.newsletter_id, ed.symbol, ed.evaluation_date,
+               ed.decision_type, ed.first_failing_gate,
+               ed.live_stock_price, ed.live_iv, ed.live_total_credit,
+               ed.live_call_strike, ed.live_put_strike,
+               n.publication_date AS newsletter_date
+        FROM entry_decisions ed
+        JOIN newsletters n ON n.newsletter_id = ed.newsletter_id
+        WHERE ed.newsletter_id = ?
+          AND ed.decision_id IN (
+              SELECT MAX(decision_id)
+              FROM entry_decisions
+              WHERE newsletter_id = ?
+              GROUP BY symbol
+          )
+        ORDER BY ed.decision_type, ed.symbol
         """,
-        (batch_id,),
+        (newsletter_id, newsletter_id),
     ).fetchall()
-    approved = [dict(r) for r in rows if r["final_decision"] == "APPROVE"]
-    watching = [dict(r) for r in rows if r["final_decision"] == "WATCH"]
-    skipped = [dict(r) for r in rows if r["final_decision"] == "SKIP"]
-    return approved, watching, skipped
+    return [dict(r) for r in rows]
+
+
+def _fetch_latest_newsletter_entry_decisions(conn) -> list[dict[str, Any]]:
+    """Fetch gate decisions for the most recently evaluated newsletter."""
+    row = conn.execute(
+        "SELECT newsletter_id FROM entry_decisions ORDER BY decision_id DESC LIMIT 1"
+    ).fetchone()
+    if not row:
+        return []
+    return _fetch_entry_decisions_latest(conn, row["newsletter_id"])
+
+
+def _fetch_active_layers_for_newsletter(
+    conn, newsletter_id: int, today: str
+) -> list[dict[str, Any]]:
+    """ACTIVE cycle_layers for one newsletter week, with DTE computed."""
+    rows = conn.execute(
+        """
+        SELECT cl.*,
+               julianday(cl.expiration_date) - julianday(?) AS dte
+        FROM cycle_layers cl
+        WHERE cl.newsletter_id = ?
+          AND cl.status = 'ACTIVE'
+        ORDER BY cl.expiration_date, cl.symbol
+        """,
+        (today, newsletter_id),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _fetch_all_active_layers(conn, today: str) -> list[dict[str, Any]]:
+    """All ACTIVE cycle_layers across all newsletters, with DTE and newsletter date."""
+    rows = conn.execute(
+        """
+        SELECT cl.*,
+               n.publication_date AS newsletter_date,
+               julianday(cl.expiration_date) - julianday(?) AS dte
+        FROM cycle_layers cl
+        JOIN newsletters n ON n.newsletter_id = cl.newsletter_id
+        WHERE cl.status = 'ACTIVE'
+        ORDER BY cl.expiration_date, cl.symbol
+        """,
+        (today,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _fetch_exit_alerts(conn) -> list[dict[str, Any]]:
+    """Most recent exit decision per layer where action is not HOLD.
+
+    Returns CLOSE_IMMEDIATELY first, then EXIT_MONDAY, then REVIEW,
+    then other non-HOLD actions — ordered by urgency then symbol.
+    """
+    rows = conn.execute(
+        """
+        SELECT ed.exit_decision_id, ed.layer_id, ed.evaluation_date,
+               ed.recommended_action, ed.rule_citations_json,
+               ed.trigger_values_json,
+               cl.symbol, cl.expiration_date, cl.call_strike, cl.put_strike,
+               cl.stock_price_at_entry,
+               CASE ed.recommended_action
+                   WHEN 'CLOSE_IMMEDIATELY' THEN 1
+                   WHEN 'EXIT_MONDAY'       THEN 2
+                   WHEN 'REVIEW'            THEN 3
+                   ELSE                          4
+               END AS urgency_order
+        FROM exit_decisions ed
+        JOIN cycle_layers cl ON cl.layer_id = ed.layer_id
+        WHERE cl.status = 'ACTIVE'
+          AND ed.recommended_action != 'HOLD'
+          AND ed.exit_decision_id IN (
+              SELECT MAX(exit_decision_id)
+              FROM exit_decisions
+              WHERE recommended_action != 'HOLD'
+              GROUP BY layer_id
+          )
+        ORDER BY urgency_order, cl.symbol
+        """,
+    ).fetchall()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        # Flatten trigger_values for the reason string
+        tv = {}
+        try:
+            tv = json.loads(d.get("trigger_values_json") or "{}")
+        except (ValueError, TypeError):
+            pass
+        d["action_reason"] = tv.get("reason") or d["recommended_action"]
+        result.append(d)
+    return result
 
 
 def _fetch_active_cycles(conn, today: str) -> list[dict[str, Any]]:
@@ -616,30 +938,6 @@ def _fetch_active_cycles(conn, today: str) -> list[dict[str, Any]]:
         (today, today),
     ).fetchall()
     return [dict(r) for r in rows]
-
-
-def _build_context(
-    newsletter: dict[str, Any],
-    env: dict[str, Any],
-    wd: dict[str, Any] | None,
-    watchlist: list[dict[str, Any]],
-    short_list: list[dict[str, Any]],
-    deep_analysis: dict[str, Any],
-    approved_symbols: list[dict[str, Any]],
-    watch_symbols: list[dict[str, Any]],
-    today: str,
-) -> dict[str, Any]:
-    return {
-        "newsletter": newsletter,
-        "env": env,
-        "wd": wd,
-        "watchlist": watchlist,
-        "short_list": short_list,
-        "deep_analysis": deep_analysis,
-        "approved_symbols": approved_symbols,
-        "watch_symbols": watch_symbols,
-        "today": today,
-    }
 
 
 def _save_report(
@@ -671,7 +969,6 @@ def _save_report(
 
 
 def _safe_snapshot(obj: Any, depth: int = 0) -> Any:
-    """Recursively sanitise a context dict for JSON storage, capping depth at 4."""
     if depth > 4:
         return str(obj)[:200]
     if isinstance(obj, dict):
@@ -713,7 +1010,6 @@ def _fmt_pct(value: Any) -> str:
 
 
 def _fmt_pct_raw(value: Any) -> str:
-    """Format a fraction already in 0–1 range as percent."""
     if value is None:
         return ""
     try:
