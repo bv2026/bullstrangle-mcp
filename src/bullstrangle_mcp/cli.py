@@ -10,8 +10,11 @@ from .tools import (
     backtest_all_tool,
     calculate_os_selectors_tool,
     evaluate_entry_tool,
+    evaluate_exit_batch_tool,
+    evaluate_exit_tool,
     evaluate_newsletter_tool,
     generate_entry_validation_report_tool,
+    generate_exit_report_tool,
     generate_os_workbook_tool,
     generate_weekend_decisions_tool,
     get_newsletter_by_ref_tool,
@@ -20,6 +23,7 @@ from .tools import (
     get_rule_tool,
     get_symbol_history_tool,
     list_entry_decisions_tool,
+    list_exit_decisions_tool,
     resolve_cycle_outcomes_tool,
     seed_cycle_layers_tool,
     ingest_os_workbook_tool,
@@ -244,6 +248,46 @@ def main(argv: list[str] | None = None) -> int:
         help="Filter by decision outcome",
     )
 
+    eval_exit_cmd = subparsers.add_parser(
+        "evaluate-exit",
+        help="Evaluate exit triggers for one ACTIVE cycle_layer",
+    )
+    eval_exit_cmd.add_argument("layer_id", type=int, help="Layer ID from cycle_layers table")
+    eval_exit_cmd.add_argument(
+        "--no-price", action="store_true", help="Skip live price fetch (faster)"
+    )
+    eval_exit_cmd.add_argument(
+        "--no-persist", action="store_true", help="Skip writing to exit_decisions table"
+    )
+
+    eval_exit_batch_cmd = subparsers.add_parser(
+        "evaluate-exit-batch",
+        help="Evaluate exit triggers for all ACTIVE cycle_layers",
+    )
+    eval_exit_batch_cmd.add_argument(
+        "--no-price", action="store_true", help="Skip live price fetch (faster)"
+    )
+    eval_exit_batch_cmd.add_argument(
+        "--no-persist", action="store_true", help="Skip writing to exit_decisions table"
+    )
+    eval_exit_batch_cmd.add_argument(
+        "--json", action="store_true", help="Print full JSON instead of summary"
+    )
+
+    exit_report_cmd = subparsers.add_parser(
+        "exit-report",
+        help="Generate markdown exit monitoring report for all ACTIVE positions",
+    )
+    exit_report_cmd.add_argument("--output", help="Optional path to write the Markdown report")
+    exit_report_cmd.add_argument(
+        "--no-price", action="store_true", help="Skip live price fetch (faster)"
+    )
+
+    list_exit_decisions_cmd = subparsers.add_parser(
+        "list-exit-decisions",
+        help="List persisted exit_decisions rows",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "init-db":
@@ -394,6 +438,49 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
+        return 0
+    if args.command == "evaluate-exit":
+        print(
+            json.dumps(
+                evaluate_exit_tool(
+                    args.layer_id,
+                    args.db,
+                    not args.no_price,
+                    not args.no_persist,
+                ),
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "evaluate-exit-batch":
+        decisions = evaluate_exit_batch_tool(args.db, not args.no_price, not args.no_persist)
+        if args.json:
+            print(json.dumps(decisions, indent=2))
+        else:
+            print(f"\nActive positions: {len(decisions)}")
+            for d in decisions:
+                urgency_label = {"IMMEDIATE": "[!!!]", "THIS_WEEK": "[!]", "ROUTINE": "[OK]"}.get(
+                    d["action_urgency"], "[?]"
+                )
+                price_str = f"${d['current_price']:.2f}" if d.get("current_price") else "N/A"
+                chg_str = (
+                    f"{d['pct_change_from_entry']:+.1f}%"
+                    if d.get("pct_change_from_entry") is not None else "N/A"
+                )
+                print(
+                    f"  {urgency_label} {d['symbol']:6s} exp {d['expiration_date']} "
+                    f"DTE={d['days_to_expiration']:3d} "
+                    f"price={price_str:7s} ({chg_str}) "
+                    f"-> {d['recommended_action']}"
+                )
+        return 0
+    if args.command == "exit-report":
+        result = generate_exit_report_tool(args.db, args.output, not args.no_price)
+        # Print ASCII-safe to console (emoji survive in the saved file)
+        print(result["markdown"].encode("ascii", errors="replace").decode("ascii"))
+        return 0
+    if args.command == "list-exit-decisions":
+        print(json.dumps(list_exit_decisions_tool(args.db), indent=2))
         return 0
 
     parser.error(f"Unknown command: {args.command}")

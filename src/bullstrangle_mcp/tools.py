@@ -31,6 +31,11 @@ from .entry_engine import (
     generate_entry_validation_report,
     validate_all_newsletters,
 )
+from .exit_engine import (
+    evaluate_exit,
+    evaluate_exit_batch,
+    generate_exit_report,
+)
 from .rule_catalog import get_rule as _get_rule
 from .rule_catalog import list_rule_catalog as _list_rule_catalog
 from .rule_catalog import load_rule_catalog
@@ -1002,6 +1007,78 @@ def generate_entry_validation_report_tool(
     if output_path:
         result["output_path"] = str(Path(output_path).resolve())
     return result
+
+
+# ── Phase 4: Exit Engine tools ────────────────────────────────────────────────
+
+
+def evaluate_exit_tool(
+    layer_id: int,
+    db_path: str = str(DEFAULT_DB_PATH),
+    include_live_price: bool = True,
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Evaluate exit triggers for one ACTIVE cycle_layer.
+
+    Returns all trigger results and the recommended action
+    (HOLD / REVIEW / EXIT_MONDAY / CLOSE_IMMEDIATELY / NEEDS_RESOLUTION).
+    """
+    initialize_database(db_path)
+    decision = evaluate_exit(layer_id, db_path, include_live_price=include_live_price, persist=persist)
+    if decision is None:
+        raise ValueError(f"Layer {layer_id} not found or is not ACTIVE")
+    return decision.to_dict()
+
+
+def evaluate_exit_batch_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    include_live_price: bool = True,
+    persist: bool = True,
+) -> list[dict[str, Any]]:
+    """Evaluate exit triggers for ALL ACTIVE cycle_layers.
+
+    Returns a list of exit decisions sorted by expiration date then symbol.
+    """
+    initialize_database(db_path)
+    decisions = evaluate_exit_batch(db_path, include_live_price=include_live_price, persist=persist)
+    return [d.to_dict() for d in decisions]
+
+
+def generate_exit_report_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+    output_path: str | None = None,
+    include_live_price: bool = True,
+) -> dict[str, Any]:
+    """Generate a markdown exit monitoring report for all ACTIVE positions.
+
+    Groups positions by urgency (IMMEDIATE / THIS_WEEK / ROUTINE) and includes
+    live price, % change from entry, strike proximity, and triggered rule citations.
+    """
+    initialize_database(db_path)
+    md = generate_exit_report(db_path, output_path, include_live_price)
+    result: dict[str, Any] = {"markdown": md}
+    if output_path:
+        result["output_path"] = str(Path(output_path).resolve())
+    return result
+
+
+def list_exit_decisions_tool(
+    db_path: str = str(DEFAULT_DB_PATH),
+) -> list[dict[str, Any]]:
+    """Return all persisted exit_decisions rows, ordered by evaluation date descending."""
+    initialize_database(db_path)
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT ed.*, cl.symbol, cl.expiration_date, cl.account_id,
+                   n.publication_date
+            FROM exit_decisions ed
+            JOIN cycle_layers cl ON cl.layer_id = ed.layer_id
+            JOIN newsletters n ON n.newsletter_id = cl.newsletter_id
+            ORDER BY ed.evaluation_date DESC, cl.symbol
+            """
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def list_entry_decisions_tool(

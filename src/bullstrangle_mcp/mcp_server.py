@@ -13,10 +13,13 @@ from .tools import (
     calculate_os_selectors_tool,
     check_deployment_approval_tool,
     evaluate_entry_tool,
+    evaluate_exit_batch_tool,
+    evaluate_exit_tool,
     evaluate_newsletter_tool,
     generate_backtest_report_tool,
     generate_daily_brief_tool,
     generate_entry_validation_report_tool,
+    generate_exit_report_tool,
     generate_os_workbook_tool,
     generate_weekly_action_plan_tool,
     generate_weekend_decisions_tool,
@@ -37,6 +40,7 @@ from .tools import (
     ingest_newsletter_tool,
     ingest_positions_tool,
     list_entry_decisions_tool,
+    list_exit_decisions_tool,
     list_generated_reports_tool,
     list_newsletters_tool,
     list_os_runs_tool,
@@ -522,6 +526,66 @@ def get_rule(rule_id: str, db_path: str | None = None) -> dict[str, Any]:
     RULE-EARN-003, RULE-ENV-002, FORMULA-002).
     """
     return get_rule_tool(rule_id, db_path or default_db_path())
+
+
+@mcp.tool()
+def evaluate_exit(
+    layer_id: int,
+    include_live_price: bool = True,
+    persist: bool = True,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Evaluate exit triggers for one ACTIVE cycle_layer.
+
+    Checks: earnings override (RULE-EARN-003), extreme drop overlays
+    (RULE-EXIT-006/007), expiration status, DTE alert, and strike proximity.
+
+    Returns recommended_action: HOLD | REVIEW | EXIT_MONDAY |
+    CLOSE_IMMEDIATELY | NEEDS_RESOLUTION — with urgency, rule citations,
+    and live price metrics (when include_live_price=True).
+    """
+    return evaluate_exit_tool(layer_id, db_path or default_db_path(), include_live_price, persist)
+
+
+@mcp.tool()
+def evaluate_exit_batch(
+    include_live_price: bool = True,
+    persist: bool = True,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate exit triggers for ALL ACTIVE cycle_layers.
+
+    Fetches live prices for each position (one yfinance call per symbol) and
+    returns a sorted list of exit decisions.  Set include_live_price=False to
+    skip price fetches and run purely from DB data.
+    """
+    return evaluate_exit_batch_tool(db_path or default_db_path(), include_live_price, persist)
+
+
+@mcp.tool()
+def generate_exit_report(
+    output_path: str | None = None,
+    include_live_price: bool = True,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Generate a markdown exit monitoring report for all ACTIVE positions.
+
+    Groups positions by urgency tier (IMMEDIATE / THIS_WEEK / ROUTINE),
+    shows live price, % change from entry, strike proximity, and triggered
+    rule citations.  Optionally writes to output_path.
+    Returns ``markdown`` key with the full report.
+    """
+    return generate_exit_report_tool(
+        db_path or default_db_path(),
+        output_path,
+        include_live_price,
+    )
+
+
+@mcp.tool()
+def list_exit_decisions(db_path: str | None = None) -> list[dict[str, Any]]:
+    """Return all persisted exit_decisions rows, newest evaluation first."""
+    return list_exit_decisions_tool(db_path or default_db_path())
 
 
 @mcp.tool()
