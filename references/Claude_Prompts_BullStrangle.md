@@ -1,17 +1,22 @@
 # Claude Prompts For BullStrangle
 
-Date: 2026-04-23  
-Updated: 2026-04-26 (added prompts 16–30 for new market intelligence, watchlist, and report tools)  
+Date: 2026-04-26
+Updated: 2026-04-26 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring)
 Audience: Claude Desktop operator
 
 Use these prompts after the BullStrangle MCP server is configured in Claude Desktop.
 
 ## General Notes
 
-- Replace newsletter dates when needed.
-- Use absolute dates, not relative wording.
+- Replace newsletter dates and symbol names when needed.
+- Use absolute dates, not relative wording ("2026-04-24" not "last Friday").
 - Tell Claude to use the BullStrangle MCP tools.
 - Ask for concise output when you want action-first summaries.
+- If Claude Desktop is unavailable, use the CLI fallback commands in `references/BullStrangle_Usage_Guide.md`.
+
+---
+
+## Newsletter & Ingestion
 
 ## 1. Inspect Newsletter
 
@@ -28,13 +33,13 @@ Use the BullStrangle MCP tools to generate the Option Samurai workbook for newsl
 ## 3. Validate Refreshed Upload Before Ingest
 
 ```text
-Use the BullStrangle MCP workflow context and tell me the exact next command I should run to ingest the refreshed workbook for newsletter date 2026-04-24 using trading date 2026-04-23. Assume the refreshed file is under data\os_uploads.
+Use the BullStrangle MCP workflow context and tell me the exact next command I should run to ingest the refreshed workbook for newsletter date 2026-04-24 using trading date 2026-04-28. Assume the refreshed file is under data\os_uploads.
 ```
 
 ## 4. Ingest OS Workbook And Summarize
 
 ```text
-Use the BullStrangle MCP tools to ingest the refreshed OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx for trading date 2026-04-23, then summarize the returned run id and ingestion status.
+Use the BullStrangle MCP tools to ingest the refreshed OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx for trading date 2026-04-28, then summarize the returned run id and ingestion status.
 ```
 
 ## 5. Daily OS Report
@@ -55,169 +60,143 @@ Use the BullStrangle MCP tools to aggregate the OS week for newsletter date 2026
 Use the BullStrangle MCP tools to ingest positions from data\positions\positions.csv and summarize account counts, symbol counts, and which symbols are already stock-backed Bull Strangle ready in one account.
 ```
 
-## 8. Weekend Decisions
-
-```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 with decision date 2026-04-23. Summarize preferred actions, Bull Strangle approvals, DCA approvals, and the main watch or skip reasons.
-```
-
-## 9. Focus On Bull Strangle Only
-
-```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and show me only the Bull Strangle APPROVE names ranked by priority with score, selected account, and reason.
-```
-
-## 10. Focus On DCA Only
-
-```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and show me only the DCA APPROVE names with selected account, account shares, shares to 100, and reason.
-```
-
-## 11. Explain One Symbol
-
-```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and explain symbol NTAP in plain English. Include selected action, strategy score, rule passes, rule fails, and the final Bull Strangle and DCA outcomes.
-```
-
-## 12. Compare Symbols
-
-```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and compare NTAP, IBIT, SHLD, and IMVT. Explain why each one landed in Bull Strangle, DCA, Watch, or Skip.
-```
-
-## 13. Audit The Dry Run
-
-```text
-Use the BullStrangle MCP tools to audit the current dry run for newsletter date 2026-04-24. Tell me what has been ingested, what reports exist logically, and what is still missing before I should trust the weekend decisions.
-```
-
-## 14. Ask For Commands Only
-
-```text
-Using the BullStrangle workflow, give me only the next three PowerShell commands to run for the 2026-04-24 newsletter after I save the refreshed workbook in data\os_uploads.
-```
-
-## 15. Ask For A Weekend Operator Summary
-
-```text
-Use the BullStrangle MCP tools to generate the weekend decision summary for newsletter date 2026-04-24 and write it like an operator handoff: what is approved now, what is DCA only, what is watch-only, and what still needs review.
-```
-
 ---
 
-## Market Intelligence Prompts *(added 2026-04-26)*
+## Market Environment
 
-## 16. Check Current Deployment Status
+## 8. Check Current Deployment Status
 
 ```text
 Use the BullStrangle MCP tools to check whether deployment is currently approved. Show the per-criterion breakdown (hybrid score, S&P vs 200-DMA, VIX, breadth), consecutive weeks met, and the recommended action.
 ```
 
-## 17. Get Market Environment Snapshot
+## 9. Get Market Environment Snapshot
 
 ```text
 Use the BullStrangle MCP tools to get the current market environment. Show hybrid score, market status, investment percent, VIX, breadth, S&P vs 200-DMA, scaling phase, and recommended position count.
 ```
 
-## 18. Review Market History
+## 10. Review Market History
 
 ```text
 Use the BullStrangle MCP tools to show the last 8 weeks of market environment history. For each week show: date, hybrid score, market status, deployment approved, and consecutive weeks met.
 ```
 
-## 19. Get Scaling Guidance
+## 11. Get Scaling Guidance
 
 ```text
 Use the BullStrangle MCP tools to get scaling guidance for this week. Explain what scaling phase we are in, how many positions are recommended, and what that means for new deployments.
 ```
 
-## 20. Check Active Cycles
-
-```text
-Use the BullStrangle MCP tools to show all active position cycles (newsletters with unexpired target expirations). For each cycle show the newsletter date, expiration date, days remaining, and market status. Flag any expiring within 7 days.
-```
-
 ---
 
-## Watchlist & Symbol Prompts *(added 2026-04-26)*
+## Watchlist & Symbols
 
-## 21. Get Full Watchlist
+## 12. Get Full Watchlist
 
 ```text
 Use the BullStrangle MCP tools to get the full watchlist for newsletter date 2026-04-24. Show symbol, price, IV, sector, strikes, bull strangle return %, and flag any WL Favorites.
 ```
 
-## 22. Get DCA Candidates
+## 13. Get DCA Candidates
 
 ```text
 Use the BullStrangle MCP tools to get the DCA candidates for newsletter date 2026-04-24. Show rank, symbol, portfolio type, price, IV, and sector. Separate large-portfolio and small-portfolio lists.
 ```
 
-## 23. Get Eligible Symbols (Approved Only)
+## 14. Get Eligible Symbols (Approved Only)
 
 ```text
 Use the BullStrangle MCP tools to get the symbols approved for bull strangle deployment from newsletter date 2026-04-24. Show rank, symbol, live credit, price deviation, selected account, shares held, and shares to 100.
 ```
 
-## 24. Get Watch List Symbols
-
-```text
-Use the BullStrangle MCP tools to get all symbols on WATCH (not yet approved) for newsletter date 2026-04-24. For each, explain the strategy score, band, and what would need to change for it to move to APPROVE.
-```
-
-## 25. Deep Dive on WL Favorites
+## 15. Deep Dive on WL Favorites
 
 ```text
 Use the BullStrangle MCP tools to get the WL Favorites deep analysis for newsletter date 2026-04-24. For each favorite, summarize Darren's technical assessment, the proposed trade structure (strikes, premiums, total investment, max gain %), and key risk factors.
 ```
 
-## 26. Explain One WL Favorite
+## 16. Explain One WL Favorite
 
 ```text
 Use the BullStrangle MCP tools to get the WL Favorites deep analysis for newsletter date 2026-04-24, specifically for symbol NEE. Explain the proposed trade in plain English, including the total investment required, what max gain looks like, and the main risks.
 ```
 
-## 27. Search Newsletter Commentary
+## 17. Search Newsletter Commentary
 
 ```text
 Use the BullStrangle MCP tools to search the newsletter commentary for "VIX" and show the top 5 matching sections with newsletter date, section name, and the relevant snippet.
 ```
 
-## 28. Search For A Market Theme
+## 18. Search For A Market Theme
 
 ```text
 Use the BullStrangle MCP tools to search newsletter commentary for "breadth" and summarize how Darren has discussed market breadth across the last several newsletters. Note any trend or change in tone.
 ```
 
+## 19. Symbol History
+
+```text
+Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter date 2026-04-24. Tell me whether it is new, when it first appeared, and which prior newsletters included it.
+```
+
 ---
 
-## Report Generation Prompts *(added 2026-04-26)*
+## Weekend Decisions (v1 Legacy Engine)
 
-## 29. Generate Sunday Action Plan
+## 20. Weekend Decisions Summary
+
+```text
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 with decision date 2026-04-27. Summarize preferred actions, Bull Strangle approvals, DCA approvals, and the main watch or skip reasons.
+```
+
+## 21. Focus On Bull Strangle Only
+
+```text
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and show me only the Bull Strangle APPROVE names ranked by priority with score, selected account, and reason.
+```
+
+## 22. Focus On DCA Only
+
+```text
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and show me only the DCA APPROVE names with selected account, account shares, shares to 100, and reason.
+```
+
+## 23. Explain One Symbol
+
+```text
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and explain symbol NTAP in plain English. Include selected action, strategy score, rule passes, rule fails, and the final Bull Strangle and DCA outcomes.
+```
+
+---
+
+## Report Generation
+
+## 24. Generate Sunday Action Plan
 
 ```text
 Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24. Show the full report including market environment status, re-entry criteria table, DCA candidates, strangle eligibility summary, watchlist analysis, WL Favorites deep dives, action items for this week and next, and key reminders.
 ```
 
-## 30. Generate Daily Brief
+## 25. Generate Daily Brief
 
 ```text
 Use the BullStrangle MCP tools to generate today's daily brief. Show the current market environment status, all active position cycles with days to expiration, and any alerts I should act on today.
 ```
 
-## 31. Generate And Save Action Plan
+## 26. Generate And Save Action Plan
 
 ```text
 Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and save it to outputs\reports\2026-04-24\action_plan.md. Confirm the output path when done.
 ```
 
-## 32. Review Previously Generated Reports
+## 27. Morning Standup Brief
 
 ```text
-Use the BullStrangle MCP tools to list all generated reports. Show report id, type, newsletter date, and when it was generated. Then retrieve the most recent weekly action plan and summarize the key action items from it.
+Use the BullStrangle MCP tools to give me my morning trading standup. Check deployment approval, show active cycles with days to expiration, flag any cycles expiring this week, and tell me if there are any approved symbols from the latest decision run.
 ```
 
-## 33. Full Sunday Workflow In One Prompt
+## 28. Full Sunday Workflow In One Prompt
 
 ```text
 Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-04-24:
@@ -229,8 +208,212 @@ Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter da
 Summarize each step and end with the complete action plan report.
 ```
 
-## 34. Morning Standup Brief
+---
+
+## Rule Catalog
+
+## 29. List All Strategy Gates
 
 ```text
-Use the BullStrangle MCP tools to give me my morning trading standup. Check deployment approval, show active cycles with days to expiration, flag any cycles expiring this week, and tell me if there are any approved symbols from the latest decision run.
+Use the BullStrangle MCP tools to list all hard gate rules from the rule catalog. For each gate show the rule_id, description, and key threshold parameters.
+```
+
+## 30. Explain A Specific Rule
+
+```text
+Use the BullStrangle MCP tools to get the full detail for rule GATE-SS-005 (earnings clear days). Explain what it means, what the threshold is, and what data is checked.
+```
+
+## 31. List Exit Rules
+
+```text
+Use the BullStrangle MCP tools to list all rules in the exit area of the rule catalog. For each rule show the rule_id, type, description, and key parameters like trigger thresholds and recommended actions.
+```
+
+---
+
+## Gate Validation (Entry Engine — v3)
+
+## 32. Validate This Week's Newsletter
+
+```text
+Use the BullStrangle MCP tools to evaluate all 9 entry gates for every watchlist symbol in newsletter 2026-04-24. Show which symbols passed all gates, which failed and at which gate, and what percentage align with Darren's Short List.
+```
+
+## 33. Validate One Symbol
+
+```text
+Use the BullStrangle MCP tools to evaluate the 9 entry gates for symbol NTAP against newsletter 2026-04-24. Show each gate result — gate number, rule cited, actual value, threshold, pass/fail, and reason if failed. End with the overall decision.
+```
+
+## 34. Gate Report (Full — Save To File)
+
+```text
+Use the BullStrangle MCP tools to generate the full gate validation report for newsletter date 2026-04-24 and save it to outputs\reports\gate_report_2026-04-24.md. Include gate pass/fail table, alignment with Short List, and key observations.
+```
+
+## 35. Explain Why A Symbol Was Rejected
+
+```text
+Use the BullStrangle MCP tools to evaluate entry gates for symbol AAL against newsletter 2026-04-24 and explain in plain English exactly why it did or did not pass. Which gate failed, what was the actual value, what was the threshold, and what would need to change for it to pass?
+```
+
+## 36. Gate Alignment Summary Across All Newsletters
+
+```text
+Use the BullStrangle MCP tools to validate all ingested newsletters against the 9 entry gates. For each week show: deployment status, total symbols evaluated, gate pass rate, alignment with Darren's Short List. Identify any weeks where gate logic diverged significantly from the Short List.
+```
+
+## 37. List Persisted Gate Decisions
+
+```text
+Use the BullStrangle MCP tools to list the last 30 entry decisions. Show newsletter date, symbol, all-gates-pass status, first failing gate, decision type, and whether the symbol was on the Short List.
+```
+
+---
+
+## Exit Monitoring (Exit Engine — v3)
+
+## 38. Morning Exit Check (With Live Prices)
+
+```text
+Use the BullStrangle MCP tools to generate today's exit monitoring report for the small portfolio. Auto-resolve any expired positions first, then show all open positions grouped by urgency: IMMEDIATE action needed, review this week, and hold. For each position show: symbol, expiration, DTE, live price, % change from entry, nearest strike distance, and recommended action.
+```
+
+## 39. Exit Report — Offline Mode
+
+```text
+Use the BullStrangle MCP tools to generate the exit monitoring report for the small portfolio without fetching live prices. Show all active positions, their entry data, strikes, and whether any expiry or earnings triggers are active.
+```
+
+## 40. Exit Report For Large Portfolio
+
+```text
+Use the BullStrangle MCP tools to generate the exit monitoring report for the large portfolio with live prices. Highlight any positions that need attention this week (DTE ≤ 7, stock near a strike, or earnings during holding period).
+```
+
+## 41. Explain One Position's Exit Status
+
+```text
+Use the BullStrangle MCP tools to evaluate exit triggers for the CELH position in the small portfolio. Explain each trigger that was checked, what the actual value was, what the threshold was, and what action is recommended.
+```
+
+## 42. Auto-Resolve Expired Positions
+
+```text
+Use the BullStrangle MCP tools to auto-resolve any expired positions for the small portfolio. Show which newsletter weeks were processed, which positions were closed, their final outcome (BOTH_OTM / CALL_ASSIGNED / PUT_ASSIGNED), and the P&L for each.
+```
+
+---
+
+## Portfolio Performance & Backtest
+
+## 43. Small Portfolio Performance Summary
+
+```text
+Use the BullStrangle MCP tools to get the portfolio performance for the small portfolio (Darren's top picks). Show the week-by-week equity curve, cumulative P&L, win rate, max drawdown, and overall return. Note any open positions not yet in the curve.
+```
+
+## 44. Large Portfolio Performance Summary
+
+```text
+Use the BullStrangle MCP tools to get the portfolio performance for the large portfolio (all 10 ranks). Show the week-by-week equity curve, cumulative P&L, win rate, max drawdown, and overall return. Compare key metrics to the small portfolio.
+```
+
+## 45. Compare Small vs Large Portfolio
+
+```text
+Use the BullStrangle MCP tools to get portfolio performance for both the small and large portfolios. Present them side by side: total P&L, overall return %, win rate, max drawdown %, and best/worst week for each. Interpret the difference — what does this say about Darren's curation quality?
+```
+
+## 46. Full Backtest Report
+
+```text
+Use the BullStrangle MCP tools to generate the full backtest report for the small portfolio. Include the week-by-week position table with symbols, strikes, close prices, outcomes, and P&L, followed by the equity curve and summary statistics.
+```
+
+## 47. Best And Worst Trades
+
+```text
+Use the BullStrangle MCP tools to generate the backtest report for the small portfolio and identify the best and worst individual trades. For each, explain: what the setup was, what outcome occurred (BOTH_OTM / CALL_ASSIGNED / PUT_ASSIGNED), and what drove the P&L result.
+```
+
+## 48. Open Positions Capital At Risk
+
+```text
+Use the BullStrangle MCP tools to get portfolio performance for the small portfolio and focus on the open positions section. Show each open newsletter week, its expiration date, number of positions, and total capital at risk. Are any of these expiring in the next two weeks?
+```
+
+---
+
+## May Cycle Monitoring (Combined Workflows)
+
+## 49. Monday Morning Full Check
+
+```text
+Use the BullStrangle MCP tools to run my Monday morning monitoring routine:
+1. Auto-resolve any expired positions for the small portfolio
+2. Generate the exit monitoring report for the small portfolio with live prices
+3. Show portfolio performance summary (equity curve through today)
+Flag anything that needs action today and anything expiring this week.
+```
+
+## 50. Post-Newsletter Sunday Workflow
+
+```text
+Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-04-24:
+1. Check deployment approval and market environment
+2. Evaluate all 9 entry gates for this week's watchlist
+3. Show gate alignment with the Short List
+4. Generate the gate validation report
+5. Check exit status for all open positions
+6. Show current portfolio performance for small and large portfolios
+Summarize each step and end with the key actions for the week.
+```
+
+## 51. End-Of-Week Performance Digest
+
+```text
+Use the BullStrangle MCP tools to give me an end-of-week digest for the May cycle:
+1. Auto-resolve any newly expired positions
+2. Show updated portfolio performance for the small portfolio (equity curve, P&L, win rate)
+3. List any positions still open and their expiration dates
+4. Note whether this week's resolved positions were wins or losses and why
+```
+
+## 52. Strategy Validation Check
+
+```text
+Use the BullStrangle MCP tools to assess how well the gate engine is tracking Darren's actual selections:
+1. Validate all newsletters with the entry engine
+2. Show alignment % between gate decisions and Short List for each deployed week
+3. Identify which gates are causing the most rejections
+4. Summarize whether the strategy logic is consistent with Darren's curation
+```
+
+## 53. Full Portfolio Reconciliation
+
+```text
+Use the BullStrangle MCP tools to do a complete portfolio reconciliation for the small portfolio:
+1. Generate the backtest report
+2. List all open positions with live prices and exit trigger status
+3. Show equity curve and drawdown
+4. Flag any positions that need action this week
+Present as a one-page summary suitable for a weekly review.
+```
+
+---
+
+## Utility Prompts
+
+## 54. Audit What Has Been Ingested
+
+```text
+Use the BullStrangle MCP tools to audit what has been ingested. List all newsletters with their dates, whether OS workbooks have been run for each, and whether positions have been ingested. Tell me what is missing before I should trust the weekend decisions.
+```
+
+## 55. Ask For CLI Commands Only
+
+```text
+Using the BullStrangle workflow, give me only the PowerShell CLI commands I need to run today's Monday morning routine: auto-resolve expired positions, check exit status, and see the current portfolio performance. Use the small portfolio. No explanations — just the exact commands.
 ```

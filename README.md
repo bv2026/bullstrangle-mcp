@@ -139,25 +139,41 @@ outputs/reports/YYYY-MM-DD/
 
 ## CLI
 
+Full CLI reference is in [`references/BullStrangle_Dry_Run_Runbook.md`](references/BullStrangle_Dry_Run_Runbook.md).
+Quick reference:
+
 ```powershell
+# Setup
 bullstrangle --db data\bullstrangle.db init-db
-bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf
-bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\some.pdf --force
 bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters
-bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters --force
 bullstrangle --db data\bullstrangle.db list-newsletters
-bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-17
-bullstrangle --db data\bullstrangle.db show-newsletter 34
-bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-17
-bullstrangle --db data\bullstrangle.db os-selectors 2026-04-17
-bullstrangle --db data\bullstrangle.db prepare-os-workbook 2026-04-17
-bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\workbooks
-bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-22
+
+# OS workbook
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\workbooks
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24
+
+# Rule catalog
+bullstrangle --db data\bullstrangle.db list-rule-catalog --area exit
+bullstrangle --db data\bullstrangle.db get-rule GATE-SS-001
+
+# Gate validation (entry engine)
+bullstrangle --db data\bullstrangle.db evaluate-newsletter 2026-04-24
+bullstrangle --db data\bullstrangle.db gate-report 2026-04-24 --output outputs\reports\gate_report_2026-04-24.md
+bullstrangle --db data\bullstrangle.db list-entry-decisions --newsletter-date 2026-04-24
+
+# Exit monitoring
+bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type small
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --output outputs\reports\exit_report_small.md
+
+# Backtest & performance
+bullstrangle --db data\bullstrangle.db backtest-all --portfolio-type small
+bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type small
+bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type small --output outputs\reports\backtest_small.md
+
+# Positions & decisions
 bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
-bullstrangle --db data\bullstrangle.db report-os-run 1 --output outputs\reports\2026-04-22\os_run_1.md
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output outputs\reports\2026-04-22\os_week_2026-04-17.md
-bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-17 --json
-bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-25 --output outputs\reports\2026-04-22\weekend_decisions_2026-04-17.md
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-24 --decision-date 2026-04-27
 ```
 
 ## Claude Desktop MCP
@@ -235,10 +251,34 @@ bullstrangle-mcp-server
 
 ### Decision and rules tools
 
-- `generate_weekend_decisions` — produce weekend Bull Strangle and DCA decision outputs
+- `generate_weekend_decisions` — produce weekend Bull Strangle and DCA decision outputs (v1 legacy engine)
 - `list_strategy_rules` — inspect strategy/rule rows, including tunable decision thresholds
-- `list_rule_catalog` — list v3 Master Document rules; filter by area (stock_selection, earnings, exit…) or type (hard_gate, hard_rule, optional_overlay…)
+- `list_rule_catalog` — list all 47 v3 Master Document rules; filter by area (stock_selection, earnings, exit…) or type (hard_gate, hard_rule, optional_overlay…)
 - `get_rule` — fetch a single rule by rule_id with parsed parameters dict (e.g. `GATE-SS-005` → `min_earnings_clear_days: 45`)
+
+### Gate validation tools — entry engine v3 *(added 2026-04-26)*
+
+- `evaluate_entry` — evaluate all 9 gates for one symbol against one newsletter
+- `evaluate_newsletter` — evaluate all 9 gates for every watchlist symbol in a newsletter week
+- `validate_all_newsletters` — evaluate gates across all ingested newsletters (full history validation)
+- `generate_entry_validation_report` — generate gate pass/fail report with Short List alignment stats
+- `list_entry_decisions` — list persisted gate decisions; filterable by newsletter date
+
+### Exit monitoring tools — exit engine v3 *(added 2026-04-26)*
+
+- `evaluate_exit` — evaluate all exit triggers for one active cycle layer by layer_id
+- `evaluate_exit_batch` — evaluate exit triggers for all ACTIVE cycle layers with live prices
+- `generate_exit_report` — markdown exit monitoring report grouped by urgency (IMMEDIATE / THIS_WEEK / ROUTINE); auto-resolves expired positions first
+- `list_exit_decisions` — list persisted exit decisions
+
+### Position book & backtest tools *(added 2026-04-26)*
+
+- `seed_cycle_layers` — seed paper-trade cycle_layers from Short List for one newsletter week
+- `resolve_cycle_outcomes` — fetch yfinance closing prices at expiration and compute P&L
+- `auto_resolve_expired` — find and resolve all ACTIVE layers whose expiration date has passed
+- `backtest_all` — seed + resolve all approved newsletter weeks in one call
+- `get_portfolio_performance` — week-by-week equity curve with cumulative P&L, return %, and drawdown
+- `generate_backtest_report` — full markdown backtest report with per-symbol tables and equity curve
 
 ### Portfolio tools
 
@@ -267,10 +307,20 @@ os_reports.py     Daily OS run reports (read-only)
 os_weekly.py      Weekly symbol aggregation across daily OS runs
 positions.py      Position CSV ingestion and account rollups
 database.py       Schema (authoritative SCHEMA_SQL), versioned migrations, connect()
-rule_catalog.py   (planned Phase 2) Rule catalog loader — seeds strategy_rule_catalog
-entry_engine.py   (planned Phase 3) Gate evaluator — Gates 1–9 per symbol per Monday
-exit_engine.py    (planned Phase 4) Exit rule evaluator — EXPIRY / DROP / EARNINGS rules
-position_book.py  (planned Phase 5) Cycle-layer lifecycle, book management, CSV sync
+                  Migrations: m001 decision/position cols, m002 reports+earnings,
+                              m003 v3 cycle model (5 new tables), m004 portfolio_type col
+rule_catalog.py   Rule catalog loader — seeds strategy_rule_catalog with 47 rules
+                  get_rule(), get_gate_rules(), list_rule_catalog()
+entry_engine.py   Gate evaluator — all 9 gates per symbol per newsletter week
+                  EntryDecision + GateResult dataclasses; persists to entry_decisions
+                  evaluate_entry(), evaluate_newsletter(), validate_all_newsletters()
+exit_engine.py    Exit trigger evaluator — 6 triggers in priority order
+                  ExitDecision dataclass; urgency tiers; auto-resolve integration
+                  evaluate_exit(), evaluate_exit_batch(), generate_exit_report()
+position_book.py  Paper-trade backtest engine + equity curve tracking
+                  seed_from_short_list(), resolve_outcomes(), backtest_all()
+                  auto_resolve_expired(), get_portfolio_performance()
+                  generate_backtest_report()
 ```
 
 **Key design rules:**
@@ -316,6 +366,24 @@ Current expected result:
 ```
 
 ## Changelog
+
+### 2026-04-26 — Phases 3–6 + 5b + M4: entry engine, exit engine, backtest, portfolio_type
+
+Full v3 gate-based decision layer built and wired. All engines registered as MCP tools and CLI commands.
+
+**Phase 3 — `entry_engine.py`:** All 9 entry gates implemented (`EntryDecision` + `GateResult` dataclasses). All gates run on every symbol (no short-circuit) for validation visibility; `first_failing_gate` records the production short-circuit point. Persists to `entry_decisions`. Validated: 75–100% alignment with Darren's Short List on deployed weeks. **New tools:** `evaluate_entry`, `evaluate_newsletter`, `validate_all_newsletters`, `generate_entry_validation_report`, `list_entry_decisions`.
+
+**Phase 4 — `exit_engine.py`:** Six exit triggers evaluated in priority order (earnings override, extreme drop, below put strike, expiration, DTE ≤ 7, strike proximity). `generate_exit_report` auto-resolves expired positions before building the report. **New tools:** `evaluate_exit`, `evaluate_exit_batch`, `generate_exit_report`, `list_exit_decisions`.
+
+**Phase 5a — `position_book.py`:** Paper-trade backtest engine. Seeds `cycle_layers` from Short List, resolves outcomes via yfinance at expiration, generates equity curve. Small portfolio result: +$434 / +0.76% (25 trades, 52% win rate). **New tools:** `seed_cycle_layers`, `resolve_cycle_outcomes`, `backtest_all`, `generate_backtest_report`.
+
+**Phase 5b — active monitoring:** `auto_resolve_expired` auto-closes past-expiration ACTIVE layers. `get_portfolio_performance` builds week-by-week equity curve with drawdown (denominator = cumulative invested, not peak P&L). **New tools:** `auto_resolve_expired`, `get_portfolio_performance`.
+
+**Migration M4 — `portfolio_type`:** Added `portfolio_type TEXT DEFAULT 'small'` column to `cycle_layers`. All queries updated. Small (+$434/+0.76%) and large (-$38k/-10.75%) portfolios now tracked independently.
+
+**Phase 6 — tool registration:** 18 new MCP tools + CLI commands wired. Total MCP tools: **50**.
+
+---
 
 ### 2026-04-26 — Phase 2: rule_catalog.py
 

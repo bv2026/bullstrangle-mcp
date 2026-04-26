@@ -1,226 +1,302 @@
-# BullStrangle Dry Run Runbook
+# BullStrangle Operator Runbook
 
-Date: 2026-04-23
-Audience: operator dry run
+Date: 2026-04-26
+Audience: operator — CLI-first reference for when Claude Desktop is unavailable
 
-## Purpose
+This runbook covers two scenarios:
+1. **Weekly Monitoring Runbook** — the recurring routine for the May 2026 validation cycle
+2. **New Week Runbook** — what to do when a new newsletter arrives
 
-Use this runbook to exercise the full workflow without treating the output as final production trading logic.
+All commands are PowerShell CLI. Run from `C:\work\bullstrangle-mcp`.
+If `bullstrangle` entry point is not available, substitute `python -m bullstrangle_mcp.cli`.
 
-This dry run is intended to validate:
+---
 
-- newsletter ingestion
-- OS workbook generation
-- refreshed OS workbook ingestion
-- positions ingestion
-- weekly aggregation
-- weekend decision generation
-- report output and diagnostics
+## Weekly Monitoring Runbook (May 2026 Cycle)
 
-## Current Dry Run Status
+### Monday Morning — ~10 minutes
 
-The system is ready for a workflow dry run.
+Run after market opens (or before reviewing anything).
 
-Current local capabilities:
+**Step 1 — Auto-resolve expired positions**
 
-- CLI implemented
-- MCP server implemented
-- newsletter ingestion implemented
-- OS workbook generation implemented
-- refreshed workbook ingestion implemented
-- positions ingestion implemented
-- weekly aggregation implemented
-- weekend decision generation implemented
-- decision diagnostics implemented
-- tests passing
-
-What is still provisional:
-
-- strategy score weights
-- final thresholds from the Master Document
-- executable DCA sizing
-- cash/buying-power-aware account deployment
-
-## Inputs
-
-Expected local inputs:
-
-- newsletter PDFs under `data/newsletters`
-- generated workbook templates under `outputs/workbooks`
-- refreshed OS workbooks under `data/os_uploads`
-- positions CSV under `data/positions/positions.csv`
-
-Canonical operator locations:
-
-- `data/newsletters` for newsletter PDFs
-- `data/positions/positions.csv` for positions
-- `outputs/workbooks` for MCP-generated Excel templates
-- `data/os_uploads` for Excel-refreshed live OS workbooks
-
-## Environment
-
-Open PowerShell in:
+Closes any cycle layers whose expiration date has passed, fetches yfinance closing prices, and records final P&L.
 
 ```powershell
-cd C:\work\bullstrangle-mcp
+bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type small
 ```
 
-Set Python:
+Expected output: lists which newsletter weeks were processed, which symbols closed, their outcome (BOTH_OTM / CALL_ASSIGNED / PUT_ASSIGNED), and P&L per position.
+If no positions expired: "No expired ACTIVE layers found" — this is normal midweek.
+
+**Step 2 — Exit monitoring report**
+
+Reviews all still-open positions for urgency triggers (DTE, strike proximity, earnings, extreme drop).
 
 ```powershell
-$py = 'C:\Users\vsbra\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --output outputs\reports\exit_report_small.md
 ```
 
-## Dry Run Checklist
+Review the report for:
+- `CLOSE_IMMEDIATELY` — act today
+- `EXIT_MONDAY` — close at open this week (DTE ≤ 7)
+- `REVIEW` — stock near a strike or earnings risk; watch closely
+- `HOLD` — no action needed
 
-### 1. Initialize And Confirm DB
+Offline version (skip live price fetch):
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db init-db
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db list-newsletters
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --no-price
 ```
 
-### 2. Ingest Newsletter PDFs
+**Step 3 — Quick performance check**
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-dir data\newsletters
+bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type small
 ```
 
-Confirm one target newsletter:
+Prints: equity curve by week, cumulative P&L, overall return %, win rate, max drawdown, open positions.
+
+---
+
+### When New Newsletter Arrives (Sunday Night / Monday)
+
+**Step 1 — Ingest the PDF**
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db show-newsletter 2026-04-17
+bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\newsletter.pdf
 ```
 
-### 3. Generate OS Workbook
+Confirm it landed:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-os-workbook 2026-04-17 --output-dir outputs\workbooks
+bullstrangle --db data\bullstrangle.db list-newsletters
 ```
 
-Expected workbook:
-
-```text
-outputs\workbooks\BullStrangle_OS_Live_2026-04-17.xlsx
-```
-
-### 4. Refresh Workbook In Excel
-
-1. Copy the workbook into `data\os_uploads`
-2. Open the copied file in Excel
-3. Refresh Option Samurai formulas
-4. Save the workbook
-
-Expected refreshed file:
-
-```text
-data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx
-```
-
-### 5. Ingest Refreshed OS Workbook
+**Step 2 — Generate OS workbook**
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-17.xlsx --trading-date 2026-04-23
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\workbooks
 ```
 
-Capture the returned `run_id`.
+File is auto-copied to `data\os_uploads`. Open it there in Excel.
 
-### 6. Generate Daily OS Report
+**Step 3 — Evaluate gates (can do without OS data)**
+
+Checks all 9 entry gates for every watchlist symbol:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db report-os-run 2 --output outputs\reports\2026-04-23\os_run_2.md
+bullstrangle --db data\bullstrangle.db evaluate-newsletter 2026-04-24
 ```
 
-Review:
-
-- missing/error rows
-- largest price deviations
-- largest credit deviations
-- strike changes
-
-### 7. Ingest Positions
+Generate and save the full gate report:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db ingest-positions data\positions\positions.csv
+bullstrangle --db data\bullstrangle.db gate-report 2026-04-24 --output outputs\reports\gate_report_2026-04-24.md
 ```
 
-Review:
+**Step 4 — Seed paper-trade positions (if deployment approved)**
 
-- account count
-- symbol count
-- bull-strangle-ready symbols
-
-### 8. Aggregate Weekly OS Data
+Only needed once per new newsletter week:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db aggregate-os-week 2026-04-17 --output outputs\reports\2026-04-23\os_week_2026-04-17.md
+bullstrangle --db data\bullstrangle.db seed-cycle-layers 2026-04-24 --portfolio-type small
+bullstrangle --db data\bullstrangle.db seed-cycle-layers 2026-04-24 --portfolio-type large
 ```
 
-Review:
+---
 
-- run count
-- invalid symbols
-- top price deviations
-- top credit deviations
+### Daily (Market Hours, Mon–Fri)
 
-### 9. Generate Weekend Decisions
+Refresh the OS workbook in Excel (enable Option Samurai add-in, refresh, save), then ingest:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-23 --output outputs\reports\2026-04-23\weekend_decisions_2026-04-17.md
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
 ```
 
-Review:
+Use the actual trading date for `--trading-date`.
+Capture the `run_id` from output for reporting.
 
-- preferred action counts
-- Bull Strangle counts
-- DCA counts
-- symbol-level reasons
-
-### 10. Inspect Diagnostics
-
-Use `--json` if you want the full payload:
+Generate the daily OS report:
 
 ```powershell
-& $py -m bullstrangle_mcp.cli --db data\bullstrangle.db generate-weekend-decisions 2026-04-17 --decision-date 2026-04-23 --json
+bullstrangle --db data\bullstrangle.db report-os-run 5 --output outputs\reports\os_run_5.md
 ```
 
-Look for:
+---
 
-- `selected_action`
-- `strategy_score`
-- `strategy_band`
-- `rules_passed_json`
-- `rules_failed_json`
-- `source_snapshot_json`
+### Weekend (Saturday / Sunday)
 
-## Dry Run Success Criteria
+**Step 1 — Aggregate the week's OS runs**
 
-The dry run is successful if:
+```powershell
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output outputs\reports\os_week_2026-04-24.md
+```
 
-- newsletter date resolves correctly
-- workbook generates correctly
-- refreshed workbook ingests without schema errors
-- daily report renders
-- positions import succeeds
-- weekly aggregation renders
-- weekend decisions render
-- diagnostics are populated on decision rows
+**Step 2 — Full backtest report**
 
-## Current Known-Good Example
+```powershell
+bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type small --output outputs\reports\backtest_small.md
+bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type large --output outputs\reports\backtest_large.md
+```
 
-April 17 local example currently produces:
+**Step 3 — Ingest updated positions**
 
-- Preferred actions: `BULL_STRANGLE 17`, `DCA 3`, `WATCH 4`, `SKIP 0`
-- Bull Strangle: `APPROVE 17`, `WATCH 4`, `SKIP 3`
-- DCA: `APPROVE 3`, `WATCH 4`, `SKIP 17`
+After exporting from broker:
 
-## Dry Run Caveat
+```powershell
+bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
+```
 
-Treat this as a workflow validation run, not final production trade approval.
+---
 
-The score/action framework is implemented, but final strategy calibration still depends on:
+## Full CLI Reference
 
-- Master Document rule extraction
-- more multi-day OS uploads
-- threshold tuning
-- DCA sizing rules
+### Database & Newsletters
+
+```powershell
+bullstrangle --db data\bullstrangle.db init-db
+bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\file.pdf
+bullstrangle --db data\bullstrangle.db ingest-pdf data\newsletters\file.pdf --force
+bullstrangle --db data\bullstrangle.db ingest-dir data\newsletters
+bullstrangle --db data\bullstrangle.db list-newsletters
+bullstrangle --db data\bullstrangle.db show-newsletter 2026-04-24
+bullstrangle --db data\bullstrangle.db symbol-history NTAP --newsletter-date 2026-04-24
+```
+
+### OS Workbook
+
+```powershell
+bullstrangle --db data\bullstrangle.db os-selectors 2026-04-24
+bullstrangle --db data\bullstrangle.db generate-os-workbook 2026-04-24 --output-dir outputs\workbooks
+bullstrangle --db data\bullstrangle.db ingest-os-workbook data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx --trading-date 2026-04-28
+bullstrangle --db data\bullstrangle.db list-os-runs --newsletter-date 2026-04-24
+bullstrangle --db data\bullstrangle.db report-os-run 5 --output outputs\reports\os_run_5.md
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24
+bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output outputs\reports\os_week_2026-04-24.md
+```
+
+### Rule Catalog
+
+```powershell
+bullstrangle --db data\bullstrangle.db list-rule-catalog
+bullstrangle --db data\bullstrangle.db list-rule-catalog --area exit
+bullstrangle --db data\bullstrangle.db list-rule-catalog --type hard_gate
+bullstrangle --db data\bullstrangle.db get-rule GATE-SS-001
+bullstrangle --db data\bullstrangle.db get-rule EXIT-001
+```
+
+### Gate Validation (Entry Engine)
+
+```powershell
+bullstrangle --db data\bullstrangle.db evaluate-entry NTAP --newsletter-date 2026-04-24
+bullstrangle --db data\bullstrangle.db evaluate-newsletter 2026-04-24
+bullstrangle --db data\bullstrangle.db validate-all
+bullstrangle --db data\bullstrangle.db gate-report 2026-04-24 --output outputs\reports\gate_report_2026-04-24.md
+bullstrangle --db data\bullstrangle.db list-entry-decisions
+bullstrangle --db data\bullstrangle.db list-entry-decisions --newsletter-date 2026-04-24
+```
+
+### Exit Monitoring
+
+```powershell
+bullstrangle --db data\bullstrangle.db evaluate-exit --layer-id 42
+bullstrangle --db data\bullstrangle.db evaluate-exit-batch
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --no-price
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type small --output outputs\reports\exit_report_small.md
+bullstrangle --db data\bullstrangle.db exit-report --portfolio-type large --output outputs\reports\exit_report_large.md
+bullstrangle --db data\bullstrangle.db list-exit-decisions
+```
+
+### Position Book & Backtest
+
+```powershell
+bullstrangle --db data\bullstrangle.db seed-cycle-layers 2026-04-24 --portfolio-type small
+bullstrangle --db data\bullstrangle.db seed-cycle-layers 2026-04-24 --portfolio-type large
+bullstrangle --db data\bullstrangle.db resolve-outcomes 2026-04-24
+bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type small
+bullstrangle --db data\bullstrangle.db auto-resolve --portfolio-type large
+bullstrangle --db data\bullstrangle.db backtest-all --portfolio-type small
+bullstrangle --db data\bullstrangle.db backtest-all --portfolio-type large
+bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type small
+bullstrangle --db data\bullstrangle.db portfolio-performance --portfolio-type large
+bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type small --output outputs\reports\backtest_small.md
+bullstrangle --db data\bullstrangle.db backtest-report --portfolio-type large --output outputs\reports\backtest_large.md
+```
+
+### Positions & Weekend Decisions
+
+```powershell
+bullstrangle --db data\bullstrangle.db ingest-positions data\positions\positions.csv
+bullstrangle --db data\bullstrangle.db generate-weekend-decisions 2026-04-24 --decision-date 2026-04-27 --output outputs\reports\weekend_2026-04-24.md
+```
+
+---
+
+## Exit Trigger Reference
+
+| Action | Meaning | What To Do |
+|--------|---------|-----------|
+| `CLOSE_IMMEDIATELY` | Earnings this week or extreme drop (>30%) | Close the position today |
+| `EXIT_MONDAY` | DTE ≤ 7 — expiring very soon | Close at open Monday |
+| `REVIEW` | Stock within 3% of a strike, or below put strike | Watch closely; consider closing |
+| `NEEDS_RESOLUTION` | DTE ≤ 0 — should have closed already | Run `auto-resolve` |
+| `HOLD` | No triggers fired | No action needed |
+
+---
+
+## DB Quick-Check
+
+```powershell
+python -c "
+import sqlite3
+conn = sqlite3.connect('data/bullstrangle.db')
+tables = [
+    'newsletters', 'cycle_layers', 'entry_decisions',
+    'exit_decisions', 'os_evaluation_runs',
+]
+for t in tables:
+    n = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+    print(f'{t:<35} {n}')
+print()
+rows = conn.execute(
+    'SELECT portfolio_type, status, COUNT(*) as n FROM cycle_layers '
+    'WHERE account_id = ? GROUP BY portfolio_type, status ORDER BY portfolio_type, status',
+    ('paper_trade',)
+).fetchall()
+for r in rows:
+    print(r[0], r[1], r[2])
+"
+```
+
+---
+
+## Current Baseline (2026-04-26)
+
+| Item | Value |
+|------|-------|
+| Newsletters ingested | 18 |
+| Strategy rules | 47 |
+| Small portfolio — closed trades | 25 |
+| Small portfolio — P&L | +$434 (+0.76%) |
+| Small portfolio — win rate | 52% |
+| Small portfolio — max drawdown | -4.1% |
+| Large portfolio — closed trades | 74 |
+| Large portfolio — P&L | -$38,408 (-10.75%) |
+| Large portfolio — win rate | 50% |
+| Large portfolio — max drawdown | -11.3% |
+| Open (small) | 8 positions — exp 2026-05-15 and 2026-05-22 |
+| Open (large) | 19 positions — exp 2026-05-15 and 2026-05-22 |
+
+---
+
+## Success Criteria For May Cycle
+
+The May 2026 validation cycle is successful if:
+
+- Gate engine continues to show 75%+ alignment with Short List on deployed weeks
+- Small portfolio maintains positive cumulative P&L through May expiration
+- Auto-resolve correctly closes all May-expiring positions without manual intervention
+- Exit report surfaces any REVIEW / EXIT_MONDAY triggers before they become problems
+- Large vs small comparison remains consistent (small outperforms large)
