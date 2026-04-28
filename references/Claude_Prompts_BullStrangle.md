@@ -1,7 +1,7 @@
 # Claude Prompts For BullStrangle
 
 Date: 2026-04-26
-Updated: 2026-04-27 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring; added prompts 56–63 for workflow commands and Phase 7 reports; added prompt 64 for tool-explicit WL Favorites; updated prompts 15–16 to name get_deep_analysis explicitly)
+Updated: 2026-04-27 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring; added prompts 56–63 for workflow commands and Phase 7 reports; added prompt 64 for tool-explicit WL Favorites; updated prompts 15–16 to name get_deep_analysis explicitly; full ambiguity and consistency pass — fixed prompts 1, 3, 20–23, 27, 28, 49, 50, 51, 54, 55)
 Audience: Claude Desktop operator
 
 Use these prompts after the BullStrangle MCP server is configured in Claude Desktop.
@@ -9,11 +9,13 @@ Use these prompts after the BullStrangle MCP server is configured in Claude Desk
 ## General Notes
 
 - Replace newsletter dates and symbol names when needed.
+- **All dates in the prompts below (e.g. `2026-04-24`, `2026-04-28`) are examples — replace with the current newsletter date and trading date before use.**
 - Use absolute dates, not relative wording ("2026-04-24" not "last Friday").
 - Tell Claude to use the BullStrangle MCP tools.
 - Ask for concise output when you want action-first summaries.
 - If Claude Desktop is unavailable, use the CLI fallback commands in `references/BullStrangle_Usage_Guide.md`.
 - **Tool specificity matters:** For WL Favorites narrative analysis (Darren's technical write-up, trade cost table, scenario returns), you **must** explicitly say "use the `get_deep_analysis` tool" — otherwise Claude may call `get_newsletter_by_date` or `get_watchlist`, which return only structured watchlist fields, not the narrative. This was a confirmed failure mode on 2026-04-27.
+- **v1 vs v3 engine:** Prompts 20–23 use the legacy v1 decision engine (`generate_weekend_decisions`). For actual trading decisions use the v3 gate engine prompts (32–37). Do not mix the two.
 
 ---
 
@@ -21,8 +23,10 @@ Use these prompts after the BullStrangle MCP server is configured in Claude Desk
 
 ## 1. Inspect Newsletter
 
+> ⚠️ **Tool note:** Use `get_newsletter_by_date` for the newsletter summary. Do not use `get_watchlist` alone — it lacks the market environment and short list sections.
+
 ```text
-Use the BullStrangle MCP tools and show me the ingested newsletter for 2026-04-24. Summarize the market environment, short list, and watchlist highlights.
+Use the BullStrangle MCP tools — call `get_newsletter_by_date` for date 2026-04-24 — and show me the ingested newsletter. Summarize the market environment, short list, and watchlist highlights.
 ```
 
 ## 2. Generate OS Workbook
@@ -32,6 +36,8 @@ Use the BullStrangle MCP tools to generate the Option Samurai workbook for newsl
 ```
 
 ## 3. Validate Refreshed Upload Before Ingest
+
+> ⚠️ **Superseded by Prompt 57.** Phase W added `daily-ingest` as the preferred ingest command; use Prompt 57 instead. This prompt asks Claude for a CLI command rather than calling an MCP tool, which is inconsistent with the rest of the workflow. Kept here for reference only.
 
 ```text
 Use the BullStrangle MCP workflow context and tell me the exact next command I should run to ingest the refreshed workbook for newsletter date 2026-04-24 using trading date 2026-04-28. Assume the refreshed file is under data\os_uploads.
@@ -149,6 +155,8 @@ Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter dat
 
 ## Weekend Decisions (v1 Legacy Engine)
 
+> ⚠️ **LEGACY — Do not use for live trading decisions.** Prompts 20–23 call `generate_weekend_decisions`, which is the v1 scoring engine (deprecated). The output uses a different scoring model than the v3 gate engine and is no longer the source of truth for deployment decisions. **For actual entry decisions, use the Gate Validation prompts (32–37).** These prompts remain here for historical comparison and backtest context only.
+
 ## 20. Weekend Decisions Summary
 
 ```text
@@ -198,7 +206,7 @@ Use the BullStrangle MCP tools to generate the weekly action plan for newsletter
 ## 27. Morning Standup Brief
 
 ```text
-Use the BullStrangle MCP tools to give me my morning trading standup. Check deployment approval, show active cycles with days to expiration, flag any cycles expiring this week, and tell me if there are any approved symbols from the latest decision run.
+Use the BullStrangle MCP tools to give me my morning trading standup. Check deployment approval, show active cycles with days to expiration, flag any cycles expiring this week, and tell me if there are any symbols that passed all 9 gates from the latest gate validation run (v3 entry engine — use list_entry_decisions, not generate_weekend_decisions).
 ```
 
 ## 28. Full Sunday Workflow In One Prompt
@@ -208,7 +216,7 @@ Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter da
 1. Check deployment approval status
 2. Get the watchlist and DCA candidates
 3. Get eligible symbols (APPROVE)
-4. Get WL Favorites deep analysis
+4. Get WL Favorites deep analysis — use the `get_deep_analysis` tool for date 2026-04-24; do not use get_watchlist or get_newsletter_by_date for this step
 5. Generate the weekly action plan
 Summarize each step and end with the complete action plan report.
 ```
@@ -355,6 +363,8 @@ Use the BullStrangle MCP tools to get portfolio performance for the small portfo
 
 ## 49. Monday Morning Full Check
 
+> ℹ️ **Phase W update:** This prompt predates the `daily-ingest` and `generate_daily_brief` workflow commands. For the current preferred Monday morning routine, use **Prompt 57** (daily-ingest) and **Prompt 59** (daily brief). This prompt remains useful for a manual override when you want to drive each step explicitly.
+
 ```text
 Use the BullStrangle MCP tools to run my Monday morning monitoring routine:
 1. Auto-resolve any expired positions for the small portfolio
@@ -364,6 +374,8 @@ Flag anything that needs action today and anything expiring this week.
 ```
 
 ## 50. Post-Newsletter Sunday Workflow
+
+> ℹ️ **Phase W update:** This prompt predates `weekend-setup` and `generate_daily_brief`. The current full Sunday workflow is **Prompt 63**, which includes `weekend-setup` as the first step. This prompt remains valid as a gate-and-performance-focused variant if you've already run weekend-setup separately.
 
 ```text
 Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-04-24:
@@ -379,7 +391,7 @@ Summarize each step and end with the key actions for the week.
 ## 51. End-Of-Week Performance Digest
 
 ```text
-Use the BullStrangle MCP tools to give me an end-of-week digest for the May cycle:
+Use the BullStrangle MCP tools to give me an end-of-week digest for the current expiration cycle:
 1. Auto-resolve any newly expired positions
 2. Show updated portfolio performance for the small portfolio (equity curve, P&L, win rate)
 3. List any positions still open and their expiration dates
@@ -414,13 +426,15 @@ Present as a one-page summary suitable for a weekly review.
 ## 54. Audit What Has Been Ingested
 
 ```text
-Use the BullStrangle MCP tools to audit what has been ingested. List all newsletters with their dates, whether OS workbooks have been run for each, and whether positions have been ingested. Tell me what is missing before I should trust the weekend decisions.
+Use the BullStrangle MCP tools to audit what has been ingested. List all newsletters with their dates, whether OS workbooks have been run for each, and whether positions have been ingested. Tell me what is missing before I should trust the gate decisions (v3 entry engine).
 ```
 
 ## 55. Ask For CLI Commands Only
 
+> ℹ️ **Phase W update:** The preferred Monday morning CLI commands are now `weekend-setup` (Sunday) and `daily-ingest` (Monday). The commands below are the manual equivalents if you need to run steps individually. See `references/BullStrangle_Usage_Guide.md` for the full CLI reference.
+
 ```text
-Using the BullStrangle workflow, give me only the PowerShell CLI commands I need to run today's Monday morning routine: auto-resolve expired positions, check exit status, and see the current portfolio performance. Use the small portfolio. No explanations — just the exact commands.
+Using the BullStrangle workflow, give me only the PowerShell CLI commands I need to run today's Monday morning routine: run daily-ingest for today's trading date, auto-resolve expired positions, check exit status, and see the current portfolio performance. Use the small portfolio. No explanations — just the exact commands.
 ```
 
 ---
