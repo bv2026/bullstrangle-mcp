@@ -1,7 +1,7 @@
 # Claude Prompts For BullStrangle
 
 Date: 2026-04-26
-Updated: 2026-04-26 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring; added prompts 56–63 for workflow commands and Phase 7 reports)
+Updated: 2026-04-27 (added prompts 35–55 for gate engine, exit monitoring, backtest, and May cycle monitoring; added prompts 56–63 for workflow commands and Phase 7 reports; added prompt 64 for tool-explicit WL Favorites; updated prompts 15–16 to name get_deep_analysis explicitly)
 Audience: Claude Desktop operator
 
 Use these prompts after the BullStrangle MCP server is configured in Claude Desktop.
@@ -13,6 +13,7 @@ Use these prompts after the BullStrangle MCP server is configured in Claude Desk
 - Tell Claude to use the BullStrangle MCP tools.
 - Ask for concise output when you want action-first summaries.
 - If Claude Desktop is unavailable, use the CLI fallback commands in `references/BullStrangle_Usage_Guide.md`.
+- **Tool specificity matters:** For WL Favorites narrative analysis (Darren's technical write-up, trade cost table, scenario returns), you **must** explicitly say "use the `get_deep_analysis` tool" — otherwise Claude may call `get_newsletter_by_date` or `get_watchlist`, which return only structured watchlist fields, not the narrative. This was a confirmed failure mode on 2026-04-27.
 
 ---
 
@@ -112,14 +113,18 @@ Use the BullStrangle MCP tools to get the symbols approved for bull strangle dep
 
 ## 15. Deep Dive on WL Favorites
 
+> ⚠️ **Tool note:** Claude must call `get_deep_analysis` for this prompt. If it calls `get_newsletter_by_date` or `get_watchlist` instead, it will not have Darren's narrative and will hallucinate a response. Say "using the `get_deep_analysis` tool" explicitly.
+
 ```text
-Use the BullStrangle MCP tools to get the WL Favorites deep analysis for newsletter date 2026-04-24. For each favorite, summarize Darren's technical assessment, the proposed trade structure (strikes, premiums, total investment, max gain %), and key risk factors.
+Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool — to get the WL Favorites deep analysis for newsletter date 2026-04-24. For each favorite, summarize Darren's technical assessment, the proposed trade structure (strikes, premiums, total investment, max gain %), and key risk factors.
 ```
 
 ## 16. Explain One WL Favorite
 
+> ⚠️ **Tool note:** Same as Prompt 15 — must use `get_deep_analysis`, not `get_newsletter_by_date`.
+
 ```text
-Use the BullStrangle MCP tools to get the WL Favorites deep analysis for newsletter date 2026-04-24, specifically for symbol NEE. Explain the proposed trade in plain English, including the total investment required, what max gain looks like, and the main risks.
+Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool — to get the WL Favorites deep analysis for newsletter date 2026-04-24 for symbol NEE only. Explain the proposed trade in plain English, including the total investment required, what max gain looks like, and the main risks.
 ```
 
 ## 17. Search Newsletter Commentary
@@ -481,4 +486,25 @@ Use the BullStrangle MCP tools to run the complete Sunday workflow for newslette
 3. Generate the weekly action plan — include gate summary, active positions, and DCA candidates
 4. Generate the exit report for the small portfolio and flag anything needing attention this week
 End with a priority-ordered action list for Monday.
+```
+
+---
+
+## Tool-Explicit Prompts (Disambiguation Variants)
+
+These prompts are identical in intent to earlier prompts but name the MCP tool explicitly. Use these when Claude has previously called the wrong tool or you want to prevent ambiguity.
+
+## 64. WL Favorites Deep Analysis — Tool Explicit
+
+> **Why this exists:** On 2026-04-27 Claude called `get_newsletter_by_date` instead of `get_deep_analysis` for a WL Favorites request, then reported that "the deep analysis is not included in the structured data" — which was false. The data was there; the wrong tool was called. This prompt prevents that by naming the tool.
+
+```text
+Use the BullStrangle MCP tools — call the `get_deep_analysis` tool — to retrieve Darren's WL Favorites deep analysis for newsletter date 2026-04-24. Do not call get_newsletter_by_date or get_watchlist for this request; those tools do not contain the narrative analysis.
+
+For each WL Favorite returned, provide:
+1. Darren's technical assessment (chart pattern, momentum, key levels, catalyst)
+2. Proposed trade structure: legs, strikes, premiums, total investment, max gain $, max gain %
+3. Scenario return table if included (price at expiration vs. P&L)
+4. Key risk factors (assignment levels, downside, earnings, sector risk)
+5. Overall conviction signal: is this a confirmed breakout or a conditional/speculative setup?
 ```
