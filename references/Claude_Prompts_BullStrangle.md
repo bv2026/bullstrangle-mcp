@@ -9,8 +9,8 @@ Use these prompts after the BullStrangle MCP server is configured in Claude Desk
 ## General Notes
 
 - Replace newsletter dates and symbol names when needed.
-- **All dates in the prompts below (e.g. `2026-04-24`, `2026-04-28`) are examples — replace with the current newsletter date and trading date before use.**
-- Use absolute dates, not relative wording ("2026-04-24" not "last Friday").
+- **All dates in the prompts below (e.g. `2026-05-01`, `2026-04-28`) are examples — replace with the current newsletter date and trading date before use.**
+- Use absolute dates, not relative wording ("2026-05-01" not "last Friday").
 - Tell Claude to use the BullStrangle MCP tools.
 - Ask for concise output when you want action-first summaries.
 - If Claude Desktop is unavailable, use the CLI fallback commands in `references/BullStrangle_Usage_Guide.md`.
@@ -26,13 +26,13 @@ Use these prompts after the BullStrangle MCP server is configured in Claude Desk
 > ⚠️ **Tool note:** Use `get_newsletter_by_date` for the newsletter summary. Do not use `get_watchlist` alone — it lacks the market environment and short list sections.
 
 ```text
-Use the BullStrangle MCP tools — call `get_newsletter_by_date` for date 2026-04-24 — and show me the ingested newsletter. Summarize the market environment, short list, and watchlist highlights.
+Use the BullStrangle MCP tools — call `get_newsletter_by_date` for date 2026-05-01 — and show me the ingested newsletter. Summarize the market environment, short list, and watchlist highlights.
 ```
 
 ## 2. Generate OS Workbook
 
 ```text
-Use the BullStrangle MCP tools to generate the Option Samurai workbook for newsletter date 2026-04-24 and tell me the output file path plus the selector values being used.
+Use the BullStrangle MCP tools to generate the Option Samurai workbook for newsletter date 2026-05-01 and tell me the output file path plus the selector values being used.
 ```
 
 ## 3. Validate Refreshed Upload Before Ingest
@@ -40,25 +40,25 @@ Use the BullStrangle MCP tools to generate the Option Samurai workbook for newsl
 > ⚠️ **Superseded by Prompt 57.** Phase W added `daily-ingest` as the preferred ingest command; use Prompt 57 instead. This prompt asks Claude for a CLI command rather than calling an MCP tool, which is inconsistent with the rest of the workflow. Kept here for reference only.
 
 ```text
-Use the BullStrangle MCP workflow context and tell me the exact next command I should run to ingest the refreshed workbook for newsletter date 2026-04-24 using trading date 2026-04-28. Assume the refreshed file is under data\os_uploads.
+Use the BullStrangle MCP workflow context and tell me the exact next command I should run to ingest the refreshed workbook for newsletter date 2026-05-01 using trading date 2026-04-28. Assume the refreshed file is under data\os_uploads.
 ```
 
 ## 4. Ingest OS Workbook And Summarize
 
 ```text
-Use the BullStrangle MCP tools to ingest the refreshed OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx for trading date 2026-04-28, then summarize the returned run id and ingestion status.
+Use the BullStrangle MCP tools to ingest the refreshed OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-05-01.xlsx for trading date 2026-04-28, then summarize the returned run id and ingestion status.
 ```
 
 ## 5. Daily OS Report
 
 ```text
-Use the BullStrangle MCP tools to report the latest OS run for newsletter date 2026-04-24 and give me the most important missing values, largest price deviations, and largest credit deviations.
+Use the BullStrangle MCP tools to report the latest OS run for newsletter date 2026-05-01 and give me the most important missing values, largest price deviations, and largest credit deviations.
 ```
 
 ## 6. Weekly Aggregation
 
 ```text
-Use the BullStrangle MCP tools to aggregate the OS week for newsletter date 2026-04-24 and give me a concise summary of invalid symbols, top price deviations, and top credit deviations.
+Use the BullStrangle MCP tools to aggregate the OS week for newsletter date 2026-05-01 and give me a concise summary of invalid symbols, top price deviations, and top credit deviations.
 ```
 
 ## 7. Ingest Positions
@@ -102,19 +102,19 @@ Use the BullStrangle MCP tools to get scaling guidance for this week. Explain wh
 ## 12. Get Full Watchlist
 
 ```text
-Use the BullStrangle MCP tools to get the full watchlist for newsletter date 2026-04-24. Show symbol, price, IV, sector, strikes, bull strangle return %, and flag any WL Favorites.
+Use the BullStrangle MCP tools to get the full watchlist for newsletter date 2026-05-01. Show symbol, price, IV, sector, strikes, bull strangle return %, and flag any WL Favorites.
 ```
 
 ## 13. Get DCA Candidates
 
 ```text
-Use the BullStrangle MCP tools to get the DCA candidates for newsletter date 2026-04-24. Show rank, symbol, portfolio type, price, IV, and sector. Separate large-portfolio and small-portfolio lists.
+Use the BullStrangle MCP tools to get the DCA candidates for newsletter date 2026-05-01. Show rank, symbol, portfolio type, price, IV, and sector. Separate large-portfolio and small-portfolio lists.
 ```
 
 ## 14. Get Eligible Symbols (Approved Only)
 
 ```text
-Use the BullStrangle MCP tools to get the symbols approved for bull strangle deployment from newsletter date 2026-04-24. Show rank, symbol, live credit, price deviation, selected account, shares held, and shares to 100.
+Use the BullStrangle MCP tools to get the symbols approved for bull strangle deployment from newsletter date 2026-05-01. Show rank, symbol, live credit, price deviation, selected account, shares held, and shares to 100.
 ```
 
 ## 15. Deep Dive on WL Favorites
@@ -122,7 +122,7 @@ Use the BullStrangle MCP tools to get the symbols approved for bull strangle dep
 > ⚠️ **Tool note:** Claude must call `get_deep_analysis` for this prompt. If it calls `get_newsletter_by_date` or `get_watchlist` instead, it will not have Darren's narrative and will hallucinate a response. Say "using the `get_deep_analysis` tool" explicitly.
 
 ```text
-Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool — to get the WL Favorites deep analysis for newsletter date 2026-04-24. For each favorite, summarize Darren's technical assessment, the proposed trade structure (strikes, premiums, total investment, max gain %), and key risk factors.
+Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool — to get the WL Favorites deep analysis for newsletter date 2026-05-01. For each favorite, summarize Darren's technical assessment, the proposed trade structure (strikes, premiums, total investment, max gain %), and key risk factors.
 ```
 
 ## 16. Explain One WL Favorite
@@ -130,7 +130,7 @@ Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool —
 > ⚠️ **Tool note:** Same as Prompt 15 — must use `get_deep_analysis`, not `get_newsletter_by_date`.
 
 ```text
-Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool — to get the WL Favorites deep analysis for newsletter date 2026-04-24 for symbol NEE only. Explain the proposed trade in plain English, including the total investment required, what max gain looks like, and the main risks.
+Use the BullStrangle MCP tools — specifically the `get_deep_analysis` tool — to get the WL Favorites deep analysis for newsletter date 2026-05-01 for symbol NEE only. Explain the proposed trade in plain English, including the total investment required, what max gain looks like, and the main risks.
 ```
 
 ## 17. Search Newsletter Commentary
@@ -148,7 +148,7 @@ Use the BullStrangle MCP tools to search newsletter commentary for "breadth" and
 ## 19. Symbol History
 
 ```text
-Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter date 2026-04-24. Tell me whether it is new, when it first appeared, and which prior newsletters included it.
+Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter date 2026-05-01. Tell me whether it is new, when it first appeared, and which prior newsletters included it.
 ```
 
 ---
@@ -160,25 +160,25 @@ Use the BullStrangle MCP tools to get symbol history for NTAP for newsletter dat
 ## 20. Weekend Decisions Summary
 
 ```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 with decision date 2026-04-27. Summarize preferred actions, Bull Strangle approvals, DCA approvals, and the main watch or skip reasons.
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-05-01 with decision date 2026-04-27. Summarize preferred actions, Bull Strangle approvals, DCA approvals, and the main watch or skip reasons.
 ```
 
 ## 21. Focus On Bull Strangle Only
 
 ```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and show me only the Bull Strangle APPROVE names ranked by priority with score, selected account, and reason.
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-05-01 and show me only the Bull Strangle APPROVE names ranked by priority with score, selected account, and reason.
 ```
 
 ## 22. Focus On DCA Only
 
 ```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and show me only the DCA APPROVE names with selected account, account shares, shares to 100, and reason.
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-05-01 and show me only the DCA APPROVE names with selected account, account shares, shares to 100, and reason.
 ```
 
 ## 23. Explain One Symbol
 
 ```text
-Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-04-24 and explain symbol NTAP in plain English. Include selected action, strategy score, rule passes, rule fails, and the final Bull Strangle and DCA outcomes.
+Use the BullStrangle MCP tools to generate weekend decisions for newsletter date 2026-05-01 and explain symbol NTAP in plain English. Include selected action, strategy score, rule passes, rule fails, and the final Bull Strangle and DCA outcomes.
 ```
 
 ---
@@ -188,7 +188,7 @@ Use the BullStrangle MCP tools to generate weekend decisions for newsletter date
 ## 24. Generate Sunday Action Plan
 
 ```text
-Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24. Show the full report including market environment status, re-entry criteria table, DCA candidates, strangle eligibility summary, watchlist analysis, WL Favorites deep dives, action items for this week and next, and key reminders.
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-05-01. Show the full report including market environment status, re-entry criteria table, DCA candidates, strangle eligibility summary, watchlist analysis, WL Favorites deep dives, action items for this week and next, and key reminders.
 ```
 
 ## 25. Generate Daily Brief
@@ -200,7 +200,7 @@ Use the BullStrangle MCP tools to generate today's daily brief. Show the current
 ## 26. Generate And Save Action Plan
 
 ```text
-Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and save it to outputs\reports\2026-04-24\action_plan.md. Confirm the output path when done.
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-05-01 and save it to outputs\reports\2026-05-01\action_plan.md. Confirm the output path when done.
 ```
 
 ## 27. Morning Standup Brief
@@ -212,11 +212,11 @@ Use the BullStrangle MCP tools to give me my morning trading standup. Check depl
 ## 28. Full Sunday Workflow In One Prompt
 
 ```text
-Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-04-24:
+Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-05-01:
 1. Check deployment approval status
 2. Get the watchlist and DCA candidates
 3. Get eligible symbols (APPROVE)
-4. Get WL Favorites deep analysis — use the `get_deep_analysis` tool for date 2026-04-24; do not use get_watchlist or get_newsletter_by_date for this step
+4. Get WL Favorites deep analysis — use the `get_deep_analysis` tool for date 2026-05-01; do not use get_watchlist or get_newsletter_by_date for this step
 5. Generate the weekly action plan
 Summarize each step and end with the complete action plan report.
 ```
@@ -250,25 +250,25 @@ Use the BullStrangle MCP tools to list all rules in the exit area of the rule ca
 ## 32. Validate This Week's Newsletter
 
 ```text
-Use the BullStrangle MCP tools to evaluate all 9 entry gates for every watchlist symbol in newsletter 2026-04-24. Show which symbols passed all gates, which failed and at which gate, and what percentage align with Darren's Short List.
+Use the BullStrangle MCP tools to evaluate all 9 entry gates for every watchlist symbol in newsletter 2026-05-01. Show which symbols passed all gates, which failed and at which gate, and what percentage align with Darren's Short List.
 ```
 
 ## 33. Validate One Symbol
 
 ```text
-Use the BullStrangle MCP tools to evaluate the 9 entry gates for symbol NTAP against newsletter 2026-04-24. Show each gate result — gate number, rule cited, actual value, threshold, pass/fail, and reason if failed. End with the overall decision.
+Use the BullStrangle MCP tools to evaluate the 9 entry gates for symbol NTAP against newsletter 2026-05-01. Show each gate result — gate number, rule cited, actual value, threshold, pass/fail, and reason if failed. End with the overall decision.
 ```
 
 ## 34. Gate Report (Full — Save To File)
 
 ```text
-Use the BullStrangle MCP tools to generate the full gate validation report for newsletter date 2026-04-24 and save it to outputs\reports\gate_report_2026-04-24.md. Include gate pass/fail table, alignment with Short List, and key observations.
+Use the BullStrangle MCP tools to generate the full gate validation report for newsletter date 2026-05-01 and save it to outputs\reports\gate_report_2026-05-01.md. Include gate pass/fail table, alignment with Short List, and key observations.
 ```
 
 ## 35. Explain Why A Symbol Was Rejected
 
 ```text
-Use the BullStrangle MCP tools to evaluate entry gates for symbol AAL against newsletter 2026-04-24 and explain in plain English exactly why it did or did not pass. Which gate failed, what was the actual value, what was the threshold, and what would need to change for it to pass?
+Use the BullStrangle MCP tools to evaluate entry gates for symbol AAL against newsletter 2026-05-01 and explain in plain English exactly why it did or did not pass. Which gate failed, what was the actual value, what was the threshold, and what would need to change for it to pass?
 ```
 
 ## 36. Gate Alignment Summary Across All Newsletters
@@ -378,7 +378,7 @@ Flag anything that needs action today and anything expiring this week.
 > ℹ️ **Phase W update:** This prompt predates `weekend-setup` and `generate_daily_brief`. The current full Sunday workflow is **Prompt 63**, which includes `weekend-setup` as the first step. This prompt remains valid as a gate-and-performance-focused variant if you've already run weekend-setup separately.
 
 ```text
-Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-04-24:
+Use the BullStrangle MCP tools to run the full Sunday workflow for newsletter date 2026-05-01:
 1. Check deployment approval and market environment
 2. Evaluate all 9 entry gates for this week's watchlist
 3. Show gate alignment with the Short List
@@ -444,19 +444,19 @@ Using the BullStrangle workflow, give me only the PowerShell CLI commands I need
 ## 56. Sunday Setup — New Newsletter
 
 ```text
-Use the BullStrangle MCP tools to run the Sunday setup for newsletter date 2026-04-24. The PDF is at data\newsletters\newsletter.pdf. Run weekend-setup, confirm the workbook was generated and copied to data\os_uploads, and tell me the output path so I know what to open in Excel.
+Use the BullStrangle MCP tools to run the Sunday setup for newsletter date 2026-05-01. The PDF is at data\newsletters\newsletter.pdf. Run weekend-setup, confirm the workbook was generated and copied to data\os_uploads, and tell me the output path so I know what to open in Excel.
 ```
 
 ## 57. Daily Ingest + Report
 
 ```text
-Use the BullStrangle MCP tools to run the daily ingest for newsletter date 2026-04-24 with trading date 2026-04-28. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report. Give me the run_id, row count, and the report file path.
+Use the BullStrangle MCP tools to run the daily ingest for newsletter date 2026-05-01 with trading date 2026-04-28. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report. Give me the run_id, row count, and the report file path.
 ```
 
 ## 58. Recover From Stale Workbook
 
 ```text
-Use the BullStrangle MCP tools to ingest the OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-04-24.xlsx for trading date 2026-04-28 with regenerate-if-stale enabled. Explain whether the workbook was stale, whether a fresh one was generated, and what run_id was produced.
+Use the BullStrangle MCP tools to ingest the OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-05-01.xlsx for trading date 2026-04-28 with regenerate-if-stale enabled. Explain whether the workbook was stale, whether a fresh one was generated, and what run_id was produced.
 ```
 
 ---
@@ -482,19 +482,19 @@ Use the BullStrangle MCP tools to generate the daily brief and focus only on exi
 ## 61. Weekly Action Plan — Gate Summary Focus
 
 ```text
-Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and focus on the gate validation summary. Show: how many symbols passed all gates, how many are on WATCH, how many were skipped. Then show the Short List alignment percentage and which gate is causing the most rejections.
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-05-01 and focus on the gate validation summary. Show: how many symbols passed all gates, how many are on WATCH, how many were skipped. Then show the Short List alignment percentage and which gate is causing the most rejections.
 ```
 
 ## 62. Weekly Action Plan — Active Positions Focus
 
 ```text
-Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-04-24 and focus on the active positions section. For each open position show: symbol, expiration, days to expiration, call strike, put strike, credit received, and capital at risk. Flag any positions expiring in the next 10 days.
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-05-01 and focus on the active positions section. For each open position show: symbol, expiration, days to expiration, call strike, put strike, credit received, and capital at risk. Flag any positions expiring in the next 10 days.
 ```
 
 ## 63. Full Sunday Workflow — Action Plan + Gate Report + Exit Check
 
 ```text
-Use the BullStrangle MCP tools to run the complete Sunday workflow for newsletter date 2026-04-24:
+Use the BullStrangle MCP tools to run the complete Sunday workflow for newsletter date 2026-05-01:
 1. Run weekend-setup to confirm the workbook is ready
 2. Generate the gate report and show the Short List alignment summary
 3. Generate the weekly action plan — include gate summary, active positions, and DCA candidates
@@ -513,7 +513,7 @@ These prompts are identical in intent to earlier prompts but name the MCP tool e
 > **Why this exists:** On 2026-04-27 Claude called `get_newsletter_by_date` instead of `get_deep_analysis` for a WL Favorites request, then reported that "the deep analysis is not included in the structured data" — which was false. The data was there; the wrong tool was called. This prompt prevents that by naming the tool.
 
 ```text
-Use the BullStrangle MCP tools — call the `get_deep_analysis` tool — to retrieve Darren's WL Favorites deep analysis for newsletter date 2026-04-24. Do not call get_newsletter_by_date or get_watchlist for this request; those tools do not contain the narrative analysis.
+Use the BullStrangle MCP tools — call the `get_deep_analysis` tool — to retrieve Darren's WL Favorites deep analysis for newsletter date 2026-05-01. Do not call get_newsletter_by_date or get_watchlist for this request; those tools do not contain the narrative analysis.
 
 For each WL Favorite returned, provide:
 1. Darren's technical assessment (chart pattern, momentum, key levels, catalyst)
