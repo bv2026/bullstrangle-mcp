@@ -14,6 +14,7 @@ Use these prompts after the BullStrangle MCP server is configured in Claude Desk
 - Tell Claude to use the BullStrangle MCP tools.
 - Ask for concise output when you want action-first summaries.
 - If Claude Desktop is unavailable, use the CLI fallback commands in `references/BullStrangle_Usage_Guide.md`.
+- **OS workflow guardrail:** For OS ingest, daily ingest, daily OS reports, and weekly OS aggregation, require a data receipt from the tool result. The response must include the returned `run_id`, `newsletter_date`, `trading_date`, `row_count` / `symbol_count`, `status`, and `report_path` when applicable. If any requested receipt field is missing, Claude must say `TOOL RESULT INCOMPLETE` and stop. If the tool fails or is unavailable, Claude must say `TOOL FAILED` and stop. Do not allow inferred row counts, invented run ids, or narrative-only success summaries.
 - **Tool specificity matters:** For WL Favorites narrative analysis (Darren's technical write-up, trade cost table, scenario returns), you **must** explicitly say "use the `get_deep_analysis` tool" — otherwise Claude may call `get_newsletter_by_date` or `get_watchlist`, which return only structured watchlist fields, not the narrative. This was a confirmed failure mode on 2026-04-27.
 - **v1 vs v3 engine:** Prompts 20–23 use the legacy v1 decision engine (`generate_weekend_decisions`). For actual trading decisions use the v3 gate engine prompts (32–37). Do not mix the two.
 
@@ -46,19 +47,19 @@ Use the BullStrangle MCP workflow context and tell me the exact next command I s
 ## 4. Ingest OS Workbook And Summarize
 
 ```text
-Use the BullStrangle MCP tools to ingest the refreshed OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-05-01.xlsx for trading date 2026-04-28, then summarize the returned run id and ingestion status.
+Use the BullStrangle MCP tools to ingest the refreshed OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-05-01.xlsx for trading date 2026-04-28. Return only the tool receipt fields: run_id, newsletter_date, trading_date, row_count, status, uploaded_path. If any field is missing, say TOOL RESULT INCOMPLETE and stop. If the tool fails, say TOOL FAILED and stop. Do not infer row counts or invent run ids.
 ```
 
 ## 5. Daily OS Report
 
 ```text
-Use the BullStrangle MCP tools to report the latest OS run for newsletter date 2026-05-01 and give me the most important missing values, largest price deviations, and largest credit deviations.
+Use the BullStrangle MCP tools to report the latest OS run for newsletter date 2026-05-01. First show the run receipt from the tool result: run_id, newsletter_date, trading_date, row_count, status. Then give the most important missing values, largest price deviations, and largest credit deviations. If the receipt is missing, say TOOL RESULT INCOMPLETE and stop. Do not infer values.
 ```
 
 ## 6. Weekly Aggregation
 
 ```text
-Use the BullStrangle MCP tools to aggregate the OS week for newsletter date 2026-05-01 and give me a concise summary of invalid symbols, top price deviations, and top credit deviations.
+Use the BullStrangle MCP tools to aggregate the OS week for newsletter date 2026-05-01. First print the provenance fields from the tool result: newsletter_id, newsletter_date, expiration_date, run_count, run_ids, symbol_count, valid_symbol_count, invalid_symbol_count. Then give a concise summary of invalid symbols, top price deviations, and top credit deviations. If the tool fails, say TOOL FAILED and stop. If any provenance field is missing, say TOOL RESULT INCOMPLETE and stop. Do not infer symbols, run counts, or deviations.
 ```
 
 ## 7. Ingest Positions
@@ -450,13 +451,13 @@ Use the BullStrangle MCP tools to run the Sunday setup for newsletter date 2026-
 ## 57. Daily Ingest + Report
 
 ```text
-Use the BullStrangle MCP tools to run the daily ingest for newsletter date 2026-05-01 with trading date 2026-04-28. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report. Give me the run_id, row count, and the report file path.
+Use the BullStrangle MCP tools to run the daily ingest for newsletter date 2026-05-01 with trading date 2026-04-28. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report. Return only these receipt fields from the tool result: run_id, newsletter_date, trading_date, row_count, status, report_path. If any field is missing, say TOOL RESULT INCOMPLETE and stop. If the tool fails, say TOOL FAILED and stop. Do not infer row counts or invent run ids.
 ```
 
 ## 58. Recover From Stale Workbook
 
 ```text
-Use the BullStrangle MCP tools to ingest the OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-05-01.xlsx for trading date 2026-04-28 with regenerate-if-stale enabled. Explain whether the workbook was stale, whether a fresh one was generated, and what run_id was produced.
+Use the BullStrangle MCP tools to ingest the OS workbook at data\os_uploads\BullStrangle_OS_Live_2026-05-01.xlsx for trading date 2026-04-28 with regenerate-if-stale enabled. Return the tool receipt fields: run_id, newsletter_date, trading_date, row_count, status, uploaded_path, stale_recovered or equivalent recovery indicator if present. Then explain whether the workbook was stale only if that field exists in the tool result. If any required receipt field is missing, say TOOL RESULT INCOMPLETE and stop. If the tool fails, say TOOL FAILED and stop. Do not infer stale recovery or row counts.
 ```
 
 ---

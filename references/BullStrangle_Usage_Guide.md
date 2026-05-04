@@ -399,6 +399,8 @@ bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 20
 
 Returns `run_id` and `report_path`. The report is saved to `outputs\reports\os_run_<run_id>_<date>.md`.
 
+**Claude Desktop receipt guardrail:** When asking Claude to run OS ingest, daily ingest, OS run reports, or weekly OS aggregation, require exact receipt fields from the tool result. For daily ingest, require `run_id`, `newsletter_date`, `trading_date`, `row_count`, `status`, and `report_path`. For weekly aggregation, require `newsletter_id`, `newsletter_date`, `run_count`, `run_ids`, `symbol_count`, `valid_symbol_count`, and `invalid_symbol_count`. If a field is missing, Claude should answer `TOOL RESULT INCOMPLETE` and stop. If the tool fails, Claude should answer `TOOL FAILED` and stop. Do not accept inferred row counts, invented run ids, or narrative-only success summaries.
+
 If Excel did not save cached formula values, open the workbook, refresh, save again, and re-run `daily-ingest`.
 
 **Manual fallback (split steps):**
