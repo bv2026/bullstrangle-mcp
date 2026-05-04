@@ -105,7 +105,36 @@ If any provenance field is missing, say TOOL RESULT INCOMPLETE and stop.
 Do not infer symbols, run counts, or deviations.
 ```
 
-## 4. Morning Daily Brief
+## 4. What Changed Since Last OS Run
+
+Use this after at least two OS runs exist for the same newsletter week.
+
+```text
+Use the BullStrangle MCP tools to compare the latest OS run against the prior OS run for newsletter date <NEWSLETTER_DATE>.
+
+First print these provenance fields:
+- newsletter_date
+- latest_run_id
+- latest_trading_date
+- prior_run_id
+- prior_trading_date
+- latest_row_count
+- prior_row_count
+- compared_symbol_count
+
+Then summarize:
+- symbols with the largest stock price changes
+- symbols with the largest total credit changes
+- symbols that moved into or out of any warning/deviation bucket
+- any missing or invalid symbols in either run
+
+If the tool does not provide a direct comparison tool, use the available OS report/aggregation tool results for the latest and prior runs only. If there are fewer than two runs for the newsletter, say NOT ENOUGH RUNS and stop.
+If the tool fails, say TOOL FAILED and stop.
+If any provenance field is missing, say TOOL RESULT INCOMPLETE and stop.
+Do not infer prior run values, symbol changes, or deviation changes.
+```
+
+## 5. Morning Daily Brief
 
 Use this after daily ingest, or anytime you want the morning monitoring view.
 
@@ -131,7 +160,7 @@ Do not mix gate-approved symbols into the open positions list. Keep these as sep
 - Gate-approved symbols: candidates from the latest newsletter that passed all gates but are not necessarily open positions.
 ```
 
-## 5. Exit Monitoring Only
+## 6. Exit Monitoring Only
 
 Use this when you only care about open positions and exit triggers.
 
@@ -155,7 +184,7 @@ Do not invent positions or alerts.
 Note that live/current prices can change between runs. Do not reuse prices from earlier reports unless the tool explicitly returns them for this run.
 ```
 
-## 6. Market Intelligence Brief
+## 7. Market Intelligence Brief
 
 Use this when you want the market regime and deployment context without a full action plan.
 
@@ -178,7 +207,7 @@ If the tool fails, say TOOL FAILED and stop.
 Do not infer market values. Use only MCP tool results.
 ```
 
-## 7. Sunday Setup For New Newsletter
+## 8. Sunday Setup For New Newsletter
 
 Use this once a new newsletter PDF has been saved.
 
@@ -198,7 +227,7 @@ If the tool fails, say TOOL FAILED and stop.
 Do not infer watchlist count or workbook paths.
 ```
 
-## 8. Sunday Weekly Action Plan
+## 9. Sunday Weekly Action Plan
 
 Use this after weekend setup and gate evaluation are ready.
 
@@ -228,8 +257,9 @@ Do not invent eligible symbols, DCA candidates, or WL Favorites.
 1. Refresh and save Excel workbook.
 2. Run Prompt 1: Daily Ingest After Excel Refresh.
 3. Run Prompt 2: Daily OS Run Report.
-4. Run Prompt 4: Morning Daily Brief.
-5. If positions are near expiration or alerts appear, run Prompt 5: Exit Monitoring Only.
-6. Run Prompt 6: Market Intelligence Brief when you want the market/deployment context.
-7. At week review time, run Prompt 3: Weekly OS Aggregation.
+4. Run Prompt 4: What Changed Since Last OS Run when at least two runs exist.
+5. Run Prompt 5: Morning Daily Brief.
+6. If positions are near expiration or alerts appear, run Prompt 6: Exit Monitoring Only.
+7. Run Prompt 7: Market Intelligence Brief when you want the market/deployment context.
+8. At week review time, run Prompt 3: Weekly OS Aggregation.
 
