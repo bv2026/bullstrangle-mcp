@@ -471,13 +471,13 @@ Use the BullStrangle MCP tools to generate today's daily brief. Show:
 1. Any exit alerts that need action today (CLOSE_IMMEDIATELY, EXIT_MONDAY, REVIEW)
 2. All open positions with days to expiration
 3. Gate status for the latest newsletter week
-Start with the most urgent items.
+Start with the most urgent items. Do not mix gate-approved symbols into the open positions list. Keep open positions and gate-approved candidates in separate sections.
 ```
 
 ## 60. Daily Brief — Exits Only
 
 ```text
-Use the BullStrangle MCP tools to generate the daily brief and focus only on exit alerts. For each alert show: symbol, expiration, DTE, recommended action, and the trigger that fired. Sort by urgency: CLOSE_IMMEDIATELY first, then EXIT_MONDAY, then REVIEW.
+Use the BullStrangle MCP tools to generate the daily brief and focus only on exit alerts. Include the report date and generated timestamp or price-as-of timestamp if the tool provides one. For each alert show: symbol, expiration, DTE, recommended action, and the trigger that fired. Sort by urgency: CLOSE_IMMEDIATELY first, then EXIT_MONDAY, then REVIEW. Note that live/current prices can change between runs; do not reuse prices from earlier reports unless the tool explicitly returns them for this run.
 ```
 
 ## 61. Weekly Action Plan — Gate Summary Focus

@@ -107,6 +107,9 @@ Then show:
 
 If the tool fails, say TOOL FAILED and stop.
 Do not invent active positions or alerts.
+Do not mix gate-approved symbols into the open positions list. Keep these as separate sections:
+- Open positions: only currently active/open cycle layers.
+- Gate-approved symbols: candidates from the latest newsletter that passed all gates but are not necessarily open positions.
 ```
 
 ## 5. Exit Monitoring Only
@@ -118,6 +121,7 @@ Use the BullStrangle MCP tools to generate the exit monitoring report for all AC
 
 Return:
 - report date
+- generated timestamp or price-as-of timestamp, if provided by the tool
 - active layer count
 - alerts grouped by urgency
 - symbol
@@ -129,6 +133,7 @@ Return:
 If the tool fails, say TOOL FAILED and stop.
 If no active positions exist, say that explicitly.
 Do not invent positions or alerts.
+Note that live/current prices can change between runs. Do not reuse prices from earlier reports unless the tool explicitly returns them for this run.
 ```
 
 ## 6. Sunday Setup For New Newsletter
