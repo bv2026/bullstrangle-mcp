@@ -5,6 +5,25 @@ Audience: Claude Desktop operator
 
 Use this short guide for the normal BullStrangle daily workflow. The full prompt library still exists in `references/Claude_Prompts_BullStrangle.md`, but this file is the simpler daily cockpit.
 
+## Fill These In First
+
+Before copying a prompt, replace the placeholders:
+
+- `<NEWSLETTER_DATE>`: Friday newsletter date, for example `2026-05-01`
+- `<TRADING_DATE>`: today's trading date, for example `2026-05-04`
+- `<NEWSLETTER_PDF>`: saved newsletter PDF path, for example `data\newsletters\newsletter.pdf`
+
+Optional copy/paste context block:
+
+```text
+Context:
+NEWSLETTER_DATE = <NEWSLETTER_DATE>
+TRADING_DATE = <TRADING_DATE>
+NEWSLETTER_PDF = <NEWSLETTER_PDF>
+
+Use those values for all placeholders in the prompt below.
+```
+
 ## Non-Negotiable Guardrail
 
 For OS ingest, daily ingest, OS run reports, weekly OS aggregation, and any report that depends on fresh tool data:
@@ -20,7 +39,7 @@ For OS ingest, daily ingest, OS run reports, weekly OS aggregation, and any repo
 Use this after opening the Option Samurai workbook in Excel, refreshing formulas, and saving the workbook.
 
 ```text
-Use the BullStrangle MCP tools to run the daily ingest for newsletter date 2026-05-01 with trading date 2026-05-04. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report.
+Use the BullStrangle MCP tools to run the daily ingest for newsletter date <NEWSLETTER_DATE> with trading date <TRADING_DATE>. Find the refreshed workbook in data\os_uploads, ingest it, and generate the OS run report.
 
 Return only these receipt fields from the tool result:
 - run_id
@@ -40,7 +59,7 @@ Do not infer row counts or invent run ids.
 Use this when you want the latest run quality check and the important deviations.
 
 ```text
-Use the BullStrangle MCP tools to report the latest OS run for newsletter date 2026-05-01.
+Use the BullStrangle MCP tools to report the latest OS run for newsletter date <NEWSLETTER_DATE>.
 
 First show the run receipt from the tool result:
 - run_id
@@ -64,7 +83,7 @@ Do not infer values.
 Use this after at least one OS workbook has been ingested for the week.
 
 ```text
-Use the BullStrangle MCP tools to aggregate the OS week for newsletter date 2026-05-01.
+Use the BullStrangle MCP tools to aggregate the OS week for newsletter date <NEWSLETTER_DATE>.
 
 First print these provenance fields from the tool result:
 - newsletter_id
@@ -136,12 +155,35 @@ Do not invent positions or alerts.
 Note that live/current prices can change between runs. Do not reuse prices from earlier reports unless the tool explicitly returns them for this run.
 ```
 
-## 6. Sunday Setup For New Newsletter
+## 6. Market Intelligence Brief
+
+Use this when you want the market regime and deployment context without a full action plan.
+
+```text
+Use the BullStrangle MCP tools to generate a market intelligence brief for the latest newsletter week.
+
+Show:
+- current market status
+- deployment approval status
+- hybrid score
+- consecutive weeks met
+- VIX
+- breadth
+- S&P vs 200-DMA
+- scaling phase
+- recommended position count
+- any change from the prior newsletter week
+
+If the tool fails, say TOOL FAILED and stop.
+Do not infer market values. Use only MCP tool results.
+```
+
+## 7. Sunday Setup For New Newsletter
 
 Use this once a new newsletter PDF has been saved.
 
 ```text
-Use the BullStrangle MCP tools to run weekend setup for newsletter date 2026-05-01. The PDF is at data\newsletters\newsletter.pdf.
+Use the BullStrangle MCP tools to run weekend setup for newsletter date <NEWSLETTER_DATE>. The PDF is at <NEWSLETTER_PDF>.
 
 Return only:
 - newsletter_id
@@ -156,12 +198,12 @@ If the tool fails, say TOOL FAILED and stop.
 Do not infer watchlist count or workbook paths.
 ```
 
-## 7. Sunday Weekly Action Plan
+## 8. Sunday Weekly Action Plan
 
 Use this after weekend setup and gate evaluation are ready.
 
 ```text
-Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date 2026-05-01.
+Use the BullStrangle MCP tools to generate the weekly action plan for newsletter date <NEWSLETTER_DATE>.
 
 Start with:
 - newsletter_date
@@ -188,5 +230,6 @@ Do not invent eligible symbols, DCA candidates, or WL Favorites.
 3. Run Prompt 2: Daily OS Run Report.
 4. Run Prompt 4: Morning Daily Brief.
 5. If positions are near expiration or alerts appear, run Prompt 5: Exit Monitoring Only.
-6. At week review time, run Prompt 3: Weekly OS Aggregation.
+6. Run Prompt 6: Market Intelligence Brief when you want the market/deployment context.
+7. At week review time, run Prompt 3: Weekly OS Aggregation.
 
