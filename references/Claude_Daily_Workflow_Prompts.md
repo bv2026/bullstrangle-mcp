@@ -11,6 +11,8 @@ Before copying a prompt, replace the placeholders:
 
 - `<NEWSLETTER_DATE>`: Friday newsletter date, for example `2026-05-01`
 - `<TRADING_DATE>`: today's trading date, for example `2026-05-04`
+- `<PRIOR_NEWSLETTER_DATE>`: prior Friday newsletter date, for example `2026-04-24`
+- `<PRIOR_TRADING_DATE>`: prior cycle trading date, for example `2026-04-28`
 - `<NEWSLETTER_PDF>`: saved newsletter PDF path, for example `data\newsletters\newsletter.pdf`
 
 Optional copy/paste context block:
@@ -19,6 +21,8 @@ Optional copy/paste context block:
 Context:
 NEWSLETTER_DATE = <NEWSLETTER_DATE>
 TRADING_DATE = <TRADING_DATE>
+PRIOR_NEWSLETTER_DATE = <PRIOR_NEWSLETTER_DATE>
+PRIOR_TRADING_DATE = <PRIOR_TRADING_DATE>
 NEWSLETTER_PDF = <NEWSLETTER_PDF>
 
 Use those values for all placeholders in the prompt below.
@@ -105,12 +109,18 @@ If any provenance field is missing, say TOOL RESULT INCOMPLETE and stop.
 Do not infer symbols, run counts, or deviations.
 ```
 
-## 4. What Changed Since Last OS Run
+## 4A. Same Newsletter: Compare Trading Dates
 
 Use this after at least two OS runs exist for the same newsletter week.
 
 ```text
-Use the BullStrangle MCP tools to compare the latest OS run against the prior OS run for newsletter date <NEWSLETTER_DATE>.
+Use the BullStrangle MCP tools to compare OS runs for the same newsletter date, <NEWSLETTER_DATE>.
+
+Compare:
+- latest/current trading date: <TRADING_DATE>
+- prior trading date for the same newsletter: the immediately previous OS run for <NEWSLETTER_DATE>
+
+Important: compare only OS runs from the same newsletter date, <NEWSLETTER_DATE>. "Prior run" means the previous run_id for the same newsletter_date, not the prior newsletter week. Do not compare <NEWSLETTER_DATE> against any other newsletter date. If the only available comparison is a different newsletter date, say WRONG COMPARISON and stop.
 
 First print these provenance fields:
 - newsletter_date
@@ -124,7 +134,7 @@ First print these provenance fields:
 
 Then summarize:
 - symbols with the largest stock price changes
-- symbols with the largest total credit changes
+- symbols with the largest total credit changes, comparing actual total_credit between the two runs
 - symbols that moved into or out of any warning/deviation bucket
 - any missing or invalid symbols in either run
 
@@ -132,6 +142,56 @@ If the tool does not provide a direct comparison tool, use the available OS repo
 If the tool fails, say TOOL FAILED and stop.
 If any provenance field is missing, say TOOL RESULT INCOMPLETE and stop.
 Do not infer prior run values, symbol changes, or deviation changes.
+```
+
+## 4B. Cross Newsletter: Compare Current Cycle Vs Prior Cycle
+
+Use this when you want to compare the latest OS run from the current newsletter cycle against a specific OS run from the prior newsletter cycle.
+
+```text
+Use the BullStrangle MCP tools to compare these two OS runs:
+
+Current cycle:
+- newsletter_date: <NEWSLETTER_DATE>
+- trading_date: <TRADING_DATE>
+
+Prior cycle:
+- newsletter_date: <PRIOR_NEWSLETTER_DATE>
+- trading_date: <PRIOR_TRADING_DATE>
+
+Important: this is a cross-newsletter comparison. Do not substitute the prior run from the same newsletter. Do not choose dates automatically. If either exact newsletter_date + trading_date pair is not found, say RUN NOT FOUND and stop.
+
+First print these provenance fields:
+- current_newsletter_date
+- current_trading_date
+- current_run_id
+- current_row_count
+- prior_newsletter_date
+- prior_trading_date
+- prior_run_id
+- prior_row_count
+- overlapping_symbol_count
+- overlapping_symbols
+- current_only_symbol_count
+- current_only_symbols
+- prior_only_symbol_count
+- prior_only_symbols
+
+Then summarize:
+- overlapping symbols with the largest stock price changes, sorted by absolute percentage change descending
+- overlapping symbols with the largest total credit changes, comparing actual total_credit between the two runs and sorted by absolute dollar change descending
+- symbols newly added in the current cycle
+- symbols dropped from the prior cycle
+- warning/deviation bucket changes for overlapping symbols
+- run-level missing/error symbols in either exact run
+- weekly aggregate invalid symbols only if explicitly requested; keep these separate from run-level missing/error rows
+
+If the tool fails, say TOOL FAILED and stop.
+If any provenance field is missing, say TOOL RESULT INCOMPLETE and stop.
+Before summarizing, verify that each count exactly matches the number of symbols in its printed list. If any count/list mismatch exists, say SYMBOL SET MISMATCH and stop.
+Do not put the same symbol in more than one of these lists: overlapping_symbols, current_only_symbols, prior_only_symbols. If a symbol appears in more than one list, say SYMBOL SET MISMATCH and stop.
+Do not derive run-level missing/error status from weekly aggregate invalid-symbol counts. Weekly invalid symbols can reflect missing days across multiple runs and are not the same as missing/error rows in the exact compared run.
+Do not infer run ids, row counts, symbol overlap, or changes.
 ```
 
 ## 5. Morning Daily Brief
@@ -257,7 +317,7 @@ Do not invent eligible symbols, DCA candidates, or WL Favorites.
 1. Refresh and save Excel workbook.
 2. Run Prompt 1: Daily Ingest After Excel Refresh.
 3. Run Prompt 2: Daily OS Run Report.
-4. Run Prompt 4: What Changed Since Last OS Run when at least two runs exist.
+4. Run Prompt 4A for same-newsletter trading-date changes, or Prompt 4B for current cycle vs prior cycle.
 5. Run Prompt 5: Morning Daily Brief.
 6. If positions are near expiration or alerts appear, run Prompt 6: Exit Monitoring Only.
 7. Run Prompt 7: Market Intelligence Brief when you want the market/deployment context.
