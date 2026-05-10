@@ -84,6 +84,20 @@ def get_today() -> str:
     return date.today().isoformat()
 
 
+def latest_run_id(nl_date: str) -> str | None:
+    import sqlite3
+    db_path = BASE_DIR / DB
+    if not db_path.exists():
+        return None
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT id FROM os_evaluation_runs WHERE newsletter_date = ? ORDER BY trading_date DESC, id DESC LIMIT 1",
+        (nl_date,),
+    ).fetchone()
+    conn.close()
+    return str(row[0]) if row else None
+
+
 def newsletter_exists(nl_date: str) -> bool:
     import sqlite3
     db_path = BASE_DIR / DB
@@ -206,11 +220,14 @@ def menu_daily():
                 nl_date = prompt_date("Newsletter date", friday)
                 run_cmd(["evaluate-entry", sym, nl_date])
         elif choice == 5:
-            run_id = input("  Run ID: ").strip()
-            if run_id:
-                out = save_path(today, f"os_run_{run_id}", daily=True)
-                args = ["report-os-run", run_id, "--output", out]
-                run_cmd(args)
+            nl_date = prompt_date("Newsletter date", friday)
+            rid = latest_run_id(nl_date)
+            if not rid:
+                print(f"  No OS runs found for {nl_date}.")
+                continue
+            print(f"  Latest run ID: {rid}")
+            out = save_path(today, f"os_run_{rid}", daily=True)
+            run_cmd(["report-os-run", rid, "--output", out])
         elif choice == 6:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
             out = save_path(today, f"exit_{ptype}", daily=True)
