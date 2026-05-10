@@ -157,13 +157,13 @@ def menu_weekly():
                 args += ["--output", out]
             run_cmd(args)
         elif choice == 3:
-            out = prompt_save(nl_date, "weekly_action_plan")
+            out = prompt_save(nl_date, "action_plan")
             args = ["weekly-action-plan", nl_date]
             if out:
                 args += ["--output", out]
             run_cmd(args)
         elif choice == 4:
-            out = prompt_save(nl_date, "os_weekly_aggregation")
+            out = prompt_save(nl_date, "os_weekly")
             args = ["aggregate-os-week", nl_date]
             if out:
                 args += ["--output", out]
@@ -222,7 +222,7 @@ def menu_daily():
                 run_cmd(args)
         elif choice == 5:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
-            out = prompt_save(today, f"exit_report_{ptype}", daily=True)
+            out = prompt_save(today, f"exit_{ptype}", daily=True)
             args = ["exit-report", "--portfolio-type", ptype]
             if out:
                 args += ["--output", out]
