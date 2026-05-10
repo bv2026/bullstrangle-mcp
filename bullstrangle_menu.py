@@ -117,6 +117,12 @@ def menu_daily_workflow():
             run_cmd(["daily-brief"])
         elif choice == 2:
             nl_date = prompt_date("Newsletter date", friday)
+            workbook = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
+            if not workbook.exists():
+                print(f"  Workbook not found: {workbook}")
+                print(f"  Run Weekend Setup first, then refresh in Excel and save.")
+                continue
+            print(f"  Workbook: {workbook}")
             td = prompt_date("Trading date", today)
             run_cmd(["daily-ingest", nl_date, "--trading-date", td])
         elif choice == 3:
@@ -147,16 +153,14 @@ def menu_weekend_workflow():
                 print(f"  Newsletter {nl_date} already ingested — skipping PDF.")
                 args = ["weekend-setup", nl_date]
             else:
-                default_pdf = find_newsletter_pdf(nl_date)
-                if default_pdf:
-                    print(f"  Found: {default_pdf}")
-                    pdf = input(f"  PDF path [{default_pdf}]: ").strip() or str(default_pdf)
+                pdf = find_newsletter_pdf(nl_date)
+                if pdf:
+                    print(f"  Found PDF: {pdf}")
+                    args = ["weekend-setup", nl_date, "--pdf", str(pdf)]
                 else:
-                    pdf = input("  PDF path: ").strip()
-                if not pdf:
-                    print("  PDF is required for a new newsletter. Aborting.")
+                    print(f"  No PDF found in data\\newsletters for {nl_date}.")
+                    print(f"  Drop the PDF there and retry.")
                     continue
-                args = ["weekend-setup", nl_date, "--pdf", pdf]
             run_cmd(args)
         elif choice == 2:
             nl_date = prompt_date("Newsletter date", friday)
@@ -290,10 +294,14 @@ def menu_os_workbook():
             nl_date = prompt_date("Newsletter date", friday)
             run_cmd(["generate-os-workbook", nl_date])
         elif choice == 2:
-            path = input("  Workbook path: ").strip()
+            nl_date = prompt_date("Newsletter date", friday)
+            path = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
+            if not path.exists():
+                print(f"  Workbook not found: {path}")
+                continue
+            print(f"  Workbook: {path}")
             td = prompt_date("Trading date", get_today())
-            if path:
-                run_cmd(["ingest-os-workbook", path, "--trading-date", td, "--regenerate-if-stale"])
+            run_cmd(["ingest-os-workbook", str(path), "--trading-date", td, "--regenerate-if-stale"])
         elif choice == 3:
             nl_date = prompt_date("Newsletter date", friday)
             run_cmd(["os-selectors", nl_date])
