@@ -279,7 +279,7 @@ def menu_daily():
             if sym:
                 nl_date = prompt_date("Newsletter date", friday)
                 run_cmd(["evaluate-entry", sym, nl_date],
-                        report=save_path(today, f"gate_{sym.lower()}", daily=True))
+                        report=save_path(nl_date, f"gate_{sym.lower()}"))
         elif choice == 5:
             nl_date = prompt_date("Newsletter date", friday)
             rid = latest_run_id(nl_date)
@@ -348,52 +348,52 @@ def menu_maintenance():
         ])
         if choice == 0:
             return
-        today = get_today()
+        friday = get_friday()
         if choice == 1:
             run_cmd_table(["list-newsletters"], [
                 "newsletter_id", "publication_date", "watchlist_count",
                 "market_status", "hybrid_score", "deployment_approved",
-            ], report=save_path(today, "newsletters", daily=True))
+            ], report=save_path(friday, "newsletters"))
         elif choice == 2:
             ref = input("  Newsletter id or date: ").strip()
             if ref:
                 run_cmd(["show-newsletter", ref],
-                        report=save_path(today, f"newsletter_{ref}", daily=True))
+                        report=save_path(friday, f"newsletter_{ref}"))
         elif choice == 3:
             sym = input("  Symbol: ").strip().upper()
             if sym:
+                nl_date = prompt_date("Newsletter date", friday)
                 run_cmd(["symbol-history", sym],
-                        report=save_path(today, f"symbol_{sym.lower()}", daily=True))
+                        report=save_path(nl_date, f"symbol_{sym.lower()}"))
         elif choice == 4:
             run_cmd_table(["list-rule-catalog"], [
                 "rule_id", "area", "gate_label", "short_description",
-            ], report=save_path(today, "rules", daily=True))
+            ])
         elif choice == 5:
             area = input("  Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula): ").strip()
             if area:
                 run_cmd_table(["list-rule-catalog", "--area", area], [
                     "rule_id", "gate_label", "short_description",
-                ], report=save_path(today, f"rules_{area}", daily=True))
+                ])
         elif choice == 6:
             rule_id = input("  Rule ID (e.g. GATE-SS-001): ").strip()
             if rule_id:
-                run_cmd(["get-rule", rule_id],
-                        report=save_path(today, f"rule_{rule_id.lower()}", daily=True))
+                run_cmd(["get-rule", rule_id])
         elif choice == 7:
-            nl_date = prompt_date("Newsletter date (blank=all)", get_friday())
+            nl_date = prompt_date("Newsletter date (blank=all)", friday)
             args = ["list-entry-decisions"]
             if nl_date:
                 args += ["--newsletter-date", nl_date]
             run_cmd_table(args, [
                 "symbol", "newsletter_date", "decision_type", "decision_date",
-            ], report=save_path(today, "entry_decisions", daily=True))
+            ], report=save_path(nl_date or friday, "entry_decisions"))
         elif choice == 8:
             run_cmd_table(["list-exit-decisions"], [
                 "symbol", "action", "trigger", "expiration_date", "evaluated_at",
-            ], report=save_path(today, "exit_decisions", daily=True))
+            ], report=save_path(get_today(), "exit_decisions", daily=True))
         elif choice == 9:
             run_cmd(["validate-all"],
-                    report=save_path(today, "validate_all", daily=True))
+                    report=save_path(friday, "validate_all"))
         elif choice == 10:
             run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
         elif choice == 11:
