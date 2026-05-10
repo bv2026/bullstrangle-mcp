@@ -162,8 +162,7 @@ def menu_data():
         print("\n╔══ DATA & INGESTION ══╗")
         choice = prompt_choice([
             "List Newsletters",
-            "Ingest Newsletter PDF",
-            "Ingest All PDFs in Directory",
+            "Ingest All PDFs in Directory (bulk)",
             "Ingest Positions CSV",
             "Symbol History",
             "Show Newsletter Details",
@@ -174,24 +173,20 @@ def menu_data():
         if choice == 1:
             run_cmd(["list-newsletters"])
         elif choice == 2:
-            pdf = input("  PDF path: ").strip()
-            if pdf:
-                run_cmd(["ingest-pdf", pdf])
-        elif choice == 3:
             d = input("  Directory [data\\newsletters]: ").strip() or "data\\newsletters"
             run_cmd(["ingest-dir", d])
-        elif choice == 4:
+        elif choice == 3:
             csv = input("  CSV path [data\\positions\\positions.csv]: ").strip() or "data\\positions\\positions.csv"
             run_cmd(["ingest-positions", csv])
-        elif choice == 5:
+        elif choice == 4:
             sym = input("  Symbol: ").strip().upper()
             if sym:
                 run_cmd(["symbol-history", sym])
-        elif choice == 6:
+        elif choice == 5:
             ref = input("  Newsletter id or date: ").strip()
             if ref:
                 run_cmd(["show-newsletter", ref])
-        elif choice == 7:
+        elif choice == 6:
             print()
             subprocess.run(
                 [sys.executable, "-c", """
