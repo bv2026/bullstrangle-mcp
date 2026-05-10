@@ -91,7 +91,7 @@ def latest_run_id(nl_date: str) -> str | None:
         return None
     conn = sqlite3.connect(str(db_path))
     row = conn.execute(
-        "SELECT id FROM os_evaluation_runs WHERE newsletter_date = ? ORDER BY trading_date DESC, id DESC LIMIT 1",
+        "SELECT run_id FROM os_evaluation_runs WHERE newsletter_date = ? ORDER BY trading_date DESC, run_id DESC LIMIT 1",
         (nl_date,),
     ).fetchone()
     conn.close()
