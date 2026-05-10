@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from datetime import date, timedelta
@@ -355,6 +356,7 @@ def menu_maintenance():
             "Validate All Newsletters (gate alignment)",
             "Ingest Positions CSV",
             "Bulk Re-Ingest All PDFs",
+            "Backup Database",
             "DB Status (row counts)",
         ])
         if choice == 0:
@@ -411,6 +413,25 @@ def menu_maintenance():
         elif choice == 11:
             run_cmd(["ingest-dir", "data\\newsletters"])
         elif choice == 12:
+            db_path = BASE_DIR / DB
+            backup_dir = BASE_DIR / "data" / "backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            ts = date.today().isoformat()
+            dest = backup_dir / f"bullstrangle_{ts}.db"
+            if dest.exists():
+                confirm = input(f"  {dest.name} already exists. Overwrite? [y/N]: ").strip().lower()
+                if confirm not in ("y", "yes"):
+                    print("  Skipped.")
+                    continue
+            shutil.copy2(str(db_path), str(dest))
+            size_mb = dest.stat().st_size / (1024 * 1024)
+            print(f"  Backed up to: {dest} ({size_mb:.1f} MB)")
+            existing = sorted(backup_dir.glob("bullstrangle_*.db"))
+            if existing:
+                print(f"  Backups on disk: {len(existing)}")
+                for b in existing:
+                    print(f"    {b.name}  ({b.stat().st_size / (1024*1024):.1f} MB)")
+        elif choice == 13:
             print()
             subprocess.run(
                 [sys.executable, "-c", """
