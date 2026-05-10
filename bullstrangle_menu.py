@@ -66,6 +66,37 @@ def get_today() -> str:
     return date.today().isoformat()
 
 
+def newsletter_exists(nl_date: str) -> bool:
+    import sqlite3
+    db_path = BASE_DIR / DB
+    if not db_path.exists():
+        return False
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT 1 FROM newsletters WHERE publication_date = ?", (nl_date,)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def find_newsletter_pdf(nl_date: str) -> Path | None:
+    nl_dir = BASE_DIR / "data" / "newsletters"
+    if not nl_dir.exists():
+        return None
+    from datetime import datetime
+    try:
+        d = datetime.strptime(nl_date, "%Y-%m-%d")
+    except ValueError:
+        return None
+    month_name = d.strftime("%B")
+    day = d.day
+    for p in sorted(nl_dir.glob("*.pdf"), reverse=True):
+        name_lower = p.name.lower()
+        if month_name.lower() in name_lower and str(day) in name_lower:
+            return p
+    return None
+
+
 # ─── MENU HANDLERS ───────────────────────────────────────────────────────────
 
 
@@ -111,10 +142,21 @@ def menu_weekend_workflow():
             return
         if choice == 1:
             nl_date = prompt_date("Newsletter date", friday)
-            pdf = input("  PDF path (Enter to skip if already ingested): ").strip()
-            args = ["weekend-setup", nl_date]
-            if pdf:
-                args += ["--pdf", pdf]
+            already_ingested = newsletter_exists(nl_date)
+            if already_ingested:
+                print(f"  Newsletter {nl_date} already ingested — skipping PDF.")
+                args = ["weekend-setup", nl_date]
+            else:
+                default_pdf = find_newsletter_pdf(nl_date)
+                if default_pdf:
+                    print(f"  Found: {default_pdf}")
+                    pdf = input(f"  PDF path [{default_pdf}]: ").strip() or str(default_pdf)
+                else:
+                    pdf = input("  PDF path: ").strip()
+                if not pdf:
+                    print("  PDF is required for a new newsletter. Aborting.")
+                    continue
+                args = ["weekend-setup", nl_date, "--pdf", pdf]
             run_cmd(args)
         elif choice == 2:
             nl_date = prompt_date("Newsletter date", friday)
