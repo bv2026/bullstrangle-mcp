@@ -105,6 +105,13 @@ def run_cmd_table(
             print(output[:3000])
 
 
+def prompt_required(label: str) -> str:
+    val = input(f"  {label}: ").strip()
+    if not val:
+        print("  Skipped — no value entered.")
+    return val
+
+
 def prompt_date(label: str, default: str | None = None) -> str:
     hint = f" [{default}]" if default else ""
     val = input(f"  {label}{hint}: ").strip()
@@ -278,8 +285,9 @@ def menu_daily():
             args = ["daily-brief", "--output", out]
             run_cmd(args)
         elif choice == 4:
-            sym = input("  Symbol: ").strip().upper()
+            sym = prompt_required("Symbol")
             if sym:
+                sym = sym.upper()
                 nl_date = prompt_date("Newsletter date", friday)
                 run_cmd(["evaluate-entry", sym, nl_date],
                         report=save_path(nl_date, f"gate_{sym.lower()}"))
@@ -358,13 +366,14 @@ def menu_maintenance():
                 "market_status", "hybrid_score", "deployment_approved",
             ], report=save_path(friday, "newsletters"))
         elif choice == 2:
-            ref = input("  Newsletter id or date: ").strip()
+            ref = prompt_required("Newsletter id or date")
             if ref:
                 run_cmd(["show-newsletter", ref],
                         report=save_path(friday, f"newsletter_{ref}"))
         elif choice == 3:
-            sym = input("  Symbol: ").strip().upper()
+            sym = prompt_required("Symbol")
             if sym:
+                sym = sym.upper()
                 nl_date = prompt_date("Newsletter date", friday)
                 run_cmd(["symbol-history", sym],
                         report=save_path(nl_date, f"symbol_{sym.lower()}"))
@@ -373,13 +382,13 @@ def menu_maintenance():
                 "rule_id", "area", "gate_label", "short_description",
             ])
         elif choice == 5:
-            area = input("  Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula): ").strip()
+            area = prompt_required("Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula)")
             if area:
                 run_cmd_table(["list-rule-catalog", "--area", area], [
                     "rule_id", "gate_label", "short_description",
                 ])
         elif choice == 6:
-            rule_id = input("  Rule ID (e.g. GATE-SS-001): ").strip()
+            rule_id = prompt_required("Rule ID (e.g. GATE-SS-001)")
             if rule_id:
                 run_cmd(["get-rule", rule_id])
         elif choice == 7:
