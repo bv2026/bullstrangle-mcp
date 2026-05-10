@@ -1,6 +1,6 @@
 # BullStrangle MCP Usage Guide
 
-Date: 2026-04-26
+Date: 2026-05-10
 Audience: local operator workflow
 
 ---
@@ -39,7 +39,8 @@ data\bullstrangle.db
 | Positions CSV | `data\positions\positions.csv` |
 | Generated OS workbook templates | `outputs\workbooks` |
 | Refreshed OS workbooks for ingest | `data\os_uploads` |
-| Generated reports | `outputs\reports\YYYY-MM-DD` |
+| Weekly reports (menu CLI) | `data\reports\weekly\{newsletter-date}\` |
+| Daily reports (menu CLI) | `data\reports\daily\{trading-date}\` |
 
 Operator rules:
 - `outputs\workbooks` is template output only — never edit or save over these files.
@@ -175,10 +176,100 @@ bullstrangle --db data\bullstrangle.db aggregate-os-week 2026-04-24 --output out
 
 ---
 
+## Offline Menu CLI
+
+**Use when Claude Desktop is unavailable (e.g., weekly usage limits exhausted).**
+
+```powershell
+python bullstrangle_menu.py
+```
+
+The menu replicates the full MCP workflow with auto-detection of newsletter dates, PDF paths, workbook locations, and latest OS run IDs. All reports save automatically as markdown.
+
+### Menu Structure
+
+```
+MAIN MENU
+├── 1. Weekly Workflow
+│   ├── 1. Ingest Newsletter + Generate Workbook
+│   ├── 2. Market Brief
+│   ├── 3. Weekly Action Plan
+│   ├── 4. OS Weekly Aggregation (end of week)
+│   └── 5. Weekend Decisions (BS + DCA)
+├── 2. Daily Workflow
+│   ├── 1. Ingest Refreshed Workbook
+│   ├── 2. Evaluate Newsletter + Gate Report
+│   ├── 3. Daily Brief (exit alerts, positions, status)
+│   ├── 4. Evaluate Single Symbol (gate check)
+│   ├── 5. OS Run Report
+│   ├── 6. Exit Report (detailed)
+│   └── 7. Auto-Resolve Expired
+├── 3. Portfolio & Backtest
+│   ├── 1. Portfolio Performance
+│   ├── 2. Backtest Report
+│   ├── 3. Backtest All (seed + resolve all)
+│   ├── 4. Seed Cycle Layers (single week)
+│   └── 5. Resolve Outcomes (single week)
+└── 4. Maintenance & Lookup
+    ├── 1. List Newsletters
+    ├── 2. Show Newsletter Details
+    ├── 3. Symbol History
+    ├── 4. Strategy Rules (list all)         — console only, no report
+    ├── 5. Strategy Rules (by area)          — console only, no report
+    ├── 6. Get Single Rule                   — console only, no report
+    ├── 7. List Entry Decisions
+    ├── 8. List Exit Decisions
+    ├── 9. Validate All Newsletters
+    ├── 10. Ingest Positions CSV             — action, no report
+    ├── 11. Bulk Re-Ingest All PDFs          — action, no report
+    └── 12. DB Status (row counts)           — console only, no report
+```
+
+### Report Output Locations
+
+Reports save under `data\reports\` with two directory structures:
+
+| Type | Path | Used by |
+|------|------|---------|
+| Weekly | `data\reports\weekly\{newsletter-date}\{name}.md` | Weekly workflow, entry decisions, validate-all, portfolio, symbol history |
+| Daily | `data\reports\daily\{trading-date}\{name}.md` | Daily workflow (gate report, daily brief, OS run, exit), exit decisions |
+
+Standard report filenames: `market_brief`, `action_plan`, `os_weekly`, `weekend_decisions`, `gate_report`, `daily_brief`, `os_run_{id}`, `exit_small`, `exit_large`, `backtest_small`, `backtest_large`, `performance_small`, `performance_large`, `newsletters`, `entry_decisions`, `exit_decisions`, `validate_all`, `gate_{symbol}`, `symbol_{symbol}`.
+
+### Smart Defaults
+
+- **Newsletter date** defaults to the most recent Friday
+- **Trading date** defaults to today
+- **Newsletter PDF** auto-detected by matching month + day in `data\newsletters\*.pdf`
+- **OS workbook** auto-detected at `data\os_uploads\BullStrangle_OS_Live_{date}.xlsx`
+- **Latest run ID** auto-queried from the database (no manual entry needed)
+- **Already ingested** newsletters skip the PDF prompt automatically
+- **JSON lookups** formatted as aligned tables on screen
+- **Failed commands** show a one-line error, skip report save
+
+### Typical Sunday Session
+
+```
+1 → 1 (Ingest Newsletter + Generate Workbook)
+1 → 2 (Market Brief)
+1 → 3 (Weekly Action Plan)
+1 → 5 (Weekend Decisions)
+```
+
+### Typical Daily Session
+
+```
+2 → 1 (Ingest Refreshed Workbook)
+2 → 2 (Evaluate Newsletter + Gate Report)
+2 → 3 (Daily Brief)
+2 → 5 (OS Run Report)
+```
+
+---
+
 ## CLI Fallback Reference
 
-**Use this section if Claude Desktop is unavailable due to usage limits.**
-All monitoring tasks can be performed from PowerShell alone.
+**Direct CLI commands — use these if you prefer raw commands over the menu.**
 
 ### Workflow Commands (preferred)
 
@@ -192,13 +283,11 @@ bullstrangle --db data\bullstrangle.db weekend-setup 2026-04-24
 # Daily: ingest refreshed workbook + generate report
 bullstrangle --db data\bullstrangle.db daily-ingest 2026-04-24 --trading-date 2026-04-28
 
-# Sunday action plan (gate summary, active positions, DCA, WL Favorites)
-bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24
-bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output outputs\reports\action_plan_2026-04-24.md
+# Sunday action plan
+bullstrangle --db data\bullstrangle.db weekly-action-plan 2026-04-24 --output data\reports\weekly\2026-04-24\action_plan.md
 
-# Morning daily brief (exit alerts, open positions, gate status)
-bullstrangle --db data\bullstrangle.db daily-brief
-bullstrangle --db data\bullstrangle.db daily-brief --output outputs\reports\daily_brief_2026-04-28.md
+# Morning daily brief
+bullstrangle --db data\bullstrangle.db daily-brief --output data\reports\daily\2026-04-28\daily_brief.md
 ```
 
 ### Database & Newsletter
@@ -526,7 +615,9 @@ Current expected result: **81 passed**
 
 ## References
 
+- `bullstrangle_menu.py` — offline menu CLI (use when Claude Desktop is unavailable)
+- `references/Claude_Daily_Workflow_Prompts.md` — daily Claude Desktop prompts
+- `references/Claude_Prompts_BullStrangle.md` — full Claude Desktop prompt library
 - `references/BullStrangle_Dry_Run_Runbook.md` — step-by-step operator runbook
-- `references/Claude_Prompts_BullStrangle.md` — ready-to-use Claude Desktop prompts
 - `references/BullStrangle_Implementation_Plan_v3.md` — phase tracker
 - `references/master_document_rule_inventory.md` — all 47 strategy rules
