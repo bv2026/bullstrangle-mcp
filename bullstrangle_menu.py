@@ -25,6 +25,12 @@ def report_path(nl_date: str, name: str) -> Path:
     return d / f"{name}.md"
 
 
+def daily_report_path(trading_date: str, name: str) -> Path:
+    d = REPORTS_DIR / "daily" / trading_date
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{name}.md"
+
+
 def run_cmd(args: list[str], show_output: bool = True) -> str:
     cmd = ["bullstrangle", "--db", DB] + args
     print(f"\n  > {' '.join(cmd)}\n")
@@ -62,10 +68,10 @@ def prompt_choice(options: list[str]) -> int:
         print("  Invalid choice, try again.")
 
 
-def prompt_save(nl_date: str, name: str) -> str | None:
+def prompt_save(date_key: str, name: str, daily: bool = False) -> str | None:
     save = input("  Save report? [Y/n]: ").strip().lower()
     if save in ("", "y", "yes"):
-        p = report_path(nl_date, name)
+        p = daily_report_path(date_key, name) if daily else report_path(date_key, name)
         print(f"  Saving to: {p}")
         return str(p)
     return None
@@ -185,7 +191,7 @@ def menu_daily_workflow():
         if choice == 0:
             return
         if choice == 1:
-            out = prompt_save(friday, "daily_brief")
+            out = prompt_save(today, "daily_brief", daily=True)
             args = ["daily-brief"]
             if out:
                 args += ["--output", out]
@@ -202,7 +208,7 @@ def menu_daily_workflow():
             run_cmd(["daily-ingest", nl_date, "--trading-date", td])
         elif choice == 3:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
-            out = prompt_save(friday, f"exit_report_{ptype}")
+            out = prompt_save(today, f"exit_report_{ptype}", daily=True)
             args = ["exit-report", "--portfolio-type", ptype]
             if out:
                 args += ["--output", out]
