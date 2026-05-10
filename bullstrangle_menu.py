@@ -15,11 +15,11 @@ from pathlib import Path
 
 DB = r"data\bullstrangle.db"
 BASE_DIR = Path(__file__).parent
-REPORTS_DIR = BASE_DIR / "outputs" / "reports"
+REPORTS_DIR = BASE_DIR / "data" / "reports"
 
 
 def report_path(nl_date: str, name: str) -> Path:
-    d = REPORTS_DIR / nl_date
+    d = REPORTS_DIR / "weekly" / nl_date
     d.mkdir(parents=True, exist_ok=True)
     return d / f"{name}.md"
 
