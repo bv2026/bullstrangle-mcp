@@ -136,12 +136,13 @@ def menu_weekly():
     friday = get_friday()
     while True:
         print("\n╔══ WEEKLY WORKFLOW ══╗")
-        print("  Sunday: 1 → 2 → 3  |  Friday: 4")
+        print("  Sunday: 1 → 2 → 3 → 5  |  Friday: 4")
         choice = prompt_choice([
             "Ingest Newsletter + Generate Workbook",
             "Market Brief",
             "Weekly Action Plan",
             "OS Weekly Aggregation (end of week)",
+            "Weekend Decisions (BS + DCA)",
         ])
         if choice == 0:
             return
@@ -172,6 +173,10 @@ def menu_weekly():
         elif choice == 4:
             out = save_path(nl_date, "os_weekly")
             args = ["aggregate-os-week", nl_date, "--output", out]
+            run_cmd(args)
+        elif choice == 5:
+            out = save_path(nl_date, "weekend_decisions")
+            args = ["generate-weekend-decisions", nl_date, "--output", out]
             run_cmd(args)
 
 
@@ -255,9 +260,7 @@ def menu_portfolio():
             run_cmd(["portfolio-performance", "--portfolio-type", ptype])
         elif choice == 2:
             out = save_path(get_friday(), f"backtest_{ptype}")
-            args = ["backtest-report", "--portfolio-type", ptype]
-            if out:
-                args += ["--output", out]
+            args = ["backtest-report", "--portfolio-type", ptype, "--output", out]
             run_cmd(args)
         elif choice == 3:
             run_cmd(["backtest-all", "--portfolio-type", ptype])
@@ -279,6 +282,9 @@ def menu_maintenance():
             "Strategy Rules (list all)",
             "Strategy Rules (by area)",
             "Get Single Rule",
+            "List Entry Decisions",
+            "List Exit Decisions",
+            "Validate All Newsletters (gate alignment)",
             "Ingest Positions CSV",
             "Bulk Re-Ingest All PDFs",
             "DB Status (row counts)",
@@ -306,10 +312,20 @@ def menu_maintenance():
             if rule_id:
                 run_cmd(["get-rule", rule_id])
         elif choice == 7:
-            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
+            nl_date = prompt_date("Newsletter date (blank=all)", get_friday())
+            args = ["list-entry-decisions"]
+            if nl_date:
+                args += ["--newsletter-date", nl_date]
+            run_cmd(args)
         elif choice == 8:
-            run_cmd(["ingest-dir", "data\\newsletters"])
+            run_cmd(["list-exit-decisions"])
         elif choice == 9:
+            run_cmd(["validate-all"])
+        elif choice == 10:
+            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
+        elif choice == 11:
+            run_cmd(["ingest-dir", "data\\newsletters"])
+        elif choice == 12:
             print()
             subprocess.run(
                 [sys.executable, "-c", """
