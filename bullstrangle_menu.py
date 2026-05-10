@@ -31,7 +31,7 @@ def daily_report_path(trading_date: str, name: str) -> Path:
     return d / f"{name}.md"
 
 
-def run_cmd(args: list[str], show_output: bool = True) -> str:
+def run_cmd(args: list[str], show_output: bool = True, report: str | None = None) -> str:
     cmd = ["bullstrangle", "--db", DB] + args
     print(f"\n  > {' '.join(cmd)}\n")
     result = subprocess.run(
@@ -39,43 +39,67 @@ def run_cmd(args: list[str], show_output: bool = True) -> str:
         cwd=str(BASE_DIR),
     )
     output = result.stdout + result.stderr
+    if report:
+        Path(report).parent.mkdir(parents=True, exist_ok=True)
+        Path(report).write_text(output, encoding="utf-8")
+        print(f"  Saved to: {report}")
+    has_report = report or ("--output" in args)
     if show_output:
-        print(output[:5000])
-        if len(output) > 5000:
-            print(f"\n  ... ({len(output)} chars total, truncated)")
+        limit = 500 if has_report else 3000
+        print(output[:limit])
+        if len(output) > limit:
+            path = report or args[args.index("--output") + 1] if has_report else None
+            hint = f" — full report at {path}" if path else ""
+            print(f"\n  ... ({len(output)} chars total{hint})")
     if result.returncode != 0:
         print(f"  [Exit code: {result.returncode}]")
     return output
 
 
-def print_table(rows: list[dict], columns: list[str] | None = None) -> None:
+def format_table(rows: list[dict], columns: list[str] | None = None) -> str:
     if not rows:
-        print("  (no data)")
-        return
+        return "  (no data)"
     if columns is None:
         columns = list(rows[0].keys())
     widths = {c: len(c) for c in columns}
     for r in rows:
         for c in columns:
             widths[c] = max(widths[c], len(str(r.get(c, ""))))
+    lines: list[str] = []
     header = "  ".join(c.ljust(widths[c]) for c in columns)
-    print(f"  {header}")
-    print(f"  {'  '.join('─' * widths[c] for c in columns)}")
+    lines.append(header)
+    lines.append("  ".join("─" * widths[c] for c in columns))
     for r in rows:
         line = "  ".join(str(r.get(c, "")).ljust(widths[c]) for c in columns)
-        print(f"  {line}")
-    print(f"\n  ({len(rows)} rows)")
+        lines.append(line)
+    lines.append(f"\n({len(rows)} rows)")
+    return "\n".join(lines)
 
 
-def run_cmd_table(args: list[str], columns: list[str] | None = None) -> None:
+def run_cmd_table(
+    args: list[str],
+    columns: list[str] | None = None,
+    report: str | None = None,
+) -> None:
     output = run_cmd(args, show_output=False)
     try:
         data = json.loads(output)
         if isinstance(data, dict):
             data = [data]
-        print_table(data, columns)
+        table = format_table(data, columns)
+        print(f"  {table}")
+        if report:
+            md_lines = [f"# {args[0]}", "", f"Generated: {get_today()}", "", "```", table, "```"]
+            Path(report).parent.mkdir(parents=True, exist_ok=True)
+            Path(report).write_text("\n".join(md_lines), encoding="utf-8")
+            print(f"\n  Saved to: {report}")
     except (json.JSONDecodeError, TypeError):
-        print(output[:5000])
+        if report:
+            Path(report).parent.mkdir(parents=True, exist_ok=True)
+            Path(report).write_text(output, encoding="utf-8")
+            print(f"  Saved to: {report}")
+        else:
+            print(output[:3000])
 
 
 def prompt_date(label: str, default: str | None = None) -> str:
@@ -254,7 +278,8 @@ def menu_daily():
             sym = input("  Symbol: ").strip().upper()
             if sym:
                 nl_date = prompt_date("Newsletter date", friday)
-                run_cmd(["evaluate-entry", sym, nl_date])
+                run_cmd(["evaluate-entry", sym, nl_date],
+                        report=save_path(today, f"gate_{sym.lower()}", daily=True))
         elif choice == 5:
             nl_date = prompt_date("Newsletter date", friday)
             rid = latest_run_id(nl_date)
@@ -288,7 +313,8 @@ def menu_portfolio():
             return
         ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
         if choice == 1:
-            run_cmd(["portfolio-performance", "--portfolio-type", ptype])
+            run_cmd(["portfolio-performance", "--portfolio-type", ptype],
+                    report=save_path(get_friday(), f"performance_{ptype}"))
         elif choice == 2:
             out = save_path(get_friday(), f"backtest_{ptype}")
             args = ["backtest-report", "--portfolio-type", ptype, "--output", out]
@@ -322,33 +348,37 @@ def menu_maintenance():
         ])
         if choice == 0:
             return
+        today = get_today()
         if choice == 1:
             run_cmd_table(["list-newsletters"], [
                 "newsletter_id", "publication_date", "watchlist_count",
                 "market_status", "hybrid_score", "deployment_approved",
-            ])
+            ], report=save_path(today, "newsletters", daily=True))
         elif choice == 2:
             ref = input("  Newsletter id or date: ").strip()
             if ref:
-                run_cmd(["show-newsletter", ref])
+                run_cmd(["show-newsletter", ref],
+                        report=save_path(today, f"newsletter_{ref}", daily=True))
         elif choice == 3:
             sym = input("  Symbol: ").strip().upper()
             if sym:
-                run_cmd(["symbol-history", sym])
+                run_cmd(["symbol-history", sym],
+                        report=save_path(today, f"symbol_{sym.lower()}", daily=True))
         elif choice == 4:
             run_cmd_table(["list-rule-catalog"], [
                 "rule_id", "area", "gate_label", "short_description",
-            ])
+            ], report=save_path(today, "rules", daily=True))
         elif choice == 5:
             area = input("  Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula): ").strip()
             if area:
                 run_cmd_table(["list-rule-catalog", "--area", area], [
                     "rule_id", "gate_label", "short_description",
-                ])
+                ], report=save_path(today, f"rules_{area}", daily=True))
         elif choice == 6:
             rule_id = input("  Rule ID (e.g. GATE-SS-001): ").strip()
             if rule_id:
-                run_cmd(["get-rule", rule_id])
+                run_cmd(["get-rule", rule_id],
+                        report=save_path(today, f"rule_{rule_id.lower()}", daily=True))
         elif choice == 7:
             nl_date = prompt_date("Newsletter date (blank=all)", get_friday())
             args = ["list-entry-decisions"]
@@ -356,13 +386,14 @@ def menu_maintenance():
                 args += ["--newsletter-date", nl_date]
             run_cmd_table(args, [
                 "symbol", "newsletter_date", "decision_type", "decision_date",
-            ])
+            ], report=save_path(today, "entry_decisions", daily=True))
         elif choice == 8:
             run_cmd_table(["list-exit-decisions"], [
                 "symbol", "action", "trigger", "expiration_date", "evaluated_at",
-            ])
+            ], report=save_path(today, "exit_decisions", daily=True))
         elif choice == 9:
-            run_cmd(["validate-all"])
+            run_cmd(["validate-all"],
+                    report=save_path(today, "validate_all", daily=True))
         elif choice == 10:
             run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
         elif choice == 11:
