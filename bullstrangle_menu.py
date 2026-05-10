@@ -39,6 +39,11 @@ def run_cmd(args: list[str], show_output: bool = True, report: str | None = None
         cwd=str(BASE_DIR),
     )
     output = result.stdout + result.stderr
+    if result.returncode != 0:
+        stderr = result.stderr.strip().splitlines()
+        msg = stderr[-1] if stderr else f"Command failed (exit code {result.returncode})"
+        print(f"  ERROR: {msg}")
+        return output
     if report:
         Path(report).parent.mkdir(parents=True, exist_ok=True)
         Path(report).write_text(output, encoding="utf-8")
@@ -51,8 +56,6 @@ def run_cmd(args: list[str], show_output: bool = True, report: str | None = None
             path = report or args[args.index("--output") + 1] if has_report else None
             hint = f" — full report at {path}" if path else ""
             print(f"\n  ... ({len(output)} chars total{hint})")
-    if result.returncode != 0:
-        print(f"  [Exit code: {result.returncode}]")
     return output
 
 
