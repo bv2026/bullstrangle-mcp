@@ -16,11 +16,18 @@ from pathlib import Path
 
 DB = r"data\bullstrangle.db"
 BASE_DIR = Path(__file__).parent
+REPORTS_DIR = BASE_DIR / "outputs" / "reports"
+
+
+def report_path(nl_date: str, name: str) -> Path:
+    d = REPORTS_DIR / nl_date
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{name}.md"
 
 
 def run_cmd(args: list[str], show_output: bool = True) -> str:
     cmd = ["bullstrangle", "--db", DB] + args
-    print(f"\n  → {' '.join(cmd)}\n")
+    print(f"\n  > {' '.join(cmd)}\n")
     result = subprocess.run(
         cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
         cwd=str(BASE_DIR),
@@ -53,6 +60,15 @@ def prompt_choice(options: list[str]) -> int:
         except (ValueError, EOFError):
             pass
         print("  Invalid choice, try again.")
+
+
+def prompt_save(nl_date: str, name: str) -> str | None:
+    save = input("  Save report? [Y/n]: ").strip().lower()
+    if save in ("", "y", "yes"):
+        p = report_path(nl_date, name)
+        print(f"  Saving to: {p}")
+        return str(p)
+    return None
 
 
 def get_friday() -> str:
@@ -100,39 +116,6 @@ def find_newsletter_pdf(nl_date: str) -> Path | None:
 # ─── MENU HANDLERS ───────────────────────────────────────────────────────────
 
 
-def menu_daily_workflow():
-    friday = get_friday()
-    today = get_today()
-    while True:
-        print("\n╔══ DAILY WORKFLOW ══╗")
-        choice = prompt_choice([
-            "Daily Brief (morning monitoring)",
-            "Daily Ingest (after Excel refresh)",
-            "Exit Report (active positions)",
-            "Auto-Resolve Expired",
-        ])
-        if choice == 0:
-            return
-        if choice == 1:
-            run_cmd(["daily-brief"])
-        elif choice == 2:
-            nl_date = prompt_date("Newsletter date", friday)
-            workbook = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
-            if not workbook.exists():
-                print(f"  Workbook not found: {workbook}")
-                print(f"  Run Weekend Setup first, then refresh in Excel and save.")
-                continue
-            print(f"  Workbook: {workbook}")
-            td = prompt_date("Trading date", today)
-            run_cmd(["daily-ingest", nl_date, "--trading-date", td])
-        elif choice == 3:
-            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
-            run_cmd(["exit-report", "--portfolio-type", ptype])
-        elif choice == 4:
-            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
-            run_cmd(["auto-resolve", "--portfolio-type", ptype])
-
-
 def menu_weekend_workflow():
     friday = get_friday()
     while True:
@@ -164,16 +147,69 @@ def menu_weekend_workflow():
             run_cmd(args)
         elif choice == 2:
             nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["weekly-action-plan", nl_date])
+            out = prompt_save(nl_date, "weekly_action_plan")
+            args = ["weekly-action-plan", nl_date]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
         elif choice == 3:
             nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["gate-report", nl_date])
+            out = prompt_save(nl_date, "gate_report")
+            args = ["gate-report", nl_date]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
         elif choice == 4:
             nl_date = prompt_date("Newsletter date", friday)
             run_cmd(["evaluate-newsletter", nl_date])
         elif choice == 5:
             nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["aggregate-os-week", nl_date])
+            out = prompt_save(nl_date, "os_weekly_aggregation")
+            args = ["aggregate-os-week", nl_date]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
+
+
+def menu_daily_workflow():
+    friday = get_friday()
+    today = get_today()
+    while True:
+        print("\n╔══ DAILY WORKFLOW ══╗")
+        choice = prompt_choice([
+            "Daily Brief (morning monitoring)",
+            "Daily Ingest (after Excel refresh)",
+            "Exit Report (active positions)",
+            "Auto-Resolve Expired",
+        ])
+        if choice == 0:
+            return
+        if choice == 1:
+            out = prompt_save(friday, "daily_brief")
+            args = ["daily-brief"]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
+        elif choice == 2:
+            nl_date = prompt_date("Newsletter date", friday)
+            workbook = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
+            if not workbook.exists():
+                print(f"  Workbook not found: {workbook}")
+                print(f"  Run Weekend Setup first, then refresh in Excel and save.")
+                continue
+            print(f"  Workbook: {workbook}")
+            td = prompt_date("Trading date", today)
+            run_cmd(["daily-ingest", nl_date, "--trading-date", td])
+        elif choice == 3:
+            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
+            out = prompt_save(friday, f"exit_report_{ptype}")
+            args = ["exit-report", "--portfolio-type", ptype]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
+        elif choice == 4:
+            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
+            run_cmd(["auto-resolve", "--portfolio-type", ptype])
 
 
 def menu_portfolio():
@@ -192,7 +228,11 @@ def menu_portfolio():
         if choice == 1:
             run_cmd(["portfolio-performance", "--portfolio-type", ptype])
         elif choice == 2:
-            run_cmd(["backtest-report", "--portfolio-type", ptype])
+            out = prompt_save(get_friday(), f"backtest_{ptype}")
+            args = ["backtest-report", "--portfolio-type", ptype]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
         elif choice == 3:
             nl_date = prompt_date("Newsletter date", get_friday())
             run_cmd(["seed-cycle-layers", nl_date, "--portfolio-type", ptype])
@@ -219,11 +259,9 @@ def menu_data():
         if choice == 1:
             run_cmd(["list-newsletters"])
         elif choice == 2:
-            d = input("  Directory [data\\newsletters]: ").strip() or "data\\newsletters"
-            run_cmd(["ingest-dir", d])
+            run_cmd(["ingest-dir", "data\\newsletters"])
         elif choice == 3:
-            csv = input("  CSV path [data\\positions\\positions.csv]: ").strip() or "data\\positions\\positions.csv"
-            run_cmd(["ingest-positions", csv])
+            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
         elif choice == 4:
             sym = input("  Symbol: ").strip().upper()
             if sym:
@@ -255,6 +293,43 @@ for t in tables:
             )
 
 
+def menu_os_workbook():
+    friday = get_friday()
+    while True:
+        print("\n╔══ OS WORKBOOK ══╗")
+        choice = prompt_choice([
+            "Generate OS Workbook",
+            "Ingest Refreshed Workbook",
+            "OS Selectors (calculated values)",
+            "Report OS Run",
+        ])
+        if choice == 0:
+            return
+        if choice == 1:
+            nl_date = prompt_date("Newsletter date", friday)
+            run_cmd(["generate-os-workbook", nl_date])
+        elif choice == 2:
+            nl_date = prompt_date("Newsletter date", friday)
+            path = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
+            if not path.exists():
+                print(f"  Workbook not found: {path}")
+                continue
+            print(f"  Workbook: {path}")
+            td = prompt_date("Trading date", get_today())
+            run_cmd(["ingest-os-workbook", str(path), "--trading-date", td, "--regenerate-if-stale"])
+        elif choice == 3:
+            nl_date = prompt_date("Newsletter date", friday)
+            run_cmd(["os-selectors", nl_date])
+        elif choice == 4:
+            run_id = input("  Run ID: ").strip()
+            if run_id:
+                out = prompt_save(friday, f"os_run_{run_id}")
+                args = ["report-os-run", run_id]
+                if out:
+                    args += ["--output", out]
+                run_cmd(args)
+
+
 def menu_rules():
     while True:
         print("\n╔══ STRATEGY RULES ══╗")
@@ -277,60 +352,19 @@ def menu_rules():
                 run_cmd(["get-rule", rule_id])
 
 
-def menu_os_workbook():
-    friday = get_friday()
-    while True:
-        print("\n╔══ OS WORKBOOK ══╗")
-        choice = prompt_choice([
-            "Generate OS Workbook",
-            "Ingest Refreshed Workbook",
-            "OS Selectors (calculated values)",
-            "Report OS Run",
-            "List OS Runs",
-        ])
-        if choice == 0:
-            return
-        if choice == 1:
-            nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["generate-os-workbook", nl_date])
-        elif choice == 2:
-            nl_date = prompt_date("Newsletter date", friday)
-            path = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
-            if not path.exists():
-                print(f"  Workbook not found: {path}")
-                continue
-            print(f"  Workbook: {path}")
-            td = prompt_date("Trading date", get_today())
-            run_cmd(["ingest-os-workbook", str(path), "--trading-date", td, "--regenerate-if-stale"])
-        elif choice == 3:
-            nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["os-selectors", nl_date])
-        elif choice == 4:
-            run_id = input("  Run ID: ").strip()
-            if run_id:
-                run_cmd(["report-os-run", run_id])
-        elif choice == 5:
-            run_cmd(["list-newsletters"])  # Shows context for choosing
-            # Actually list OS runs - need newsletter date or use list-newsletters
-            nl_date = prompt_date("Newsletter date (or Enter for all)", "")
-            # The CLI doesn't have list-os-runs as command yet; use daily-brief or aggregate
-            if nl_date:
-                run_cmd(["aggregate-os-week", nl_date, "--json"])
-
-
 def main():
     print("""
-╔═══════════════════════════════════════════════════════╗
-║       BullStrangle CLI — Offline Operator Menu       ║
-║  Use when Claude Desktop is unavailable              ║
-╚═══════════════════════════════════════════════════════╝
++---------------------------------------------------------+
+|       BullStrangle CLI -- Offline Operator Menu          |
+|  Use when Claude Desktop is unavailable                  |
++---------------------------------------------------------+
 """)
 
     while True:
-        print("\n═══ MAIN MENU ═══")
+        print("\n=== MAIN MENU ===")
         choice = prompt_choice([
-            "Daily Workflow      (brief, ingest, exit monitor)",
             "Weekend Workflow    (setup, action plan, gates)",
+            "Daily Workflow      (brief, ingest, exit monitor)",
             "Portfolio & Backtest",
             "Data & Ingestion    (newsletters, positions, DB)",
             "OS Workbook         (generate, ingest, report)",
@@ -340,9 +374,9 @@ def main():
             print("\n  Goodbye.\n")
             break
         elif choice == 1:
-            menu_daily_workflow()
-        elif choice == 2:
             menu_weekend_workflow()
+        elif choice == 2:
+            menu_daily_workflow()
         elif choice == 3:
             menu_portfolio()
         elif choice == 4:
