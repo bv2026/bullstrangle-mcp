@@ -8,7 +8,6 @@ Usage:
 """
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from datetime import date, timedelta
@@ -130,7 +129,6 @@ def menu_weekend_workflow():
             "Weekend Setup (ingest PDF + generate workbook)",
             "Weekly Action Plan",
             "Gate Report (entry validation)",
-            "Evaluate Newsletter (all symbols)",
             "OS Weekly Aggregation",
         ])
         if choice == 0:
@@ -166,9 +164,6 @@ def menu_weekend_workflow():
                 args += ["--output", out]
             run_cmd(args)
         elif choice == 4:
-            nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["evaluate-newsletter", nl_date])
-        elif choice == 5:
             nl_date = prompt_date("Newsletter date", friday)
             out = prompt_save(nl_date, "os_weekly_aggregation")
             args = ["aggregate-os-week", nl_date]
@@ -251,13 +246,15 @@ def menu_portfolio():
 
 def menu_data():
     while True:
-        print("\n╔══ DATA & INGESTION ══╗")
+        print("\n╔══ DATA & LOOKUP ══╗")
         choice = prompt_choice([
             "List Newsletters",
-            "Ingest All PDFs in Directory (bulk)",
-            "Ingest Positions CSV",
-            "Symbol History",
             "Show Newsletter Details",
+            "Symbol History",
+            "OS Selectors (calculated values)",
+            "OS Run Report",
+            "Ingest Positions CSV",
+            "Bulk Re-Ingest All PDFs",
             "DB Status (row counts)",
         ])
         if choice == 0:
@@ -265,18 +262,29 @@ def menu_data():
         if choice == 1:
             run_cmd(["list-newsletters"])
         elif choice == 2:
-            run_cmd(["ingest-dir", "data\\newsletters"])
-        elif choice == 3:
-            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
-        elif choice == 4:
-            sym = input("  Symbol: ").strip().upper()
-            if sym:
-                run_cmd(["symbol-history", sym])
-        elif choice == 5:
             ref = input("  Newsletter id or date: ").strip()
             if ref:
                 run_cmd(["show-newsletter", ref])
+        elif choice == 3:
+            sym = input("  Symbol: ").strip().upper()
+            if sym:
+                run_cmd(["symbol-history", sym])
+        elif choice == 4:
+            nl_date = prompt_date("Newsletter date", get_friday())
+            run_cmd(["os-selectors", nl_date])
+        elif choice == 5:
+            run_id = input("  Run ID: ").strip()
+            if run_id:
+                out = prompt_save(get_friday(), f"os_run_{run_id}")
+                args = ["report-os-run", run_id]
+                if out:
+                    args += ["--output", out]
+                run_cmd(args)
         elif choice == 6:
+            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
+        elif choice == 7:
+            run_cmd(["ingest-dir", "data\\newsletters"])
+        elif choice == 8:
             print()
             subprocess.run(
                 [sys.executable, "-c", """
@@ -299,49 +307,12 @@ for t in tables:
             )
 
 
-def menu_os_workbook():
-    friday = get_friday()
-    while True:
-        print("\n╔══ OS WORKBOOK ══╗")
-        choice = prompt_choice([
-            "Generate OS Workbook",
-            "Ingest Refreshed Workbook",
-            "OS Selectors (calculated values)",
-            "Report OS Run",
-        ])
-        if choice == 0:
-            return
-        if choice == 1:
-            nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["generate-os-workbook", nl_date])
-        elif choice == 2:
-            nl_date = prompt_date("Newsletter date", friday)
-            path = BASE_DIR / "data" / "os_uploads" / f"BullStrangle_OS_Live_{nl_date}.xlsx"
-            if not path.exists():
-                print(f"  Workbook not found: {path}")
-                continue
-            print(f"  Workbook: {path}")
-            td = prompt_date("Trading date", get_today())
-            run_cmd(["ingest-os-workbook", str(path), "--trading-date", td, "--regenerate-if-stale"])
-        elif choice == 3:
-            nl_date = prompt_date("Newsletter date", friday)
-            run_cmd(["os-selectors", nl_date])
-        elif choice == 4:
-            run_id = input("  Run ID: ").strip()
-            if run_id:
-                out = prompt_save(friday, f"os_run_{run_id}")
-                args = ["report-os-run", run_id]
-                if out:
-                    args += ["--output", out]
-                run_cmd(args)
-
-
 def menu_rules():
     while True:
         print("\n╔══ STRATEGY RULES ══╗")
         choice = prompt_choice([
             "List All Rules",
-            "List by Area (stock_selection, exit, etc.)",
+            "List by Area",
             "Get Single Rule",
         ])
         if choice == 0:
@@ -372,9 +343,8 @@ def main():
             "Weekend Workflow    (setup, action plan, gates)",
             "Daily Workflow      (brief, ingest, exit monitor)",
             "Portfolio & Backtest",
-            "Data & Ingestion    (newsletters, positions, DB)",
-            "OS Workbook         (generate, ingest, report)",
-            "Strategy Rules      (catalog lookup)",
+            "Data & Lookup       (newsletters, symbols, DB)",
+            "Strategy Rules",
         ])
         if choice == 0:
             print("\n  Goodbye.\n")
@@ -388,8 +358,6 @@ def main():
         elif choice == 4:
             menu_data()
         elif choice == 5:
-            menu_os_workbook()
-        elif choice == 6:
             menu_rules()
 
 
