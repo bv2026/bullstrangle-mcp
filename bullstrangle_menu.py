@@ -67,13 +67,10 @@ def prompt_choice(options: list[str]) -> int:
         print("  Invalid choice, try again.")
 
 
-def prompt_save(date_key: str, name: str, daily: bool = False) -> str | None:
-    save = input("  Save report? [Y/n]: ").strip().lower()
-    if save in ("", "y", "yes"):
-        p = daily_report_path(date_key, name) if daily else report_path(date_key, name)
-        print(f"  Saving to: {p}")
-        return str(p)
-    return None
+def save_path(date_key: str, name: str, daily: bool = False) -> str:
+    p = daily_report_path(date_key, name) if daily else report_path(date_key, name)
+    print(f"  Saving to: {p}")
+    return str(p)
 
 
 def get_friday() -> str:
@@ -151,22 +148,16 @@ def menu_weekly():
                     continue
             run_cmd(args)
         elif choice == 2:
-            out = prompt_save(nl_date, "market_brief")
-            args = ["daily-brief"]
-            if out:
-                args += ["--output", out]
+            out = save_path(nl_date, "market_brief")
+            args = ["daily-brief", "--output", out]
             run_cmd(args)
         elif choice == 3:
-            out = prompt_save(nl_date, "action_plan")
-            args = ["weekly-action-plan", nl_date]
-            if out:
-                args += ["--output", out]
+            out = save_path(nl_date, "action_plan")
+            args = ["weekly-action-plan", nl_date, "--output", out]
             run_cmd(args)
         elif choice == 4:
-            out = prompt_save(nl_date, "os_weekly")
-            args = ["aggregate-os-week", nl_date]
-            if out:
-                args += ["--output", out]
+            out = save_path(nl_date, "os_weekly")
+            args = ["aggregate-os-week", nl_date, "--output", out]
             run_cmd(args)
 
 
@@ -202,16 +193,12 @@ def menu_daily():
             print("\n  Evaluating all symbols...")
             run_cmd(["evaluate-newsletter", nl_date], show_output=False)
             print("  Generating gate report...")
-            out = prompt_save(today, "gate_report", daily=True)
-            args = ["gate-report", nl_date]
-            if out:
-                args += ["--output", out]
+            out = save_path(today, "gate_report", daily=True)
+            args = ["gate-report", nl_date, "--output", out]
             run_cmd(args)
         elif choice == 3:
-            out = prompt_save(today, "daily_brief", daily=True)
-            args = ["daily-brief"]
-            if out:
-                args += ["--output", out]
+            out = save_path(today, "daily_brief", daily=True)
+            args = ["daily-brief", "--output", out]
             run_cmd(args)
         elif choice == 4:
             sym = input("  Symbol: ").strip().upper()
@@ -221,17 +208,13 @@ def menu_daily():
         elif choice == 5:
             run_id = input("  Run ID: ").strip()
             if run_id:
-                out = prompt_save(today, f"os_run_{run_id}", daily=True)
-                args = ["report-os-run", run_id]
-                if out:
-                    args += ["--output", out]
+                out = save_path(today, f"os_run_{run_id}", daily=True)
+                args = ["report-os-run", run_id, "--output", out]
                 run_cmd(args)
         elif choice == 6:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
-            out = prompt_save(today, f"exit_{ptype}", daily=True)
-            args = ["exit-report", "--portfolio-type", ptype]
-            if out:
-                args += ["--output", out]
+            out = save_path(today, f"exit_{ptype}", daily=True)
+            args = ["exit-report", "--portfolio-type", ptype, "--output", out]
             run_cmd(args)
         elif choice == 7:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
@@ -254,7 +237,7 @@ def menu_portfolio():
         if choice == 1:
             run_cmd(["portfolio-performance", "--portfolio-type", ptype])
         elif choice == 2:
-            out = prompt_save(get_friday(), f"backtest_{ptype}")
+            out = save_path(get_friday(), f"backtest_{ptype}")
             args = ["backtest-report", "--portfolio-type", ptype]
             if out:
                 args += ["--output", out]
