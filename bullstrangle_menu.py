@@ -125,11 +125,12 @@ def menu_weekly():
     friday = get_friday()
     while True:
         print("\n╔══ WEEKLY WORKFLOW ══╗")
-        print("  Sunday: 1 → 2 → 3")
+        print("  Sunday: 1 → 2 → 3  |  Friday: 4")
         choice = prompt_choice([
             "Ingest Newsletter + Generate Workbook",
             "Market Brief",
             "Weekly Action Plan",
+            "OS Weekly Aggregation (end of week)",
         ])
         if choice == 0:
             return
@@ -161,6 +162,12 @@ def menu_weekly():
             if out:
                 args += ["--output", out]
             run_cmd(args)
+        elif choice == 4:
+            out = prompt_save(nl_date, "os_weekly_aggregation")
+            args = ["aggregate-os-week", nl_date]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
 
 
 def menu_daily():
@@ -168,11 +175,14 @@ def menu_daily():
     today = get_today()
     while True:
         print("\n╔══ DAILY WORKFLOW ══╗")
-        print("  Market hours: 1 → 2 → 3")
+        print("  Market hours: 1 → 2 → 3  |  Ad-hoc: 4, 5, 6")
         choice = prompt_choice([
             "Ingest Refreshed Workbook",
             "Evaluate Newsletter + Gate Report",
             "Daily Brief (exit alerts, positions, status)",
+            "OS Run Report",
+            "Exit Report (detailed)",
+            "Auto-Resolve Expired",
         ])
         if choice == 0:
             return
@@ -202,6 +212,24 @@ def menu_daily():
             if out:
                 args += ["--output", out]
             run_cmd(args)
+        elif choice == 4:
+            run_id = input("  Run ID: ").strip()
+            if run_id:
+                out = prompt_save(today, f"os_run_{run_id}", daily=True)
+                args = ["report-os-run", run_id]
+                if out:
+                    args += ["--output", out]
+                run_cmd(args)
+        elif choice == 5:
+            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
+            out = prompt_save(today, f"exit_report_{ptype}", daily=True)
+            args = ["exit-report", "--portfolio-type", ptype]
+            if out:
+                args += ["--output", out]
+            run_cmd(args)
+        elif choice == 6:
+            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
+            run_cmd(["auto-resolve", "--portfolio-type", ptype])
 
 
 def menu_portfolio():
@@ -210,7 +238,6 @@ def menu_portfolio():
         choice = prompt_choice([
             "Portfolio Performance",
             "Backtest Report",
-            "Auto-Resolve Expired",
             "Backtest All (seed + resolve all)",
         ])
         if choice == 0:
@@ -225,20 +252,19 @@ def menu_portfolio():
                 args += ["--output", out]
             run_cmd(args)
         elif choice == 3:
-            run_cmd(["auto-resolve", "--portfolio-type", ptype])
-        elif choice == 4:
             run_cmd(["backtest-all", "--portfolio-type", ptype])
 
 
-def menu_data():
+def menu_maintenance():
     while True:
-        print("\n╔══ DATA & LOOKUP ══╗")
+        print("\n╔══ MAINTENANCE & LOOKUP ══╗")
         choice = prompt_choice([
             "List Newsletters",
             "Show Newsletter Details",
             "Symbol History",
-            "OS Run Report",
-            "Exit Report (detailed)",
+            "Strategy Rules (list all)",
+            "Strategy Rules (by area)",
+            "Get Single Rule",
             "Ingest Positions CSV",
             "Bulk Re-Ingest All PDFs",
             "DB Status (row counts)",
@@ -256,25 +282,20 @@ def menu_data():
             if sym:
                 run_cmd(["symbol-history", sym])
         elif choice == 4:
-            run_id = input("  Run ID: ").strip()
-            if run_id:
-                out = prompt_save(get_today(), f"os_run_{run_id}", daily=True)
-                args = ["report-os-run", run_id]
-                if out:
-                    args += ["--output", out]
-                run_cmd(args)
+            run_cmd(["list-rule-catalog"])
         elif choice == 5:
-            ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
-            out = prompt_save(get_today(), f"exit_report_{ptype}", daily=True)
-            args = ["exit-report", "--portfolio-type", ptype]
-            if out:
-                args += ["--output", out]
-            run_cmd(args)
+            area = input("  Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula): ").strip()
+            if area:
+                run_cmd(["list-rule-catalog", "--area", area])
         elif choice == 6:
-            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
+            rule_id = input("  Rule ID (e.g. GATE-SS-001): ").strip()
+            if rule_id:
+                run_cmd(["get-rule", rule_id])
         elif choice == 7:
-            run_cmd(["ingest-dir", "data\\newsletters"])
+            run_cmd(["ingest-positions", "data\\positions\\positions.csv"])
         elif choice == 8:
+            run_cmd(["ingest-dir", "data\\newsletters"])
+        elif choice == 9:
             print()
             subprocess.run(
                 [sys.executable, "-c", """
@@ -297,28 +318,6 @@ for t in tables:
             )
 
 
-def menu_rules():
-    while True:
-        print("\n╔══ STRATEGY RULES ══╗")
-        choice = prompt_choice([
-            "List All Rules",
-            "List by Area",
-            "Get Single Rule",
-        ])
-        if choice == 0:
-            return
-        if choice == 1:
-            run_cmd(["list-rule-catalog"])
-        elif choice == 2:
-            area = input("  Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula): ").strip()
-            if area:
-                run_cmd(["list-rule-catalog", "--area", area])
-        elif choice == 3:
-            rule_id = input("  Rule ID (e.g. GATE-SS-001): ").strip()
-            if rule_id:
-                run_cmd(["get-rule", rule_id])
-
-
 def main():
     print("""
 +---------------------------------------------------------+
@@ -333,8 +332,7 @@ def main():
             "Weekly Workflow     (ingest, market brief, action plan)",
             "Daily Workflow      (ingest workbook, evaluate, daily brief)",
             "Portfolio & Backtest",
-            "Data & Lookup",
-            "Strategy Rules",
+            "Maintenance & Lookup",
         ])
         if choice == 0:
             print("\n  Goodbye.\n")
@@ -346,9 +344,7 @@ def main():
         elif choice == 3:
             menu_portfolio()
         elif choice == 4:
-            menu_data()
-        elif choice == 5:
-            menu_rules()
+            menu_maintenance()
 
 
 if __name__ == "__main__":
