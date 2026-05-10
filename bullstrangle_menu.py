@@ -175,11 +175,12 @@ def menu_daily():
     today = get_today()
     while True:
         print("\n╔══ DAILY WORKFLOW ══╗")
-        print("  Market hours: 1 → 2 → 3  |  Ad-hoc: 4, 5, 6")
+        print("  Market hours: 1 → 2 → 3  |  Ad-hoc: 4-7")
         choice = prompt_choice([
             "Ingest Refreshed Workbook",
             "Evaluate Newsletter + Gate Report",
             "Daily Brief (exit alerts, positions, status)",
+            "Evaluate Single Symbol (gate check)",
             "OS Run Report",
             "Exit Report (detailed)",
             "Auto-Resolve Expired",
@@ -213,6 +214,11 @@ def menu_daily():
                 args += ["--output", out]
             run_cmd(args)
         elif choice == 4:
+            sym = input("  Symbol: ").strip().upper()
+            if sym:
+                nl_date = prompt_date("Newsletter date", friday)
+                run_cmd(["evaluate-entry", sym, nl_date])
+        elif choice == 5:
             run_id = input("  Run ID: ").strip()
             if run_id:
                 out = prompt_save(today, f"os_run_{run_id}", daily=True)
@@ -220,14 +226,14 @@ def menu_daily():
                 if out:
                     args += ["--output", out]
                 run_cmd(args)
-        elif choice == 5:
+        elif choice == 6:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
             out = prompt_save(today, f"exit_{ptype}", daily=True)
             args = ["exit-report", "--portfolio-type", ptype]
             if out:
                 args += ["--output", out]
             run_cmd(args)
-        elif choice == 6:
+        elif choice == 7:
             ptype = input("  Portfolio [small/large] (small): ").strip() or "small"
             run_cmd(["auto-resolve", "--portfolio-type", ptype])
 
@@ -239,6 +245,8 @@ def menu_portfolio():
             "Portfolio Performance",
             "Backtest Report",
             "Backtest All (seed + resolve all)",
+            "Seed Cycle Layers (single week)",
+            "Resolve Outcomes (single week)",
         ])
         if choice == 0:
             return
@@ -253,6 +261,12 @@ def menu_portfolio():
             run_cmd(args)
         elif choice == 3:
             run_cmd(["backtest-all", "--portfolio-type", ptype])
+        elif choice == 4:
+            nl_date = prompt_date("Newsletter date", get_friday())
+            run_cmd(["seed-cycle-layers", nl_date, "--portfolio-type", ptype])
+        elif choice == 5:
+            nl_date = prompt_date("Newsletter date", get_friday())
+            run_cmd(["resolve-outcomes", nl_date])
 
 
 def menu_maintenance():
