@@ -8,6 +8,7 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from datetime import date, timedelta
@@ -45,6 +46,36 @@ def run_cmd(args: list[str], show_output: bool = True) -> str:
     if result.returncode != 0:
         print(f"  [Exit code: {result.returncode}]")
     return output
+
+
+def print_table(rows: list[dict], columns: list[str] | None = None) -> None:
+    if not rows:
+        print("  (no data)")
+        return
+    if columns is None:
+        columns = list(rows[0].keys())
+    widths = {c: len(c) for c in columns}
+    for r in rows:
+        for c in columns:
+            widths[c] = max(widths[c], len(str(r.get(c, ""))))
+    header = "  ".join(c.ljust(widths[c]) for c in columns)
+    print(f"  {header}")
+    print(f"  {'  '.join('─' * widths[c] for c in columns)}")
+    for r in rows:
+        line = "  ".join(str(r.get(c, "")).ljust(widths[c]) for c in columns)
+        print(f"  {line}")
+    print(f"\n  ({len(rows)} rows)")
+
+
+def run_cmd_table(args: list[str], columns: list[str] | None = None) -> None:
+    output = run_cmd(args, show_output=False)
+    try:
+        data = json.loads(output)
+        if isinstance(data, dict):
+            data = [data]
+        print_table(data, columns)
+    except (json.JSONDecodeError, TypeError):
+        print(output[:5000])
 
 
 def prompt_date(label: str, default: str | None = None) -> str:
@@ -292,7 +323,10 @@ def menu_maintenance():
         if choice == 0:
             return
         if choice == 1:
-            run_cmd(["list-newsletters"])
+            run_cmd_table(["list-newsletters"], [
+                "newsletter_id", "publication_date", "watchlist_count",
+                "market_status", "hybrid_score", "deployment_approved",
+            ])
         elif choice == 2:
             ref = input("  Newsletter id or date: ").strip()
             if ref:
@@ -302,11 +336,15 @@ def menu_maintenance():
             if sym:
                 run_cmd(["symbol-history", sym])
         elif choice == 4:
-            run_cmd(["list-rule-catalog"])
+            run_cmd_table(["list-rule-catalog"], [
+                "rule_id", "area", "gate_label", "short_description",
+            ])
         elif choice == 5:
             area = input("  Area (stock_selection/earnings/exit/market_environment/capital/cycle/strike_selection/formula): ").strip()
             if area:
-                run_cmd(["list-rule-catalog", "--area", area])
+                run_cmd_table(["list-rule-catalog", "--area", area], [
+                    "rule_id", "gate_label", "short_description",
+                ])
         elif choice == 6:
             rule_id = input("  Rule ID (e.g. GATE-SS-001): ").strip()
             if rule_id:
@@ -316,9 +354,13 @@ def menu_maintenance():
             args = ["list-entry-decisions"]
             if nl_date:
                 args += ["--newsletter-date", nl_date]
-            run_cmd(args)
+            run_cmd_table(args, [
+                "symbol", "newsletter_date", "decision_type", "decision_date",
+            ])
         elif choice == 8:
-            run_cmd(["list-exit-decisions"])
+            run_cmd_table(["list-exit-decisions"], [
+                "symbol", "action", "trigger", "expiration_date", "evaluated_at",
+            ])
         elif choice == 9:
             run_cmd(["validate-all"])
         elif choice == 10:
