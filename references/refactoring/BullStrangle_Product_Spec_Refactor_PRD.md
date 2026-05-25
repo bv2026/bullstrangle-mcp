@@ -553,3 +553,277 @@ Live trading safety risk:
 - What confidence threshold is required before shadow mode?
 - What confidence threshold is required before live mode?
 
+## 15. Requirement Priority Legend
+
+Priorities:
+
+- `P0`: Required for the first usable vertical slice.
+- `P1`: Required for full paper-trading workflow.
+- `P2`: Required before shadow or live-trading readiness.
+- `P3`: Useful enhancement after core workflow is stable.
+
+Requirement states:
+
+- `Defined`: product requirement is clear enough for architecture design.
+- `Needs Rule Input`: requires strategy-owner confirmation.
+- `Needs Architecture`: requires schema, module, or platform design decision.
+
+## 16. Numbered Product Requirements
+
+### 16.1 Artifact And Newsletter Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-ART-001 | P0 | System shall ingest weekly newsletter PDF and persist raw full text by section. | Defined | Given a newsletter PDF, the DB contains full text and section records with newsletter id. |
+| BS-ART-002 | P0 | System shall extract watchlist rows with symbol, last price, IV, sector, published strikes, published option prices, and returns where present. | Defined | Given a watchlist page, extracted rows match a manual sample for at least five symbols. |
+| BS-ART-003 | P0 | System shall extract Large and Small short-list membership independently. | Defined | Given a newsletter, symbols can be queried by portfolio type `large` or `small`. |
+| BS-ART-004 | P1 | System shall preserve source lineage for extracted fields including page or section reference. | Needs Architecture | Given any extracted fact, user can trace it back to source section/page. |
+| BS-ART-005 | P1 | System shall extract market thesis, risk posture, sector emphasis, cautions, and week-over-week changes. | Needs Architecture | Weekly report contains structured newsletter intelligence beyond watchlist rows. |
+
+### 16.2 Strategy Rule Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-RULE-001 | P0 | System shall maintain versioned strategy rules with hard, soft, and advisory classifications. | Defined | Decision output includes rule version and rule classification for evaluated rules. |
+| BS-RULE-002 | P0 | Gate 7 moving-average alignment shall not reject trades in the redesigned flow unless explicitly re-enabled. | Defined | A candidate cannot be rejected solely because OS SMA fields are missing or below threshold. |
+| BS-RULE-003 | P1 | System shall expose hard-rule failures separately from soft warnings and advisory evidence. | Defined | Decision explanation separates rejection reasons from warnings and context. |
+| BS-RULE-004 | P1 | Rule thresholds shall not be hard-coded inside decision logic where a catalog entry exists. | Needs Architecture | Static/code review shows thresholds loaded from catalog/config for strategy rules. |
+| BS-RULE-005 | P1 | Retired or advisory rules shall remain auditable for historical comparison. | Defined | Reports can show that Gate 7 was evaluated as advisory/retired. |
+
+### 16.3 Market Data Provider Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-MD-001 | P0 | System shall define a provider-neutral market data interface. | Needs Architecture | Scanner can call provider interface without importing a broker-specific client in core logic. |
+| BS-MD-002 | P0 | Provider shall return live stock quote with bid, ask, last, mark or mid, timestamp, and provider id. | Defined | For symbol `AA`, provider returns stock quote and timestamp. |
+| BS-MD-003 | P0 | Provider shall return option chain by symbol and expiration. | Defined | For `AA` and `2026-06-18`, provider returns option rows. |
+| BS-MD-004 | P0 | Option chain row shall include right, strike, bid, ask, mid, delta, IV, volume, open interest, and quote timestamp where available. | Defined | Returned chain rows include required normalized fields or explicit nulls with provider metadata. |
+| BS-MD-005 | P1 | Provider shall report rate-limit, auth, freshness, and partial-data errors in normalized form. | Needs Architecture | Failed provider call returns typed error and does not crash the scan run. |
+| BS-MD-006 | P1 | System shall support OS as fallback/benchmark but not as primary live provider. | Defined | Scanner can run without OS workbook ingestion. |
+
+### 16.4 Live Scanner Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-SCAN-001 | P0 | Scanner shall support newsletter replication mode using published strikes and refreshed live prices/greeks. | Defined | For `AA`, published 74C/70P/64P can be refreshed from Tradier chain. |
+| BS-SCAN-002 | P0 | Scanner shall support live strike-selection mode using live stock price and option-chain greeks. | Defined | For one symbol, scanner selects call, short put, and long put from chain. |
+| BS-SCAN-003 | P0 | Scanner shall use four-week expiration as the default target. | Defined | Given a scan date, selected expiration is closest valid expiration around four weeks unless overridden. |
+| BS-SCAN-004 | P0 | Scanner shall persist selected legs, source provider, timestamp, pricing policy, and mode. | Needs Architecture | Live snapshot row can reproduce selected legs and price inputs. |
+| BS-SCAN-005 | P1 | Scanner shall filter or warn on insufficient liquidity. | Needs Rule Input | Candidate with low OI/volume or wide spread receives warning or rejection according to threshold. |
+| BS-SCAN-006 | P1 | Scanner shall compare newsletter replication output versus live strike-selection output. | Defined | Report shows published-strike trade and live-selected trade side by side. |
+
+### 16.5 Strike Selection Rule Requirements
+
+Initial rule placeholders require strategy-owner confirmation.
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-STRIKE-001 | P0 | Short call shall be selected from live chain by configured positive delta target or band. | Needs Rule Input | Given a delta band, scanner chooses nearest eligible call strike. |
+| BS-STRIKE-002 | P0 | Short put shall be selected from live chain by configured negative delta target or band. | Needs Rule Input | Given a delta band, scanner chooses nearest eligible put strike. |
+| BS-STRIKE-003 | P0 | Protective put shall be selected by configured delta, premium ratio, or distance rule. | Needs Rule Input | Scanner documents which rule selected the protective put. |
+| BS-STRIKE-004 | P1 | Strike selection shall support liquidity tie-breakers. | Needs Rule Input | If two strikes are equally close by delta, scanner chooses more liquid contract. |
+| BS-STRIKE-005 | P1 | Strike selection shall record rejected alternative strikes for explainability. | Needs Architecture | Snapshot includes candidate alternatives or an explanation JSON. |
+
+### 16.6 Pricing Policy Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-PRICE-001 | P0 | System shall define pricing policy used for credit calculation. | Needs Rule Input | Decision record states bid, ask, mid, or conservative policy. |
+| BS-PRICE-002 | P0 | Default paper-trading price shall be conservative enough to avoid overstated returns. | Needs Rule Input | Paper fill price is not more favorable than configured policy. |
+| BS-PRICE-003 | P1 | System shall store raw bid/ask and computed execution price separately. | Defined | DB row contains both raw market data and selected execution price. |
+| BS-PRICE-004 | P2 | Shadow/live order drafts shall use limit prices derived from configured execution policy. | Needs Rule Input | Order draft limit credit matches pricing policy output. |
+
+### 16.7 P/L Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-PL-001 | P0 | System shall compute total credit from selected legs. | Defined | Credit equals short call credit plus short put credit minus long put debit. |
+| BS-PL-002 | P0 | System shall compute downside breakeven. | Needs Rule Input | Formula is documented and output is stored. |
+| BS-PL-003 | P0 | System shall compute called-away profit. | Needs Rule Input | Output matches manual calculation for one sample trade. |
+| BS-PL-004 | P0 | System shall compute return on capital and annualized return. | Needs Rule Input | Output matches documented formula for one sample trade. |
+| BS-PL-005 | P1 | System shall generate scenario P/L table across expiration prices. | Defined | Candidate report includes P/L rows below put, between strikes, above call. |
+| BS-PL-006 | P1 | System shall reject/watch trades based on configured minimum P/L thresholds. | Needs Rule Input | Candidate below threshold receives WATCH or REJECT according to rules. |
+
+### 16.8 Probability Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-PROB-001 | P0 | System shall calculate probability metrics internally, not rely on OS probability fields. | Defined | Probability output exists when OS workbook is absent. |
+| BS-PROB-002 | P0 | First probability model shall be documented with assumptions. | Needs Rule Input | Decision record includes model name and input assumptions. |
+| BS-PROB-003 | P0 | System shall calculate probability stock finishes between short strikes. | Needs Architecture | Output exists for selected trade with model inputs stored. |
+| BS-PROB-004 | P1 | System shall calculate probability short call and short put expire OTM. | Needs Architecture | Output has separate call OTM and put OTM probabilities. |
+| BS-PROB-005 | P1 | System shall benchmark internal probabilities against OS values if OS values are available. | Defined | Report shows internal probability versus OS probability for comparison period. |
+
+### 16.9 Decision Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-DEC-001 | P0 | System shall classify each candidate as ACCEPT, WATCH, or REJECT. | Defined | One-symbol MVP produces one of the three statuses. |
+| BS-DEC-002 | P0 | Decision shall include human-readable explanation. | Defined | User can read why a candidate was accepted, watched, or rejected. |
+| BS-DEC-003 | P0 | Decision shall link to market data snapshot, P/L evaluation, probability evaluation, and rules. | Needs Architecture | Decision can be replayed from stored references. |
+| BS-DEC-004 | P1 | Decision shall include component scorecard and confidence level. | Defined | Decision output includes freshness, liquidity, P/L, probability, rule, portfolio-fit scores. |
+| BS-DEC-005 | P1 | Rejected trades shall be retained for later outcome comparison. | Defined | Rejected candidate remains queryable and can be compared at expiration. |
+
+### 16.10 Portfolio Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-PORT-001 | P1 | System shall manage Large and Small portfolios independently. | Defined | Paper books exist separately for `large` and `small`. |
+| BS-PORT-002 | P1 | Portfolio shall track cash/buying-power reservation and assignment capacity. | Needs Rule Input | Paper portfolio report shows reserved capital and assignment capacity. |
+| BS-PORT-003 | P1 | Portfolio shall enforce max concurrent positions by portfolio. | Needs Rule Input | Scanner does not create more paper trades than configured portfolio limit. |
+| BS-PORT-004 | P1 | Portfolio shall track sector/theme exposure. | Needs Architecture | Portfolio report groups exposure by sector or theme. |
+| BS-PORT-005 | P2 | System shall handle duplicate symbols across Large and Small portfolios according to configured policy. | Needs Rule Input | Duplicate symbol receives allowed, warning, or reject behavior. |
+
+### 16.11 Paper, Shadow, And Live Execution Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-EXEC-001 | P1 | Paper trades shall use the same lifecycle model intended for live trades. | Defined | Paper trade has trade intent, order draft, simulated fill, lifecycle events, and outcome. |
+| BS-EXEC-002 | P1 | System shall support shadow mode that creates order drafts without submitting live orders. | Defined | Shadow run produces order draft and approval status but no broker order id. |
+| BS-EXEC-003 | P2 | Live trading shall require explicit operator approval before broker submission. | Defined | Attempted live order without approval is blocked. |
+| BS-EXEC-004 | P2 | Live orders shall store broker order ids and native broker payloads. | Needs Architecture | Submitted order has auditable native payload. |
+| BS-EXEC-005 | P2 | Fills shall be stored independently from orders. | Needs Architecture | Partial fill can be represented. |
+| BS-EXEC-006 | P2 | Broker-synced live positions shall reconcile back to trade intents. | Needs Architecture | Open broker position can be traced to originating strategy decision. |
+
+### 16.12 Monitoring And Scenario Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-MON-001 | P1 | System shall monitor open paper trades against short call and short put strikes. | Defined | Mark report flags near-call and near-put risk. |
+| BS-MON-002 | P1 | System shall track whether short options can be closed around `$0.05` to `$0.10`. | Defined | Monitoring report includes close-price availability for open short options. |
+| BS-MON-003 | P1 | System shall classify outcomes into Darren's five trade-management scenarios. | Defined | Closed paper trade has one scenario outcome. |
+| BS-MON-004 | P1 | System shall maintain scenario scoreboard by count and percent. | Defined | Report shows scenario distribution. |
+| BS-MON-005 | P2 | System shall recommend next-cycle action after each scenario. | Needs Rule Input | Outcome includes continue, replace, sell all, sell half, or no action. |
+
+### 16.13 Confidence Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-CONF-001 | P1 | System shall store trade-level confidence component scores. | Defined | Trade scorecard contains component scores. |
+| BS-CONF-002 | P1 | System shall calculate system-level confidence from paper-trading outcomes. | Needs Rule Input | Confidence report updates after closed paper trades. |
+| BS-CONF-003 | P1 | System shall compare accepted, watched, and rejected candidates after expiration. | Defined | Report shows whether rejected candidates would have worked. |
+| BS-CONF-004 | P2 | System shall define threshold for moving from paper to shadow mode. | Needs Rule Input | Shadow mode remains disabled until threshold is configured/met. |
+| BS-CONF-005 | P2 | System shall define threshold for moving from shadow to live mode. | Needs Rule Input | Live mode remains disabled until threshold is configured/met. |
+
+### 16.14 Reporting Requirements
+
+| ID | Priority | Requirement | State | Acceptance Test |
+|---|---|---|---|---|
+| BS-RPT-001 | P0 | One-symbol MVP shall produce an explainable decision report. | Defined | Report includes quote, chain-selected legs, P/L, probability, and decision. |
+| BS-RPT-002 | P1 | Weekly paper portfolio report shall show Large and Small books separately. | Defined | Report has distinct Large and Small sections. |
+| BS-RPT-003 | P1 | Report shall compare newsletter replication mode with live strike-selection mode. | Defined | Report displays both structures where available. |
+| BS-RPT-004 | P1 | Monitoring report shall show open trade status and scenario risk. | Defined | Report flags trades near strike or management trigger. |
+| BS-RPT-005 | P1 | Confidence report shall show scenario scoreboard and expected-vs-realized outcomes. | Defined | Report includes distribution and performance metrics. |
+
+## 17. Operational Requirements
+
+Operating cadence:
+
+- Weekly ingestion should run after newsletter publication.
+- Live scanner should run during the intended trade-entry window.
+- Monitoring should run at least daily for paper trades and more frequently near expiration or strike proximity.
+- Expiration processing should run after market close on expiration date.
+- Confidence metrics should update after each closed or expired trade.
+
+Operational modes:
+
+- `planning`: parse and analyze without creating trades.
+- `paper`: create simulated trades and lifecycle events.
+- `shadow`: create order drafts and approvals without broker submission.
+- `live`: submit approved orders to broker.
+
+Default mode shall be `paper` until confidence and approval requirements are explicitly met.
+
+Failure behavior:
+
+- Provider failure should mark affected candidates as `DATA_UNAVAILABLE`, not silently accept or reject them.
+- Partial option-chain data should create warnings and exclude contracts with missing critical fields.
+- Stale data should block live execution and warn for paper/shadow execution.
+- Auth failures should create actionable operator messages.
+
+Audit behavior:
+
+- Every scan run should store provider, timestamp, mode, pricing policy, selected rule version, and source newsletter.
+- Every decision should be replayable from stored snapshot data.
+- Every live-capable order draft should include idempotency key/client order id before submission.
+
+## 18. Initial Rule Defaults To Confirm
+
+These are not final rules. They are placeholders for strategy-owner and architect review.
+
+Expiration:
+
+- Default target is the listed expiration closest to four weeks from scan date.
+
+Pricing:
+
+- Paper mode should use conservative executable pricing:
+  - short option credit at bid or bid-adjusted price.
+  - long option debit at ask or ask-adjusted price.
+  - mid may be reported but should not be the default paper fill unless approved.
+
+Liquidity:
+
+- Candidate should warn or reject if selected option has missing bid/ask.
+- Candidate should warn or reject if bid/ask spread exceeds configured percent or dollar threshold.
+- Candidate should warn or reject if open interest or volume is below configured threshold.
+
+Probability:
+
+- Initial model may use lognormal expiration probability from selected IV.
+- Store IV source, days to expiration, stock price, strikes, rate assumption, and dividend assumption.
+- Do not claim equivalence with OS probability.
+
+Portfolio:
+
+- Large and Small portfolios should have independent max position counts and capital assumptions.
+- Duplicates across Large and Small should be allowed only if configured.
+
+Confidence:
+
+- No live trading until paper history meets explicitly configured sample size and performance thresholds.
+- No shadow trading until one-symbol and full-watchlist paper runs are stable.
+
+## 19. Implementation-Ready Deliverables For Architect
+
+The Architect should produce:
+
+- Updated target architecture document.
+- V2 schema design with migration strategy.
+- Provider interface specification.
+- Tradier provider design.
+- Scanner algorithm specification.
+- P/L formula specification.
+- Probability model specification.
+- Paper/shadow/live lifecycle state machine.
+- Portfolio and confidence scoring design.
+- OS deprecation plan.
+- Risk and rollout plan.
+
+## 20. Definition Of Ready For Engineering
+
+Engineering should not begin full implementation until:
+
+- Provider contract is approved.
+- V2 schema is approved.
+- One-symbol MVP scope is locked.
+- Initial strike-selection rules are confirmed.
+- Initial pricing policy is confirmed.
+- Initial P/L formulas are confirmed.
+- Initial probability model is confirmed.
+- Paper execution lifecycle is approved.
+- Live trading guardrails are approved even if live mode remains disabled.
+
+## 21. Definition Of Done For MVP
+
+MVP is done when:
+
+- One selected newsletter symbol can be scanned with Tradier live data.
+- Live option chain is normalized and persisted.
+- Live strikes are selected according to approved provisional rules.
+- P/L and probability outputs are calculated and persisted.
+- Entry decision is produced with explanation.
+- Paper trade intent, order draft, simulated fill, and lifecycle event are created.
+- Report can replay the decision from stored data.
+- No live order can be submitted.
+- OS Excel is not required for the MVP path.
