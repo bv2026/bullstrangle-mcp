@@ -163,6 +163,7 @@ Additional live-trading concern: broker-synced positions becoming source of trut
 ### P0 Product And Strategy Decisions
 
 - Confirm current newsletter screenshot/table fixture path and manual correction workflow.
+- Confirm that the current fixture path is a temporary Phase 0/1 bootstrap and define the deprecation checkpoint after newsletter ingestion/import is reliable.
 - Confirm MVP uses newsletter fixture expiration so validation does not move while implementation is in progress.
 - Confirm delta bands/targets for short call, short put, and protective put.
 - Confirm protective put selection rule: delta, strike distance, premium ratio, max debit, or other.
@@ -233,6 +234,7 @@ Engineering should start only after these artifacts exist and are approved:
 - New GitHub repository `bullstrangle-platform` is created or explicitly approved for creation.
 - Project identity is locked: product `BullStrangle Platform`, package `bullstrangle_platform`, CLI `bs-platform`, MCP server `bullstrangle_platform_mcp`, PostgreSQL schema `bullstrangle`.
 - Repository and folder layout are approved.
+- Repository `data/` layout is approved as a lean refactor-specific ingress/fixture/report area, not a copy of the legacy data tree. Legacy SQLite DB files, top-level backups, top-level OS uploads, and position exports are excluded from P0 runtime layout.
 - Agent/sub-agent scaffolding, write ownership, and MVP orchestration order are approved.
 - Provider interface specification.
 - PostgreSQL target schema specification with one-way legacy import/coexistence plan.

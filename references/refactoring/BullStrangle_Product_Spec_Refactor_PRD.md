@@ -636,7 +636,7 @@ Requirement states:
 | BS-ART-003 | P0 | System shall extract Large and Small short-list membership independently. | Defined | Given a newsletter, symbols can be queried by portfolio type `large` or `small`. |
 | BS-ART-004 | P1 | System shall preserve source lineage for extracted fields including page or section reference. | Needs Architecture | Given any extracted fact, user can trace it back to source section/page. |
 | BS-ART-005 | P1 | System shall extract market thesis, risk posture, sector emphasis, cautions, and week-over-week changes. | Needs Architecture | Weekly report contains structured newsletter intelligence beyond watchlist rows. |
-| BS-ART-006 | P0 | MVP shall support a current-newsletter screenshot/table fixture path before full PDF ingestion. | Defined | Operator can enter or correct rows from the current newsletter screenshot/table and create a current fixture watchlist. |
+| BS-ART-006 | P0 | MVP shall support a temporary current-newsletter screenshot/table fixture path before full PDF ingestion. | Defined | Operator can enter or correct rows from the current newsletter screenshot/table and create a current fixture watchlist; this path is deprecated once newsletter ingestion/import is reliable. |
 
 ### 16.2 Strategy Rule Requirements
 
@@ -868,6 +868,7 @@ Engineering should not begin full implementation until:
 - New GitHub repository `bullstrangle-platform` is created or explicitly approved for creation.
 - Project identity is approved: `BullStrangle Platform`, package `bullstrangle_platform`, CLI `bs-platform`, MCP server `bullstrangle_platform_mcp`, PostgreSQL schema `bullstrangle`.
 - Repository and folder layout are approved.
+- Repository `data/` layout is approved for explicit newsletter ingress, current fixtures, regression fixtures, provider payload fixtures, optional OS benchmarks, and replay reports. Legacy SQLite DB files, top-level backups, top-level OS uploads, and position exports are not part of the P0 runtime layout.
 - Agent/sub-agent scaffolding and write ownership boundaries are approved.
 - MCP-builder compliance checklist is approved, including strict tool naming, typed schemas, annotations, pagination, truncation, actionable errors, tests, and read-only evaluations.
 - Provider contract is approved.

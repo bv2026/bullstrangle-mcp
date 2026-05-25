@@ -35,6 +35,14 @@ Repository boundary:
 - The legacy `bullstrangle-mcp` repository remains historical/current-state and can hold planning documents only.
 - Any temporary bootstrap folder inside `bullstrangle-mcp` must be treated as disposable and moved to `bullstrangle-platform` before runtime implementation.
 
+Filesystem data boundary:
+- The new repository should include a lean `data/` area for explicit ingress sources, current fixture rows, regression fixtures, recorded provider payloads, optional OS benchmark files, and generated replay reports.
+- PostgreSQL remains the runtime source of truth after ingestion.
+- Runtime scanner, decision, P/L, probability, and execution services must not read newsletter PDFs, screenshots, OS workbooks, or legacy SQLite files directly.
+- Files under `data/` are consumed by ingestion/import/test/report workflows, then linked to persisted PostgreSQL records through source metadata.
+- Do not carry forward legacy `data/bullstrangle.db`, top-level `backups/`, top-level `os_uploads/`, or top-level `positions/` as normal runtime folders.
+- `data/inbox/current_fixture/` is a temporary Phase 0/1 bootstrap for manually corrected MVP rows. It should be deprecated or removed once newsletter ingestion/import is stable.
+
 The target workflow is:
 
 ```text

@@ -9,6 +9,9 @@ Inputs:
 - `BullStrangle_Target_Architecture_v4.md`
 - `BullStrangle_Target_Schema_v4.md`
 
+Progress tracker:
+- `BullStrangle_Refactor_Implementation_Checklist.md`
+
 ## 1. Superseding Guardrails
 
 This roadmap treats the refactor as a new self-contained project from scratch.
@@ -106,6 +109,21 @@ bullstrangle-platform/
   README.md
   AGENTS.md
   alembic.ini
+  data/
+    README.md
+    .gitignore
+    inbox/
+      newsletters/
+      current_fixture/   # Temporary Phase 0/1 bootstrap only; remove after ingestion/import is reliable.
+    fixtures/
+      regression/
+      provider_payloads/
+    imports/
+      legacy/
+    benchmarks/
+      os/
+    reports/
+      replay/
   migrations/
     env.py
     versions/
@@ -177,6 +195,60 @@ bullstrangle-platform/
 ```
 
 Historical note: earlier drafts allowed an isolated in-repo `refactor_v4/` folder. The preferred target is now a separate `bullstrangle-platform` repository to enforce runtime isolation and release independence.
+
+### 3.2 Data Directory Layout
+
+The new repository should have a filesystem `data/` area, but it should not copy the legacy layout blindly. PostgreSQL remains the runtime source of truth. Files under `data/` are source ingress artifacts, deterministic fixtures, optional import sources, benchmark evidence, or generated reports.
+
+Lean target layout:
+
+```text
+data/
+  README.md
+  .gitignore
+  inbox/
+    newsletters/         # Optional raw PDFs/screenshots dropped for explicit ingestion commands.
+    current_fixture/     # Temporary Phase 0/1 MVP bootstrap for manually corrected rows.
+  fixtures/
+    regression/          # Frozen AA/2026-06-18 and other non-operational regression cases.
+    provider_payloads/   # Recorded Tradier quote/chain payloads for offline tests.
+  imports/
+    legacy/              # Optional read-only copied legacy SQLite/CSV/JSON import sources.
+  benchmarks/
+    os/                  # Optional Option Samurai benchmark/fallback files, not MVP runtime input.
+  reports/
+    replay/              # Local/generated replay reports; PostgreSQL stores report metadata.
+```
+
+Legacy layout disposition:
+
+| Legacy Path | New Refactor Decision | Rationale |
+|---|---|---|
+| `data/newsletters/` | Replace with `data/inbox/newsletters/`; temporarily allow `data/inbox/current_fixture/` during Phase 0/1 only. | MVP needs current screenshot/table fixture first, but it must not become a permanent runtime dependency. |
+| `data/os_uploads/` | Do not carry forward as a top-level runtime folder. Use `data/benchmarks/os/` only when OS comparison is explicitly needed. | Option Samurai is deprecated as execution data plane and should not look like a required input. |
+| `data/positions/` | Defer. Add later only under an explicit import/reconciliation workflow, likely `data/imports/broker_positions/` or `data/inbox/positions/`. | MVP paper lifecycle owns positions in PostgreSQL; manual/broker position files are not P0. |
+| `data/reports/` | Keep only generated report output under `data/reports/replay/` initially. Add `paper/`, `monitoring/`, and `confidence/` later when those phases ship. | Avoid creating empty future workflow folders before they are supported. |
+| `data/backups/` | Do not include as a normal repo folder. Use external/local ignored backup paths documented by devops scripts. | PostgreSQL backups are environment artifacts, not project data layout. |
+| `data/bullstrangle.db` | Do not include. Legacy SQLite is optional import source only under `data/imports/legacy/` if copied intentionally. | New runtime is PostgreSQL-only and must not normalize SQLite as a runtime artifact. |
+
+Version-control policy:
+- Commit `data/README.md`, `.gitignore`, and small deterministic test fixtures only.
+- Do not commit production PostgreSQL dumps, live broker exports, secrets, large PDFs, or sensitive account data.
+- Current operational newsletter fixture files may be local-only unless explicitly sanitized and approved for commit.
+- Recorded provider payloads must be scrubbed of tokens/account identifiers before commit.
+
+Runtime policy:
+- The application reads source files from `data/inbox/newsletters` or `data/inbox/current_fixture` only through ingestion/import commands.
+- After ingestion, runtime services read PostgreSQL records, not files.
+- Legacy SQLite files under `data/imports/legacy` are read only by explicit one-way import tools and never by scanner/decision/runtime services.
+- OS benchmark files under `data/benchmarks/os` are read only by comparison/import tools and never by the scanner as required market data.
+
+Current fixture lifecycle:
+- `data/inbox/current_fixture/` exists only to unblock Phase 0/1 while newsletter ingestion/import is not yet reliable.
+- Phase 0/1 commands may ingest manually corrected fixture CSV/JSON rows from this folder into PostgreSQL.
+- Phase 2/3 must replace operational fixture ingestion with the approved newsletter ingestion/import workflow.
+- After that replacement, `data/inbox/current_fixture/` should be deprecated or removed from the normal repo scaffold.
+- Long-term deterministic examples belong in `data/fixtures/regression/`, not `data/inbox/current_fixture/`.
 
 ## 4. Package And Module Boundaries
 
@@ -583,14 +655,15 @@ Definition of Done:
 - Local dev/test DB instructions are complete.
 - Rollback plan is documented.
 
-## 11. Phase 2: Current Fixture And Optional Import Foundation
+## 11. Phase 2: Replace Current Fixture Bootstrap And Add Optional Import Foundation
 
-Goal: load a current newsletter screenshot/table fixture without coupling to legacy runtime; optionally load legacy data later.
+Goal: move beyond the temporary current fixture bootstrap by implementing explicit newsletter ingestion/import paths without coupling to legacy runtime.
 
 Tasks:
 - Build current-fixture service for manual table entry or manually corrected screenshot/table extraction.
 - Persist current newsletter fixture rows as native PostgreSQL `newsletters` and `watchlist_entries`.
 - Store fixture source metadata, screenshot/table reference, entered_by, entered_at, and validation warnings where available.
+- Define the deprecation path for `data/inbox/current_fixture/` once newsletter ingestion/import is stable.
 - Build import service that reads legacy SQLite by file path only.
 - Import newsletters, sections, watchlist entries, and short-list entries into PostgreSQL-native tables.
 - Record import batches, source hash, legacy table names, and legacy primary keys.
@@ -607,6 +680,7 @@ Non-goals:
 Validation gates:
 - Current newsletter fixture can be created without legacy import.
 - Fixture contains enough symbols to scan sequentially and continue after `DATA_UNAVAILABLE`.
+- Current fixture is explicitly marked temporary and not used as a permanent runtime dependency.
 - Import can run against copied read-only SQLite DB.
 - Imported data is queryable from PostgreSQL only.
 - Re-import is idempotent.
@@ -614,6 +688,7 @@ Validation gates:
 
 Definition of Done:
 - New project has enough native PostgreSQL data to scan current fixture symbols.
+- Follow-on ingestion/import path is defined so `data/inbox/current_fixture/` can be removed from normal operations.
 - Legacy import is optional and isolated.
 
 ## 12. Phase 3: Provider Abstraction And Tradier Read Path

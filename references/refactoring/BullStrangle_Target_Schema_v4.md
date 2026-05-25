@@ -34,6 +34,14 @@ Project identity:
 
 The GitHub repository should be created before schema implementation begins so migrations, local-dev database scripts, test database setup, seed data, and import tooling live in the new self-contained project from the first commit.
 
+Filesystem data area:
+- The new repository should include a lean `data/` area: `data/inbox/newsletters`, `data/inbox/current_fixture`, `data/fixtures/regression`, `data/fixtures/provider_payloads`, `data/imports/legacy`, `data/benchmarks/os`, and `data/reports/replay`.
+- PostgreSQL is still the runtime DB. Files in `data/` are source artifacts, fixtures, optional import inputs, benchmark evidence, or generated reports.
+- Runtime tables should store source file references, checksums, ingestion metadata, and normalized records needed for replay.
+- Runtime scanner/decision services should read PostgreSQL records, not raw files.
+- Do not create a runtime SQLite DB file or normalize local backup folders as part of the application schema.
+- `data/inbox/current_fixture` is temporary bootstrap input only. Schema support for fixture metadata exists to preserve lineage, but runtime services should not depend on fixture files after ingestion/import is implemented.
+
 Legacy `bullstrangle-mcp` runtime remains separate:
 - No imports from legacy runtime modules in the new runtime.
 - No runtime reads from legacy SQLite tables.

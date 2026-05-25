@@ -49,6 +49,7 @@ MVP source rule:
 
 - Use the current newsletter screenshot/table as the operational MVP source.
 - Create a current fixture watchlist from manually entered or manually corrected rows.
+- Treat the current fixture path as a temporary Phase 0/1 bootstrap only; it should be deprecated after newsletter ingestion/import is reliable.
 - Scan fixture symbols sequentially.
 - If a symbol lacks sufficient live data, mark that symbol `DATA_UNAVAILABLE` with reason and continue to the next symbol.
 - MVP succeeds when at least one current-fixture symbol completes live quote, option chain, selected legs, P/L, probability, decision, and paper lifecycle.
