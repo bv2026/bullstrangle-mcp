@@ -2,7 +2,7 @@
 
 Status: Target Architecture Draft
 Date: 2026-05-25
-Scope: Refactor architecture for live option-chain scanning, paper/shadow/live lifecycle readiness, portfolio learning, and Option Samurai deprecation.
+Scope: Target architecture for a new self-contained BullStrangle project with live option-chain scanning, PostgreSQL runtime storage, paper/shadow/live lifecycle readiness, portfolio learning, and Option Samurai deprecation.
 
 Inputs:
 - `references/refactoring/BullStrangle_Product_Spec_Refactor_PRD.md`
@@ -17,9 +17,16 @@ Related diagrams:
 
 ## 1. Architecture Position
 
-v4 is the target architecture for the refactor. It does not rewrite or invalidate v3 as the current-state implementation. v3 remains the historical/current operating model for newsletter ingestion, OS workbook generation/ingestion, gate evaluation, cycle layers, reports, and backtest/paper monitoring.
+v4 is the target architecture for a new self-contained project from scratch. It does not rewrite, extend, or invalidate the legacy v3 runtime. v3 remains operational as the legacy/current system.
 
-v4 changes the strategic architecture in one major way: Option Samurai Excel stops being the execution data plane. BullStrangle becomes a strategy operating layer that uses Darren's newsletter for candidate selection and live option-chain data for executable trade construction, P/L, probability, paper trading, and eventual live readiness.
+v4 changes the strategic architecture in one major way: Option Samurai Excel stops being the execution data plane for the new project. The new BullStrangle runtime becomes a strategy operating layer that uses Darren's newsletter for candidate selection and live option-chain data for executable trade construction, P/L, probability, paper trading, and eventual live readiness.
+
+Hard project boundary:
+- The new runtime owns its own package, PostgreSQL schema, migrations, provider abstraction, MCP server, configuration, and tests.
+- The new runtime must not import legacy modules.
+- The new runtime must not query legacy SQLite tables.
+- Legacy code and legacy SQLite data may be read only for context or explicit one-way import.
+- Legacy BullStrangle behavior must remain unchanged.
 
 The target workflow is:
 
@@ -52,16 +59,16 @@ entry decision
 
 The current v3 implementation solved important operational problems, but it remains constrained by the OS workbook loop.
 
-Current-state strengths:
+Legacy/current-state strengths:
 - Newsletter ingestion and immutable artifact storage exist.
 - Watchlist and short-list extraction exist.
 - Strategy rule catalog and gate engine exist.
 - Entry and exit engine concepts exist.
 - Large/Small portfolio separation has begun through `portfolio_type`.
 - Reports and workflow commands exist.
-- Existing DB migrations are additive and should be preserved.
+- Legacy DB migrations are additive and should be preserved in the legacy runtime; the new project has its own PostgreSQL migration stream.
 
-Current-state problems:
+Legacy/current-state problems that the new project addresses:
 - Execution data depends on generated Option Samurai workbooks, manual Excel refresh, and workbook re-ingestion.
 - Option Samurai fields shape downstream decisions too strongly, including Gate 7 moving-average alignment and workbook-only SMA fields.
 - Current gate logic can over-filter trades after Darren has already curated the watchlist.
@@ -83,7 +90,7 @@ Current-state problems:
 - Paper, shadow, and live execution share one lifecycle model.
 - Live order submission is structurally disabled until later phases and always requires explicit operator approval.
 - Provider-specific clients sit behind a provider contract. Core scanner, decision, P/L, probability, and portfolio logic never import a broker-specific client directly.
-- v4 schema changes are additive. Existing v3 tables remain historical/current-state sources during migration.
+- The new project uses a PostgreSQL-native runtime schema. Legacy v3 tables are import/context sources only, not runtime sources of truth.
 
 ## 4. Target Multi-Agent Architecture
 
@@ -113,46 +120,23 @@ Implementation guidance: build deterministic Python modules/services first. Only
 
 ### 5.1 Schema Strategy
 
-v4 schema is additive. Do not destructively migrate v3 tables. The v3 artifact layer remains authoritative for ingested newsletters.
+The v4 runtime schema is PostgreSQL-native and belongs to the new self-contained project. It is not an additive migration of the legacy SQLite database.
 
-Current tables to retain:
-- `newsletters`
-- `newsletter_full_text`
-- `watchlist_entries`
-- `short_list_entries`
-- `watchlist_deep_analysis`
-- `market_environment`
-- `weekly_decisions`
-- `symbol_history`
-- `strategy_reference_sections`
-- `strategy_rules`
-- `strategy_rule_catalog`
-- `os_workbooks`
-- `os_evaluation_runs`
-- `os_evaluation_rows`
-- `watchlist_deviations`
-- `os_weekly_symbol_aggregates`
-- `position_books`
-- `cycle_layers`
-- `entry_decisions`
-- `exit_decisions`
-- `position_import_runs`
-- `account_positions`
-- `symbol_position_rollups`
-- `generated_reports`
-- `report_subscriptions`
-- `earnings_calendar`
+Legacy SQLite tables may be imported through explicit one-way jobs, but they are not runtime dependencies and are not source-of-truth tables for the new system.
 
-Current tables to treat as historical/compatibility only:
-- `decision_batches`
-- `bull_strangle_decisions`
-- `dca_decisions`
+PostgreSQL runtime principles:
+- schema namespace: `bullstrangle`
+- migrations: Alembic or equivalent
+- JSON payload/evidence fields: `jsonb`
+- event/market/audit timestamps: `timestamptz`
+- money/price/probability fields: PostgreSQL `numeric`
+- import lineage: legacy source table/key stored only for audit
 
-New v4 tables should use an explicit suffix only where needed to avoid semantic collisions. Recommended names below use clear nouns instead of relying only on `v2` suffixes.
+Legacy imports should be optional. The one-symbol MVP should use a manual/single-symbol fixture first and must not block on full legacy import.
 
 ### 5.2 Artifact Domain
 
-Existing artifact tables remain source of truth. Additions are optional and not MVP blockers.
+New PostgreSQL artifact tables are the runtime source of truth after manual fixture entry or one-way import. Legacy artifact tables are import/context only.
 
 | Table | Purpose | Priority |
 |---|---|---:|
@@ -161,7 +145,7 @@ Existing artifact tables remain source of truth. Additions are optional and not 
 
 ### 5.3 Rule And Policy Domain
 
-The current `strategy_rule_catalog` should be extended or paired with immutable policy version tables. Do not create a second unlinked rule catalog.
+The new project owns its own strategy rule and policy tables in PostgreSQL. Legacy rule tables may inform seed data but are not runtime dependencies.
 
 | Table | Purpose | Priority |
 |---|---|---:|
@@ -270,7 +254,7 @@ raw_payload_json
 | `pl_evaluations` | Versioned P/L outputs and assumptions. | P0 |
 | `pl_scenario_rows` | Scenario table across expiration prices. | P1 |
 | `probability_evaluations` | Versioned probability outputs and assumptions. | P0 |
-| `entry_decisions_v4` | New decision record with evidence and replay links. | P0 |
+| `entry_decisions` | New PostgreSQL decision record with evidence and replay links. This is not the legacy SQLite `entry_decisions` table. | P0 |
 | `trade_scorecards` | Component confidence scores. | P1 |
 
 Minimum `live_watchlist_snapshots` fields:
@@ -318,7 +302,7 @@ selection_rank
 selection_reason
 ```
 
-Minimum `entry_decisions_v4` fields:
+Minimum `bullstrangle.entry_decisions` fields:
 
 ```text
 decision_id
@@ -331,6 +315,7 @@ policy_version_id
 portfolio_type nullable
 symbol
 decision_status: ACCEPT | WATCH | REJECT | DATA_UNAVAILABLE
+data_availability_status
 strategy_decision_status
 portfolio_actionability_status
 confidence_level: HIGH | MEDIUM | LOW | REJECT nullable
@@ -931,9 +916,9 @@ Readiness thresholds:
 
 Option Samurai is not removed immediately. It is demoted in phases.
 
-### Phase OS-0: Current State
+### Phase OS-0: Legacy Unchanged
 
-OS workbook remains operational and feeds existing v3 workflows.
+OS workbook remains operational in the legacy runtime. The new project does not depend on it.
 
 ### Phase OS-1: Benchmark
 
@@ -947,48 +932,48 @@ Live scanner runs alongside OS. Reports compare:
 
 Live scanner becomes normal paper path. OS workbook remains available when provider chain data is unavailable or for manual benchmark checks.
 
-### Phase OS-3: Deprecated Normal Workflow
+### Phase OS-3: Deprecated For New Runtime
 
 OS workbook generation/re-ingestion is no longer required for the normal BullStrangle workflow. Existing OS tables remain historical and may still be used for old reports or transition analysis.
 
-Deprecation rule: do not delete OS tables or code during v4 MVP. Stop making new strategic logic depend on OS-only fields.
+Deprecation rule: do not delete or modify legacy OS tables or code. Stop making new project strategic logic depend on OS-only fields.
 
 Gate 7 policy: moving-average alignment from OS SMA fields is advisory/retired by default and cannot reject trades unless a future rule version explicitly re-enables it as a hard gate.
 
-## 19. Migration Strategy From Current DB/Workflow
+## 19. Import Strategy From Legacy DB/Workflow
 
-Migration principles:
-- Additive migrations only.
-- Existing v3 tables stay intact.
-- New v4 tables reference existing newsletter and watchlist IDs.
+Import principles:
+- Legacy v3 tables stay intact and operational.
+- New v4 PostgreSQL tables do not reference legacy SQLite primary keys as runtime foreign keys.
+- Legacy data may be copied into PostgreSQL through explicit one-way import jobs.
 - Historical decisions are not blindly backfilled into v4 decisions.
-- Current OS/gate data can be used as benchmark and compatibility input.
-- Existing reports continue to work during migration.
+- Current OS/gate data can be imported as benchmark data only.
+- Existing legacy reports continue to work because legacy runtime is untouched.
 
 Mapping current to target:
 
-| Current v3 Entity | v4 Role |
+| Legacy v3 Entity | New v4 Role |
 |---|---|
-| `newsletters` | Source newsletter dimension. |
-| `watchlist_entries` | Candidate universe source. |
-| `short_list_entries` | Large/Small source membership. |
-| `market_environment` | Market context and possible advisory/portfolio input. |
-| `strategy_rule_catalog` | Extend for versioned hard/soft/advisory rule model. |
-| `os_evaluation_rows` | Benchmark/fallback provider data, not primary. |
-| `entry_decisions` | Historical/current gate decisions. New live-scanner decisions go to `entry_decisions_v4` or compatible extension. |
-| `cycle_layers` | Historical/current paper/backtest layer model. Map to new trade lifecycle where needed. |
-| `position_books` | Current position concept; may feed portfolio manager but should not replace execution lifecycle. |
+| legacy `newsletters` | Optional one-way import into `bullstrangle.newsletters`. |
+| legacy `watchlist_entries` | Optional one-way import into `bullstrangle.watchlist_entries`. |
+| legacy `short_list_entries` | Optional one-way import into `bullstrangle.short_list_entries`. |
+| legacy `market_environment` | Optional one-way import as newsletter context/advisory evidence. |
+| legacy `strategy_rule_catalog` | Context for seeding new PostgreSQL `bullstrangle.strategy_rules`. |
+| legacy `os_evaluation_rows` | Optional benchmark/import data, not primary market data. |
+| legacy `entry_decisions` | Historical context only; not imported as active v4 decisions unless explicitly marked historical. |
+| legacy `cycle_layers` | Optional historical paper/backtest comparison only. |
+| legacy `position_books` | Historical context only; new runtime owns its own portfolio/execution state. |
 
-Migration steps:
+Import/cutover steps:
 
-1. Add provider, market snapshot, scanner, P/L, probability, decision, and lifecycle tables.
-2. Add policy/version tables for pricing, strike selection, formulas, and probability model.
-3. Implement one-symbol paper-only slice using existing `watchlist_entries`.
-4. Generate replay report from v4 tables.
-5. Run full watchlist paper scan while leaving v3 OS workflow intact.
-6. Compare OS vs live scanner outputs over multiple newsletters.
-7. Move paper portfolio reporting from `cycle_layers`-only view toward shared lifecycle views.
-8. Defer live broker integration until confidence and safety gates are approved.
+1. Create new PostgreSQL runtime schema and migrations.
+2. Seed policies/rules/formulas/probability models.
+3. Implement one-symbol paper-only slice using a manual/single-symbol fixture.
+4. Optionally import legacy newsletters/watchlist rows into PostgreSQL.
+5. Generate replay report from PostgreSQL v4 tables.
+6. Run full watchlist paper scan while leaving v3 OS workflow intact.
+7. Compare imported OS benchmark data vs live scanner outputs over multiple newsletters.
+8. Defer live broker integration until confidence, safety gates, and Product Owner live-readiness approval are complete.
 
 ## 20. Phased Rollout Plan
 
@@ -996,7 +981,7 @@ Migration steps:
 
 Deliverables:
 - Provider contract.
-- v4 additive schema specification.
+- PostgreSQL v4 schema specification.
 - Pricing policy.
 - Strike-selection policy.
 - P/L formula specification.
@@ -1070,11 +1055,11 @@ Rationale: v3 is an active/current implementation record. Editing it into a targ
 
 Tradeoff: docs now have two architecture versions. Mitigation: v4 explicitly maps from v3 and states what remains current.
 
-### Decision: Additive schema, not in-place rewrite
+### Decision: New PostgreSQL schema, not legacy in-place rewrite
 
-Rationale: current DB has valuable ingested newsletters, OS history, gate decisions, and paper/backtest data.
+Rationale: the refactor is a new self-contained project. The legacy SQLite DB has valuable ingested newsletters, OS history, gate decisions, and paper/backtest data, but it remains an import/context source only.
 
-Tradeoff: temporary duplication and compatibility complexity. Mitigation: explicit mapping, read-only legacy mode, and v4 views/reports.
+Tradeoff: one-way import creates duplicated data. Mitigation: explicit import batches, legacy source lineage, and no runtime dependency on legacy SQLite.
 
 ### Decision: Provider contract first
 
@@ -1115,17 +1100,17 @@ Tradeoff: less visible agent architecture early. Mitigation: module boundaries m
 ## 22. Open Questions
 
 P0 before engineering:
-- What exact symbol should the MVP use: `AA`, latest short-list symbol, or operator-supplied symbol?
-- What is the exact expiration selection rule and acceptable DTE range?
-- What are the short call, short put, and protective put delta targets/bands?
-- How is the protective put selected: delta, distance, premium ratio, max debit, or another rule?
-- What is the minimum acceptable liquidity threshold for spread width, OI, volume, bid, and missing greeks?
-- What is the approved default pricing policy for paper fills?
-- What are the exact P/L formulas and capital model?
-- What is the first probability model and IV selection policy?
-- Should commissions/fees be included in MVP calculations?
+- MVP symbol: `AA` from the latest non-ingested newsletter screenshot/manual fixture.
+- MVP source: manual/single-symbol fixture first; full newsletter import later.
+- Expiration rule: closest listed expiration to 28 calendar days, allowed DTE range 21-35.
+- Initial strike rules: provisional call/put delta bands plus protective-put lower-delta or premium-ratio rule; record alternatives and selected reason.
+- Pricing policy: conservative executable pricing; short options at bid, long options at ask, stock ask for buy assumptions, stock bid for sell assumptions, mid shown for reference only.
+- P/L assumptions: exclude commissions in MVP and store `include_commissions=false`.
+- Probability model: simple lognormal expiration model using selected IV, with assumptions stored and no claim of matching OS.
+- Large/Small sizing: defer exact sizing to P1; MVP stores nullable portfolio type.
+- Duplicate symbol policy: warn but allow during paper trading; revisit before live.
 - How should `DATA_UNAVAILABLE` appear in reports and confidence metrics?
-- Should current `entry_decisions` be extended or should v4 decisions use `entry_decisions_v4`?
+- New PostgreSQL decision table name: `bullstrangle.entry_decisions`; explicitly not legacy SQLite `entry_decisions`.
 
 P1 before full paper run:
 - What are Large and Small capital assumptions?
@@ -1138,7 +1123,8 @@ P1 before full paper run:
 
 P2 before shadow/live:
 - What sample size and performance metrics are required before shadow mode?
-- What sample size and performance metrics are required before live mode?
+- Shadow threshold: at least one full-watchlist paper cycle works end-to-end with clean replay and no critical data failures.
+- Live threshold: no numeric threshold yet; requires separate Product Owner approval after multiple paper/shadow cycles, broker reconciliation, and explicit max-loss/order-size controls.
 - Which broker account IDs are allowed for live trading?
 - What are max order size, max notional, max contracts, and max buying-power limits?
 - Who can approve live orders and how is identity recorded?
@@ -1149,7 +1135,7 @@ P2 before shadow/live:
 Engineering should not start the v4 MVP until these are approved:
 - Provider contract and typed error model.
 - Tradier provider normalization spec.
-- Additive v4 schema migration plan.
+- PostgreSQL v4 schema migration plan.
 - Pricing policy.
 - Strike-selection policy.
 - P/L formula spec.
@@ -1158,6 +1144,7 @@ Engineering should not start the v4 MVP until these are approved:
 - Paper lifecycle state machine.
 - Live safety design, even with live out of scope.
 - One-symbol MVP acceptance fixture.
+- Product Owner conditional-approval action items resolved.
 
 ## 24. MVP Acceptance Criteria
 
@@ -1173,6 +1160,8 @@ MVP is complete when:
 - Paper fill prices are no more favorable than policy prices.
 - No live order can be submitted.
 - OS Excel is not required for the MVP path.
+- MVP uses manual/single-symbol fixture first; full ingestion/import is deferred.
+- Legacy SQLite and legacy modules are not runtime dependencies.
 
 ## 25. Summary
 

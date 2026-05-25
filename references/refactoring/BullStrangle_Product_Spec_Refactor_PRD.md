@@ -18,6 +18,9 @@ The product must:
 - Track trade-management scenarios and realized outcomes.
 - Build confidence from evidence, not assumptions.
 - Be designed so live trading can be added later without a schema redesign.
+- Be implemented as a new self-contained project from scratch.
+- Use PostgreSQL as the primary runtime database.
+- Treat the legacy BullStrangle runtime and legacy SQLite database as import/context sources only, never runtime dependencies.
 
 The target product is not a generic options scanner. It is a BullStrangle-specific operating layer that respects Darren's newsletter, strategy rules, and portfolio-management process.
 
@@ -59,6 +62,10 @@ Option Samurai should become a temporary fallback and benchmark, not the strateg
 - Paper trading and live trading must use the same lifecycle model.
 - Human approval is required before any live order submission.
 - The product should be provider-agnostic: Tradier may be first, but the core should depend on a market-data provider contract.
+- The refactor should be a new self-contained project with its own package, PostgreSQL schema, migrations, MCP server, configuration, provider abstraction, and tests.
+- The legacy BullStrangle runtime must remain untouched and operational during the refactor.
+- Legacy SQLite data may be read only through explicit one-way import/migration steps.
+- The new runtime must not import legacy modules or query legacy SQLite tables at runtime.
 
 ## 5. Users And Jobs To Be Done
 
@@ -198,6 +205,9 @@ The system shall produce an entry decision for each candidate:
 - `ACCEPT`
 - `WATCH`
 - `REJECT`
+- `DATA_UNAVAILABLE`
+
+`DATA_UNAVAILABLE` is a first-class decision state for provider failure, stale data, missing chain, missing critical fields, or missing eligible expiration. It is not a strategy rejection and must not pollute rejected-trade outcome metrics.
 
 Each decision shall include:
 
@@ -323,6 +333,7 @@ Live trading guardrails:
 - Broker-synced positions shall become source of truth after live fills.
 - Paper and shadow modes shall remain available after live mode exists.
 - Live mode shall remain disabled until confidence thresholds are met.
+- Live mode shall require a separate documented Product Owner approval milestone before it can be enabled. Engineering configuration alone shall not be sufficient to enable live order submission.
 
 ## 7. Non-Functional Requirements
 
@@ -333,6 +344,16 @@ Auditability:
 Provider independence:
 
 - Core logic must not depend on a specific broker or market-data vendor.
+
+Legacy isolation:
+
+- New runtime logic must not depend on legacy BullStrangle modules, legacy SQLite tables, or Option Samurai Excel.
+- Legacy code and data may be used only for documentation/context or explicit one-way import into PostgreSQL.
+
+Database platform:
+
+- PostgreSQL is required for the new runtime.
+- SQLite is allowed only as a legacy import source.
 
 Explainability:
 
@@ -424,12 +445,12 @@ Portfolio/confidence domain:
 
 MVP shall prove one thin vertical slice:
 
-1. Select one newsletter symbol.
+1. Select one newsletter symbol from a manual/single-symbol fixture.
 2. Pull live stock quote from Tradier.
 3. Pull live option chain from Tradier.
 4. Select live strikes using provisional delta rules.
 5. Calculate P/L and probability.
-6. Produce accept/watch/reject decision.
+6. Produce accept/watch/reject/data-unavailable decision.
 7. Create paper trade intent and simulated fill.
 8. Store enough data to replay and explain the decision.
 
@@ -440,14 +461,28 @@ MVP shall not include:
 - Full automated exit management.
 - Provider abstraction beyond what is required to isolate Tradier.
 - Replacement of all current reports.
+- Full newsletter ingestion.
+- Legacy SQLite import as a prerequisite for MVP.
 
 ## 11. Phased Roadmap
+
+Product milestones:
+
+1. Foundation and PostgreSQL schema.
+2. One-symbol MVP.
+3. Full watchlist paper run.
+4. Monitoring and outcomes.
+5. Confidence reporting.
+6. Shadow mode.
+7. Live readiness.
+
+Live readiness requires a separate documented Product Owner approval milestone. Engineering configuration alone shall not enable live order submission.
 
 Phase 0: Architecture hardening
 
 - Architect reviews this PRD.
 - Define final provider contract.
-- Define v2 schema.
+- Define PostgreSQL target schema.
 - Define rule thresholds.
 - Define P/L and probability formulas.
 - Define confidence scoring MVP.
@@ -509,9 +544,11 @@ Product acceptance:
 
 MVP acceptance:
 
-- For a selected symbol, the system can reproduce the Tradier chain test manually observed for `AA`.
+- For selected symbol `AA`, using a manual/single-symbol fixture, the system can reproduce the Tradier chain test manually observed by Product/Architecture.
 - The system can produce a complete decision record with market data, selected legs, P/L, probability, and explanation.
 - The system can create a paper trade lifecycle record without live execution.
+- The system uses PostgreSQL as the runtime database.
+- The system has no runtime dependency on legacy modules, legacy SQLite, or Option Samurai Excel.
 
 ## 13. Risks
 
@@ -538,6 +575,7 @@ False confidence risk:
 Live trading safety risk:
 
 - Live mode must remain disabled until approval and confidence controls are mature.
+- Live mode must not be enabled by engineering configuration alone; it requires a documented Product Owner approval milestone.
 
 ## 14. Open Questions For Architect
 
@@ -658,8 +696,8 @@ Initial rule placeholders require strategy-owner confirmation.
 
 | ID | Priority | Requirement | State | Acceptance Test |
 |---|---|---|---|---|
-| BS-DEC-001 | P0 | System shall classify each candidate as ACCEPT, WATCH, or REJECT. | Defined | One-symbol MVP produces one of the three statuses. |
-| BS-DEC-002 | P0 | Decision shall include human-readable explanation. | Defined | User can read why a candidate was accepted, watched, or rejected. |
+| BS-DEC-001 | P0 | System shall classify each candidate as ACCEPT, WATCH, REJECT, or DATA_UNAVAILABLE. | Defined | One-symbol MVP produces one of the four statuses. |
+| BS-DEC-002 | P0 | Decision shall include human-readable explanation. | Defined | User can read why a candidate was accepted, watched, rejected, or marked data-unavailable. |
 | BS-DEC-003 | P0 | Decision shall link to market data snapshot, P/L evaluation, probability evaluation, and rules. | Needs Architecture | Decision can be replayed from stored references. |
 | BS-DEC-004 | P1 | Decision shall include component scorecard and confidence level. | Defined | Decision output includes freshness, liquidity, P/L, probability, rule, portfolio-fit scores. |
 | BS-DEC-005 | P1 | Rejected trades shall be retained for later outcome comparison. | Defined | Rejected candidate remains queryable and can be compared at expiration. |
@@ -703,7 +741,7 @@ Initial rule placeholders require strategy-owner confirmation.
 | BS-CONF-002 | P1 | System shall calculate system-level confidence from paper-trading outcomes. | Needs Rule Input | Confidence report updates after closed paper trades. |
 | BS-CONF-003 | P1 | System shall compare accepted, watched, and rejected candidates after expiration. | Defined | Report shows whether rejected candidates would have worked. |
 | BS-CONF-004 | P2 | System shall define threshold for moving from paper to shadow mode. | Needs Rule Input | Shadow mode remains disabled until threshold is configured/met. |
-| BS-CONF-005 | P2 | System shall define threshold for moving from shadow to live mode. | Needs Rule Input | Live mode remains disabled until threshold is configured/met. |
+| BS-CONF-005 | P2 | System shall define threshold for moving from shadow to live mode. | Needs Rule Input | Live mode remains disabled until threshold is configured/met and Product Owner live-readiness approval is documented. |
 
 ### 16.14 Reporting Requirements
 
@@ -805,14 +843,16 @@ The Architect should produce:
 Engineering should not begin full implementation until:
 
 - Provider contract is approved.
-- V2 schema is approved.
+- PostgreSQL target schema is approved.
 - One-symbol MVP scope is locked.
+- MVP symbol and manual/single-symbol fixture are approved.
 - Initial strike-selection rules are confirmed.
 - Initial pricing policy is confirmed.
 - Initial P/L formulas are confirmed.
 - Initial probability model is confirmed.
 - Paper execution lifecycle is approved.
 - Live trading guardrails are approved even if live mode remains disabled.
+- Legacy isolation and no-runtime-dependency checks are approved.
 
 ## 21. Definition Of Done For MVP
 
@@ -822,8 +862,10 @@ MVP is done when:
 - Live option chain is normalized and persisted.
 - Live strikes are selected according to approved provisional rules.
 - P/L and probability outputs are calculated and persisted.
-- Entry decision is produced with explanation.
+- Entry decision is produced with explanation and supports `DATA_UNAVAILABLE`.
 - Paper trade intent, order draft, simulated fill, and lifecycle event are created.
 - Report can replay the decision from stored data.
 - No live order can be submitted.
 - OS Excel is not required for the MVP path.
+- PostgreSQL is the only runtime database.
+- Legacy SQLite is not queried by runtime services.

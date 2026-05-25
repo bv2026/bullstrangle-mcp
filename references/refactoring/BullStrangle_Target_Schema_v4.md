@@ -97,6 +97,7 @@ Use check constraints for core lifecycle states to catch invalid writes.
 
 Core status values:
 - decision status: `ACCEPT`, `WATCH`, `REJECT`, `DATA_UNAVAILABLE`
+- data availability status: `AVAILABLE`, `STALE`, `PARTIAL`, `UNAVAILABLE`
 - execution mode: `planning`, `paper`, `shadow`, `live`
 - order status: `draft`, `approval_pending`, `approved`, `submitted`, `partially_filled`, `filled`, `cancelled`, `rejected`, `expired`
 - fill source: `simulated`, `broker_api`, `manual_import`
@@ -802,6 +803,7 @@ CREATE TABLE bullstrangle.entry_decisions (
     symbol text NOT NULL,
     portfolio_type text CHECK (portfolio_type IN ('large','small')),
     decision_status text NOT NULL CHECK (decision_status IN ('ACCEPT','WATCH','REJECT','DATA_UNAVAILABLE')),
+    data_availability_status text NOT NULL CHECK (data_availability_status IN ('AVAILABLE','STALE','PARTIAL','UNAVAILABLE')),
     strategy_decision_status text,
     portfolio_actionability_status text,
     confidence_level text CHECK (confidence_level IN ('HIGH','MEDIUM','LOW','REJECT') OR confidence_level IS NULL),
@@ -823,6 +825,9 @@ ON bullstrangle.entry_decisions(newsletter_id, symbol);
 
 CREATE INDEX idx_entry_decisions_status_time
 ON bullstrangle.entry_decisions(decision_status, decided_at DESC);
+
+CREATE INDEX idx_entry_decisions_data_availability
+ON bullstrangle.entry_decisions(data_availability_status, decided_at DESC);
 
 CREATE INDEX idx_entry_decisions_rule_evidence_gin
 ON bullstrangle.entry_decisions USING gin (rule_evidence);
@@ -1313,7 +1318,7 @@ Provider failure chain:
 market_data_runs(status='failed' or 'partial')
   -> error jsonb
   -> live_watchlist_snapshots(status='data_unavailable')
-  -> entry_decisions(decision_status='DATA_UNAVAILABLE')
+  -> entry_decisions(decision_status='DATA_UNAVAILABLE', data_availability_status='UNAVAILABLE')
 ```
 
 ## 17. Import/Migration Phases From Legacy SQLite

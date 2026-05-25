@@ -44,6 +44,36 @@ newsletter symbol
 
 The MVP must not require legacy runtime modules, legacy SQLite tables, Option Samurai Excel, or live broker submission.
 
+## 2.1 Product Milestones
+
+Product-facing milestone grouping:
+
+1. Foundation and PostgreSQL schema.
+2. One-symbol MVP.
+3. Full watchlist paper run.
+4. Monitoring/outcomes.
+5. Confidence reporting.
+6. Shadow mode.
+7. Live readiness.
+
+Engineering phases below are intentionally more granular, but product reporting should roll up to these seven milestones.
+
+## 2.2 P0 Product Decisions Before Implementation
+
+The following Product Owner decisions are locked for initial planning unless explicitly revised:
+
+- MVP symbol: `AA` from the latest non-ingested newsletter screenshot/manual fixture.
+- MVP source: manual/single-symbol fixture first; legacy import later.
+- Expiration rule: closest listed expiration to 28 calendar days, allowed DTE range 21-35.
+- Initial strike rules: provisional delta-band selection for short call and short put; protective put by lower put delta or premium-ratio rule; record alternatives and selected reason.
+- Pricing policy: conservative executable pricing; short options at bid, long options at ask, stock at ask for buy assumptions, stock at bid for sell assumptions, mid shown for reference only.
+- P/L assumptions: exclude commissions in MVP and store `include_commissions=false`.
+- Probability model: simple lognormal expiration model using selected IV, assumptions stored, no claim of matching OS.
+- Large/Small sizing: defer exact sizing to P1; MVP stores nullable portfolio type only.
+- Duplicate symbol policy: warn but allow during paper trading; revisit before live.
+- Shadow threshold: at least one full-watchlist paper cycle works end-to-end with clean replay and no critical data failures.
+- Live threshold: no numeric threshold yet; requires separate Product Owner approval after multiple paper/shadow cycles, broker reconciliation, broker fake tests, and explicit max-loss/order-size controls.
+
 ## 3. Proposed New Project Structure
 
 Recommended location if created inside this repository:
@@ -650,10 +680,13 @@ Goal: prepare, review, and only then enable live broker execution.
 Prerequisites:
 - Paper confidence threshold met.
 - Shadow confidence threshold met.
+- Separate documented Product Owner live-readiness approval completed.
 - Operator approval workflow implemented.
 - Broker account allowlist configured.
 - Live safety review approved.
 - MCP live tool review approved.
+- Broker fake tests passed.
+- Explicit max-loss, max-notional, max-contracts, and order-size controls approved.
 
 Tasks:
 - Implement broker execution interface.
@@ -675,6 +708,8 @@ Non-goals:
 
 Validation gates:
 - Live tool disabled by default.
+- Engineering configuration alone cannot enable live trading.
+- Product Owner live-readiness approval artifact exists.
 - Live submission fails closed without approval.
 - Live submission fails closed on stale data.
 - Duplicate submission is prevented.
@@ -796,7 +831,7 @@ Provider fallback:
 | 8 | Paper trades are monitored and outcomes classified. |
 | 9 | Confidence metrics are generated from paper history. |
 | 10 | Shadow mode creates approved drafts without submission. |
-| 11 | Live readiness is implemented but enabled only after explicit approval. |
+| 11 | Live readiness is implemented but enabled only after explicit Product Owner approval plus operator approval workflow and safety checks. |
 
 ## 27. Immediate Next Decisions
 
@@ -806,12 +841,14 @@ Before any implementation:
 - Confirm local PostgreSQL setup approach.
 - Confirm Alembic as migration tool.
 - Confirm MVP symbol and source newsletter.
-- Confirm provisional strike-selection rules.
-- Confirm conservative pricing policy.
-- Confirm P/L formula assumptions.
-- Confirm probability model assumptions.
+- Confirm manual/single-symbol fixture source for `AA`.
+- Confirm provisional strike-selection rule parameters.
+- Confirm conservative pricing policy values.
+- Confirm P/L formula assumptions with `include_commissions=false`.
+- Confirm probability model assumptions for simple lognormal selected-IV model.
 - Confirm exact MCP MVP tool list.
 - Confirm live trading disabled-by-default configuration names.
+- Confirm Product Owner live-readiness approval artifact format.
 
 ## 28. Non-Goals For This Roadmap
 
