@@ -21,8 +21,18 @@ The product must:
 - Be implemented as a new self-contained project from scratch.
 - Use PostgreSQL as the primary runtime database.
 - Treat the legacy BullStrangle runtime and legacy SQLite database as import/context sources only, never runtime dependencies.
+- Finalize the new project identity and GitHub repository before implementation begins.
 
 The target product is not a generic options scanner. It is a BullStrangle-specific operating layer that respects Darren's newsletter, strategy rules, and portfolio-management process.
+
+Recommended implementation identity:
+
+- Product name: `BullStrangle Platform`
+- GitHub repository: `bullstrangle-platform`
+- Python package: `bullstrangle_platform`
+- PostgreSQL schema namespace: `bullstrangle`
+- CLI command namespace: `bs-platform`
+- MCP server name: `bullstrangle_platform_mcp`
 
 ## 2. Current Product Problems
 
@@ -400,7 +410,7 @@ Decision domain:
 
 - pl_evaluations
 - probability_evaluations
-- entry_decisions_v2
+- entry_decisions
 - trade_scorecards
 
 Execution domain:
@@ -588,7 +598,7 @@ Live trading safety risk:
 
 ## 14. Open Questions For Architect
 
-- Should v2 schema coexist with current tables or migrate current tables in place?
+- Confirm final GitHub repository creation timing and owner for `bullstrangle-platform`.
 - Should Tradier direct provider live inside BullStrangle first, or should broker platform be extended first?
 - What is the minimum normalized option-chain contract?
 - What pricing policy should the scanner use: bid, ask, mid, or conservative executable price?
@@ -840,7 +850,7 @@ Confidence:
 The Architect should produce:
 
 - Updated target architecture document.
-- V2 schema design with migration strategy.
+- PostgreSQL target schema design with one-way legacy import strategy.
 - Provider interface specification.
 - Tradier provider design.
 - Scanner algorithm specification.
@@ -855,6 +865,11 @@ The Architect should produce:
 
 Engineering should not begin full implementation until:
 
+- New GitHub repository `bullstrangle-platform` is created or explicitly approved for creation.
+- Project identity is approved: `BullStrangle Platform`, package `bullstrangle_platform`, CLI `bs-platform`, MCP server `bullstrangle_platform_mcp`, PostgreSQL schema `bullstrangle`.
+- Repository and folder layout are approved.
+- Agent/sub-agent scaffolding and write ownership boundaries are approved.
+- MCP-builder compliance checklist is approved, including strict tool naming, typed schemas, annotations, pagination, truncation, actionable errors, tests, and read-only evaluations.
 - Provider contract is approved.
 - PostgreSQL target schema is approved.
 - Current-newsletter fixture MVP scope is locked.

@@ -78,12 +78,30 @@ The following Product Owner decisions are locked for initial planning unless exp
 - Shadow threshold: at least one current-fixture MVP and one full-watchlist paper cycle work end-to-end with clean replay and no critical data failures.
 - Live threshold: no numeric threshold yet; requires separate Product Owner approval after multiple paper/shadow cycles, broker reconciliation, broker fake tests, and explicit max-loss/order-size controls.
 
-## 3. Proposed New Project Structure
+## 3. Final Project Identity And Repository Plan
 
-Recommended location if created inside this repository:
+This refactor should be implemented in a separate GitHub repository before Phase 0 engineering starts.
+
+Final recommended identity:
+- Product name: `BullStrangle Platform`
+- GitHub repository: `bullstrangle-platform`
+- Python package: `bullstrangle_platform`
+- PostgreSQL schema namespace: `bullstrangle`
+- CLI command namespace: `bs-platform`
+- MCP server name: `bullstrangle_platform_mcp`
+
+Repository requirement:
+- Create the GitHub repository before implementation begins.
+- Do not implement the new runtime inside the legacy `bullstrangle-mcp` repository unless a separate repository is explicitly rejected by the owner.
+- If a temporary bootstrap inside this repository is unavoidable, use a top-level isolation folder only and migrate it to `bullstrangle-platform` before runtime work begins.
+- The new repository must not import `src/bullstrangle_mcp` or use legacy SQLite as a runtime database.
+
+## 3.1 Target Repository Layout
+
+Target layout for the new `bullstrangle-platform` repository:
 
 ```text
-refactor_v4/
+bullstrangle-platform/
   pyproject.toml
   README.md
   AGENTS.md
@@ -92,7 +110,7 @@ refactor_v4/
     env.py
     versions/
   src/
-    bullstrangle_v4/
+    bullstrangle_platform/
       __init__.py
       config.py
       logging.py
@@ -115,6 +133,23 @@ refactor_v4/
         portfolio.py
         outcomes.py
         confidence.py
+      agents/
+        __init__.py
+        base.py
+        ingestion_agent.py
+        rule_policy_agent.py
+        market_data_agent.py
+        scanner_agent.py
+        pl_agent.py
+        probability_agent.py
+        decision_agent.py
+        portfolio_agent.py
+        paper_trading_agent.py
+        execution_agent.py
+        monitoring_agent.py
+        outcome_agent.py
+        confidence_agent.py
+        reporting_agent.py
       providers/
         __init__.py
         base.py
@@ -141,21 +176,22 @@ refactor_v4/
         fixtures/
 ```
 
-Alternative: create a sibling repository. That is cleaner if the refactor will have independent release cadence. If kept in this repo, it must remain isolated under a new top-level folder/package and must not import `src/bullstrangle_mcp`.
+Historical note: earlier drafts allowed an isolated in-repo `refactor_v4/` folder. The preferred target is now a separate `bullstrangle-platform` repository to enforce runtime isolation and release independence.
 
 ## 4. Package And Module Boundaries
 
 Core boundaries:
-- `bullstrangle_v4.db`: PostgreSQL models, sessions, Alembic integration, seed data, one-way legacy import.
-- `bullstrangle_v4.domain`: pure domain logic and typed dataclasses/Pydantic models.
-- `bullstrangle_v4.providers`: provider abstraction and provider implementations.
-- `bullstrangle_v4.services`: use-case orchestration; no MCP-specific assumptions.
-- `bullstrangle_v4.mcp`: MCP tool layer only; validates inputs, calls services, formats responses.
-- `bullstrangle_v4.cli`: local operator/dev commands using the same services.
-- `bullstrangle_v4.safety`: mode flags, live-trading hard blocks, approval checks.
+- `bullstrangle_platform.db`: PostgreSQL models, sessions, Alembic integration, seed data, one-way legacy import.
+- `bullstrangle_platform.domain`: pure domain logic and typed dataclasses/Pydantic models.
+- `bullstrangle_platform.agents`: thin application-facing agent facades that coordinate domain services through typed ports. Agents do not own provider SDKs, SQLAlchemy sessions, or MCP formatting directly.
+- `bullstrangle_platform.providers`: provider abstraction and provider implementations.
+- `bullstrangle_platform.services`: use-case orchestration; no MCP-specific assumptions.
+- `bullstrangle_platform.mcp`: MCP tool layer only; validates inputs, calls services, formats responses.
+- `bullstrangle_platform.cli`: local operator/dev commands using the same services.
+- `bullstrangle_platform.safety`: mode flags, live-trading hard blocks, approval checks.
 
 Forbidden dependencies:
-- `bullstrangle_v4.*` importing `bullstrangle_mcp.*`.
+- `bullstrangle_platform.*` importing `bullstrangle_mcp.*`.
 - Runtime queries against legacy SQLite.
 - Runtime reads from legacy OS workbook tables.
 - Runtime reliance on Option Samurai Excel.
@@ -164,6 +200,110 @@ Allowed dependencies:
 - One-way import scripts reading legacy SQLite by file path.
 - Test fixtures derived from legacy data snapshots.
 - Documentation references to legacy behavior.
+
+## 4.1 Agent And Sub-Agent Scaffolding
+
+The term `agent` means a deterministic application boundary, not an autonomous LLM process. Each agent should be implemented as a small class or module with typed input/output models, explicit dependencies, and no hidden global state.
+
+### 4.1.1 Base Agent Contract
+
+Recommended base interface:
+
+```text
+AgentInput
+  request_id
+  actor_id nullable
+  run_id nullable
+  as_of timestamptz nullable
+  policy_version_id nullable
+  dry_run bool
+
+AgentResult
+  status: success | partial | data_unavailable | validation_error | failed
+  summary
+  entity_ids
+  warnings[]
+  errors[]
+  evidence json-compatible object
+```
+
+Agent rules:
+- Agents accept typed DTOs, not raw request dictionaries.
+- Agents return typed DTOs, not database ORM objects.
+- Agents can call lower-level domain services and repositories only through explicit ports.
+- Agents must persist replay/audit evidence before returning success for write operations.
+- Agents must not call MCP formatting code.
+- Agents must not call provider SDKs directly; they use provider ports.
+- Agents must not construct SQL strings; they use repositories/unit-of-work.
+
+### 4.1.2 Shared Ports
+
+Minimum shared ports:
+- `UnitOfWork`: owns transaction scope, repositories, commit/rollback.
+- `Clock`: provides market/audit timestamps for deterministic tests.
+- `ProviderRegistry`: resolves configured market-data provider.
+- `PolicyResolver`: resolves active pricing, strike-selection, P/L, probability, and decision policies.
+- `AuditLogger`: writes audit events and evidence payloads.
+- `IdempotencyService`: creates and validates idempotency keys for scan, decision, intent, and order workflows.
+
+### 4.1.3 Agent Scaffold Matrix
+
+| Agent | Module | Primary Inputs | Primary Outputs | Owned Write Scope | MVP |
+|---|---|---|---|---|---:|
+| Ingestion Agent | `agents/ingestion_agent.py` | current fixture rows, source metadata | newsletter/watchlist records | artifact tables, source facts | Required fixture path only |
+| Rule/Policy Agent | `agents/rule_policy_agent.py` | seed policy definitions, effective dates | active policy bundle | rule/policy tables | Required |
+| Market Data Agent | `agents/market_data_agent.py` | symbol, expiration, provider | quote snapshot, chain snapshot, provider errors | provider runs, quote/chain tables | Required |
+| Scanner Agent | `agents/scanner_agent.py` | fixture watchlist row, scan mode | selected legs or data-unavailable result | scan runs, watchlist snapshots, leg selections | Required |
+| P/L Agent | `agents/pl_agent.py` | selected legs, pricing policy | P/L evaluation | P/L evaluation tables | Required |
+| Probability Agent | `agents/probability_agent.py` | selected legs, IV inputs, model policy | probability evaluation | probability tables | Required |
+| Decision Agent | `agents/decision_agent.py` | scan, P/L, probability, policy evidence | ACCEPT/WATCH/REJECT/DATA_UNAVAILABLE | decisions, scorecards, evidence | Required |
+| Portfolio Agent | `agents/portfolio_agent.py` | decision, portfolio type nullable | actionability result | portfolio reservation/projection records | Minimal |
+| Paper Trading Agent | `agents/paper_trading_agent.py` | accepted/watch decision, execution mode | trade intent, order draft, simulated fill, lifecycle event | execution lifecycle tables | Required |
+| Execution Agent | `agents/execution_agent.py` | approved order draft | broker order/fill sync | approvals, broker orders, fills, positions | Schema only |
+| Monitoring Agent | `agents/monitoring_agent.py` | open paper/live positions, market marks | monitoring events/scenarios | lifecycle events, monitor snapshots | Deferred |
+| Outcome Agent | `agents/outcome_agent.py` | closed/expired positions | outcome classifications | outcomes, attribution records | Deferred |
+| Confidence Agent | `agents/confidence_agent.py` | decisions and outcomes | confidence metrics | confidence tables | Deferred |
+| Reporting Agent | `agents/reporting_agent.py` | run/decision/trade IDs | replay/summary reports | generated report records | MVP replay |
+
+### 4.1.4 MVP Orchestration Spine
+
+The MVP should have one orchestration service, `services/run_current_fixture_mvp.py`, that calls agents in this exact order:
+
+1. `IngestionAgent.create_current_fixture`
+2. `RulePolicyAgent.resolve_active_bundle`
+3. For each fixture symbol sequentially:
+4. `MarketDataAgent.fetch_quote_and_chain`
+5. `ScannerAgent.select_legs`
+6. `PLAgent.evaluate`
+7. `ProbabilityAgent.evaluate`
+8. `DecisionAgent.decide`
+9. `PaperTradingAgent.create_paper_lifecycle` only when decision/actionability allows it
+10. `ReportingAgent.create_replay_report`
+
+If any symbol fails due to missing quote, missing chain, stale provider data, missing bid/ask, missing greeks required by policy, or no eligible strikes, the orchestration records `DATA_UNAVAILABLE` for that symbol and continues to the next symbol.
+
+### 4.1.5 Sub-Agent Ownership Rules
+
+- Market-data sub-agents may normalize Tradier, fixture, or future provider payloads, but only `MarketDataAgent` persists provider snapshots.
+- Scanner sub-agents may implement newsletter replication and live strike-selection modes, but only `ScannerAgent` chooses the persisted selected-leg set.
+- P/L sub-agents may calculate scenario rows and summary metrics, but only `PLAgent` persists the versioned evaluation.
+- Probability sub-agents may implement lognormal or future models, but only `ProbabilityAgent` persists model assumptions and outputs.
+- Decision sub-agents may score data quality, strategy fit, and portfolio fit, but only `DecisionAgent` emits the final decision status.
+- Execution sub-agents may draft broker orders or simulate fills, but live submission remains absent/disabled until live readiness.
+
+### 4.1.6 MCP Mapping
+
+MCP tools should call services or agents, never domain internals directly.
+
+| MCP Tool | Agent/Service Boundary | Write Risk |
+|---|---|---:|
+| `bullstrangle_create_current_fixture` | `IngestionAgent` | PostgreSQL write, non-live |
+| `bullstrangle_scan_symbol` | `MarketDataAgent`, `ScannerAgent`, `PLAgent`, `ProbabilityAgent`, `DecisionAgent` | Provider call + PostgreSQL write |
+| `bullstrangle_run_current_fixture_mvp` | MVP orchestration service | Provider calls + PostgreSQL writes |
+| `bullstrangle_create_paper_trade` | `PaperTradingAgent` | PostgreSQL write, non-live |
+| `bullstrangle_replay_decision` | `ReportingAgent` | Read/report write only |
+
+No MCP tool may call `ExecutionAgent.submit_live_order` until the live-readiness phase and Product Owner approval gate are complete.
 
 ## 5. PostgreSQL Infrastructure
 
@@ -269,8 +409,11 @@ MCP rules:
 - Design tools around workflows, not raw API endpoints.
 - Keep tools small, typed, explainable, and safe.
 - Use clear service-prefixed names, e.g. `bullstrangle_scan_symbol`.
+- Use Python MCP server name `bullstrangle_platform_mcp` to satisfy the `{service}_mcp` naming convention.
 - Use Pydantic input models for Python.
+- Use Pydantic v2 `ConfigDict(extra='forbid')`, field constraints, and descriptive field examples for every tool input model.
 - Return concise default responses with optional detailed JSON.
+- Support `response_format="markdown"` and `response_format="json"` where a tool returns user-facing data.
 - Include pagination for list tools.
 - Add character limits and truncation guidance.
 - Provide actionable error messages.
@@ -278,8 +421,31 @@ MCP rules:
 - Split read-only tools from write/create tools.
 - No live-trading-capable tool is registered until live readiness is approved.
 - Broker submission tools remain absent or hard-disabled until live phase.
+- Do not expose raw provider endpoints as tools unless they support a complete BullStrangle workflow.
+- Use service fakes for MCP tests so tool behavior can be tested without Tradier or broker side effects.
+- Create read-only MCP evaluation scenarios before expanding the tool surface.
 
 MCP tool implementation must be preceded by an MCP tool design review.
+
+### 7.1 MCP-Builder Compliance Checklist
+
+Before implementing any MCP tool, engineering must confirm:
+
+- Latest MCP protocol documentation has been reviewed.
+- MCP Python SDK/FastMCP documentation has been reviewed for the selected SDK version.
+- Tool names use snake_case with the `bullstrangle_` prefix.
+- Tool descriptions state when to use the tool, when not to use it, parameters, return shape, and recovery steps for common errors.
+- Tool input models use Pydantic v2 with strict validation, field constraints, and no undeclared extra fields.
+- Tool outputs are concise by default and support detailed JSON when useful.
+- List tools implement `limit`, offset/cursor, `has_more`, and next-page metadata.
+- Response formatters enforce a module-level character limit and include truncation guidance.
+- Error messages are actionable and distinguish validation, auth, entitlement, rate-limit, stale-data, missing-data, provider, and internal failures.
+- Tool annotations are reviewed for `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
+- External calls use timeouts, retries where safe, and typed provider errors.
+- Write tools are idempotent where possible and persist audit evidence.
+- Live-trading-capable tools are absent or hard-disabled until Product Owner live-readiness approval.
+- MCP tests cover schemas, annotations, error handling, formatting, pagination, truncation, idempotency, and disabled-live behavior.
+- At least 10 read-only evaluation questions are created before broadening the MCP surface beyond the MVP.
 
 ## 8. MCP Tool Design Milestones
 
@@ -351,7 +517,8 @@ Guardrails:
 Goal: establish the self-contained project boundary, PostgreSQL foundation, and implementation contracts.
 
 Tasks:
-- Create new project folder/package boundary.
+- Create GitHub repository `bullstrangle-platform`.
+- Initialize the `bullstrangle_platform` package boundary in the new repository.
 - Add project README that states legacy isolation rules.
 - Add project-local `AGENTS.md` with RTK usage, no legacy imports, PostgreSQL-only runtime, and live-trading disabled-by-default rules.
 - Select Python stack: Python 3.13, SQLAlchemy 2.x, Alembic, psycopg, Pydantic v2, FastMCP or MCP Python SDK.
@@ -373,13 +540,14 @@ Non-goals:
 - No legacy import.
 
 Validation gates:
+- Repository exists and is separate from legacy `bullstrangle-mcp`.
 - Architecture owner approves package boundary.
 - Schema owner approves PostgreSQL-only migration strategy.
 - MCP tool design checklist exists.
 - Live trading disabled-by-default requirements are documented.
 
 Definition of Done:
-- New project boundary is approved.
+- New repository and project boundary are approved.
 - Engineering contracts are written and reviewed.
 - No legacy runtime files are changed.
 
@@ -851,7 +1019,10 @@ Provider fallback:
 ## 27. Immediate Next Decisions
 
 Before any implementation:
-- Confirm new project location: subdirectory vs separate repository.
+- Create and approve the new GitHub repository: `bullstrangle-platform`.
+- Confirm final project identity: product `BullStrangle Platform`, package `bullstrangle_platform`, CLI `bs-platform`, MCP server `bullstrangle_platform_mcp`, PostgreSQL schema `bullstrangle`.
+- Confirm the target repository layout in this roadmap.
+- Confirm agent/sub-agent scaffolding, owned write scopes, and MVP orchestration order.
 - Confirm Python/MCP stack: FastMCP vs lower-level MCP Python SDK.
 - Confirm local PostgreSQL setup approach.
 - Confirm Alembic as migration tool.

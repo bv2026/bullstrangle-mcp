@@ -24,6 +24,16 @@ Hard requirements:
 
 The new project owns its own PostgreSQL database, schema, migrations, data-access layer, provider clients, execution lifecycle, reports, and tests.
 
+Project identity:
+- Product name: `BullStrangle Platform`
+- GitHub repository: `bullstrangle-platform`
+- Python package: `bullstrangle_platform`
+- PostgreSQL schema namespace: `bullstrangle`
+- CLI command namespace: `bs-platform`
+- MCP server name: `bullstrangle_platform_mcp`
+
+The GitHub repository should be created before schema implementation begins so migrations, local-dev database scripts, test database setup, seed data, and import tooling live in the new self-contained project from the first commit.
+
 Legacy `bullstrangle-mcp` runtime remains separate:
 - No imports from legacy runtime modules in the new runtime.
 - No runtime reads from legacy SQLite tables.
@@ -38,6 +48,29 @@ CREATE SCHEMA IF NOT EXISTS bullstrangle;
 ```
 
 All new runtime tables should live under `bullstrangle`.
+
+## 2.1 Agent/Table Ownership Boundary
+
+The implementation should map each deterministic agent to a narrow table write scope. Agents may read across domains through repositories, but writes should remain owned by the responsible agent/service boundary.
+
+| Agent | Primary Table Write Scope |
+|---|---|
+| Ingestion Agent | `newsletters`, `newsletter_source_facts`, `watchlist_entries`, `short_list_entries` |
+| Rule/Policy Agent | `strategy_rules`, `rule_versions`, `pricing_policies`, `strike_selection_policies`, `pl_formula_versions`, `probability_model_versions` |
+| Market Data Agent | `provider_runs`, `provider_health_events`, `stock_quote_snapshots`, `option_chain_snapshots`, `option_chain_rows` |
+| Scanner Agent | `scan_runs`, `live_watchlist_snapshots`, `selected_option_legs` |
+| P/L Agent | `pl_evaluations`, `pl_scenario_rows` |
+| Probability Agent | `probability_evaluations` |
+| Decision Agent | `entry_decisions`, `trade_scorecards`, decision evidence JSONB |
+| Portfolio Agent | portfolio books, reservations, exposure/actionability records when introduced |
+| Paper Trading Agent | `trade_intents`, `order_drafts`, `order_draft_legs`, `fills`, `trade_lifecycle_events` for simulated fills |
+| Execution Agent | `operator_approvals`, `broker_orders`, `broker_order_legs`, broker fills, `live_positions`, `assignments` |
+| Monitoring Agent | monitoring snapshots/events when introduced |
+| Outcome Agent | `trade_outcomes`, attribution records |
+| Confidence Agent | confidence metric tables |
+| Reporting Agent | generated report records and replay report metadata |
+
+This ownership rule is a design constraint. If a future implementation needs a shared write, it should go through a service transaction that names the participating agents and persists audit evidence.
 
 ## 3. Migration Tooling
 

@@ -2,6 +2,26 @@
 
 Status: Draft
 
+## Project Identity And Repository Boundary
+
+The refactor should start in a new self-contained GitHub repository before implementation work begins.
+
+Recommended finalized identity:
+
+- Product name: `BullStrangle Platform`
+- GitHub repository: `bullstrangle-platform`
+- Python package: `bullstrangle_platform`
+- PostgreSQL schema namespace: `bullstrangle`
+- CLI command namespace: `bs-platform`
+- MCP server name: `bullstrangle_platform_mcp`
+
+Rationale:
+
+- A separate repository makes the legacy/runtime boundary enforceable instead of relying on discipline inside one tree.
+- It prevents accidental imports from legacy `src/bullstrangle_mcp`.
+- It gives the new PostgreSQL migration stream, MCP tool surface, config, tests, and release cadence a clean lifecycle.
+- The current `bullstrangle-mcp` repository should keep the planning documents and legacy runtime unchanged.
+
 ## Gate 7 Retirement Candidate
 
 Gate 7 currently applies a moving-average alignment filter from Option Samurai workbook fields

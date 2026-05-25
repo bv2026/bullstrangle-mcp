@@ -22,11 +22,18 @@ v4 is the target architecture for a new self-contained project from scratch. It 
 v4 changes the strategic architecture in one major way: Option Samurai Excel stops being the execution data plane for the new project. The new BullStrangle runtime becomes a strategy operating layer that uses Darren's newsletter for candidate selection and live option-chain data for executable trade construction, P/L, probability, paper trading, and eventual live readiness.
 
 Hard project boundary:
+- The target product/repository identity is `BullStrangle Platform` in a new GitHub repository named `bullstrangle-platform`.
+- The Python package should be `bullstrangle_platform`; the CLI namespace should be `bs-platform`; the MCP server name should be `bullstrangle_platform_mcp`.
 - The new runtime owns its own package, PostgreSQL schema, migrations, provider abstraction, MCP server, configuration, and tests.
 - The new runtime must not import legacy modules.
 - The new runtime must not query legacy SQLite tables.
 - Legacy code and legacy SQLite data may be read only for context or explicit one-way import.
 - Legacy BullStrangle behavior must remain unchanged.
+
+Repository boundary:
+- Preferred target is a separate `bullstrangle-platform` repository, not an implementation subtree inside `bullstrangle-mcp`.
+- The legacy `bullstrangle-mcp` repository remains historical/current-state and can hold planning documents only.
+- Any temporary bootstrap folder inside `bullstrangle-mcp` must be treated as disposable and moved to `bullstrangle-platform` before runtime implementation.
 
 The target workflow is:
 
@@ -115,6 +122,96 @@ The target agent model is a set of service boundaries first. It should not requi
 | Reporting/Briefing Agent | Produce replay reports, weekly paper reports, monitoring and confidence reports. | MVP replay report |
 
 Implementation guidance: build deterministic Python modules/services first. Only expose these as MCP tools or agents after the contracts stabilize.
+
+MCP-builder alignment:
+- MCP is an interface layer over agents/services, not the domain core.
+- Tool design must be workflow-oriented, not provider-endpoint-oriented.
+- Python server name is `bullstrangle_platform_mcp`.
+- Tool names use the `bullstrangle_` prefix and snake_case.
+- Tool inputs use strict Pydantic v2 models.
+- Tool outputs default to concise Markdown with optional JSON where useful.
+- List tools require pagination metadata.
+- Long responses require character limits and truncation guidance.
+- Errors must be actionable and typed.
+- Tool annotations must be reviewed before implementation.
+- Live-trading tools remain absent or disabled until Product Owner live-readiness approval.
+
+### 4.1 Agent Scaffold And Package Mapping
+
+Agents are deterministic application facades, not autonomous LLM workers. Each agent should be implemented under `src/bullstrangle_platform/agents/` and should coordinate domain services through typed ports.
+
+Required agent package layout:
+
+```text
+src/bullstrangle_platform/
+  agents/
+    base.py
+    ingestion_agent.py
+    rule_policy_agent.py
+    market_data_agent.py
+    scanner_agent.py
+    pl_agent.py
+    probability_agent.py
+    decision_agent.py
+    portfolio_agent.py
+    paper_trading_agent.py
+    execution_agent.py
+    monitoring_agent.py
+    outcome_agent.py
+    confidence_agent.py
+    reporting_agent.py
+```
+
+Agent contract:
+- Agents accept typed request models and return typed result models.
+- Agents do not return ORM objects.
+- Agents do not call MCP formatting code.
+- Agents do not import provider SDKs directly.
+- Agents do not manage global mutable state.
+- Agents write audit/replay evidence for every persisted decision or lifecycle mutation.
+
+Shared ports:
+- `UnitOfWork` for transaction and repository access.
+- `ProviderRegistry` for market-data provider resolution.
+- `PolicyResolver` for active pricing, strike, P/L, probability, and decision policies.
+- `IdempotencyService` for scan, decision, trade intent, and order draft keys.
+- `AuditLogger` for audit events and evidence payloads.
+- `Clock` for deterministic timestamp handling in tests.
+
+Agent-to-domain ownership:
+
+| Agent | Owns Orchestrating | Must Not Own |
+|---|---|---|
+| Ingestion Agent | current fixture creation, source lineage | OCR-grade ingestion in MVP |
+| Rule/Policy Agent | active policy bundle resolution | hidden hard-coded thresholds |
+| Market Data Agent | provider snapshots, data status, normalized errors | strategy decisions |
+| Scanner Agent | expiration/leg selection and alternatives | P/L/probability formulas |
+| P/L Agent | versioned P/L evaluation | final entry decision |
+| Probability Agent | versioned probability evaluation | final entry decision |
+| Decision Agent | final `ACCEPT/WATCH/REJECT/DATA_UNAVAILABLE` with evidence | broker orders |
+| Portfolio Agent | Large/Small actionability and capacity checks | broker execution |
+| Paper Trading Agent | paper trade intent, draft, simulated fill, lifecycle event | live submission |
+| Execution Agent | approvals, broker orders, fills, live positions | MVP live path |
+| Monitoring Agent | open-trade monitoring snapshots and scenario alerts | entry selection |
+| Outcome Agent | outcome classification and attribution | provider calls |
+| Confidence Agent | trade/system confidence metrics | execution decisions |
+| Reporting Agent | replay and summary reports | business-rule mutation |
+
+MVP orchestration order:
+
+```text
+current fixture
+  -> Rule/Policy Agent
+  -> Market Data Agent
+  -> Scanner Agent
+  -> P/L Agent
+  -> Probability Agent
+  -> Decision Agent
+  -> Paper Trading Agent
+  -> Reporting Agent
+```
+
+The MVP scan is sequential by fixture symbol. Symbol-level data failure records `DATA_UNAVAILABLE` and continues.
 
 ## 5. Data Domains And v4 Schema Proposal
 

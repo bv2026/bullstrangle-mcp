@@ -30,7 +30,7 @@ Recommendation: approve the product direction, but do not approve implementation
 | Area | Finding | Severity | Required Action |
 |---|---|---:|---|
 | Scope | MVP includes too many new domains unless bounded to the current-fixture paper lifecycle only. | High | Lock MVP to current fixture rows, sequential symbol scan, quote, chain, selected legs, P/L, probability, decision, trade intent, order draft, simulated fill, replay report. |
-| Schema | PRD lists many tables but not primary keys, foreign keys, uniqueness, state transitions, or event semantics. | High | Produce v2 ERD/table spec before coding. |
+| Schema | PRD lists many tables but not primary keys, foreign keys, uniqueness, state transitions, or event semantics. | High | Produce PostgreSQL ERD/table spec before coding. |
 | Execution safety | Live-trading guardrails are stated but not sufficient for broker integration. | High | Define disabled-by-default live mode, approval semantics, idempotency, kill switch, account allowlist, and stale-data blockers. |
 | Provider | Tradier is preferred, but provider contract lacks entitlement, rate-limit, stale quote, corporate-action, and greeks-null behavior. | High | Approve normalized provider contract and error model before scanner work. |
 | Pricing | P/L, probability, paper fill, and order draft pricing can diverge if pricing policy is not centralized. | High | Define one pricing policy object persisted on every scan/decision/fill. |
@@ -83,11 +83,11 @@ Recommendation: approve the product direction, but do not approve implementation
 
 ## Schema Risks
 
-### Coexistence With Current Schema
+### Legacy Isolation
 
 Current implementation already has core artifact tables (`newsletters`, `newsletter_full_text`, `watchlist_entries`, `short_list_entries`), OS workflow tables (`os_workbooks`, `os_evaluation_runs`, `os_evaluation_rows`, `watchlist_deviations`, aggregates), and v3 gate/lifecycle tables (`strategy_rule_catalog`, `position_books`, `cycle_layers`, `entry_decisions`, `exit_decisions`).
 
-Risk: introducing `entry_decisions_v2`, `paper_trades`, and execution tables without mapping current entities can create duplicate truths.
+Risk: introducing similarly named PostgreSQL runtime tables, paper lifecycle tables, and execution tables without a strict project/repository boundary can create duplicate truths or accidental legacy coupling.
 
 Architecture decision update: the refactor should use a new self-contained PostgreSQL runtime schema. Legacy tables should not remain runtime source of truth and should not be referenced by new runtime foreign keys. Legacy data may be imported through explicit one-way import jobs that preserve source metadata.
 
@@ -105,12 +105,12 @@ Architecture decision update: the refactor should use a new self-contained Postg
 - Fills must support partial fills, per-leg fills, commissions, fees, and fill source. A single fill row per order is not enough.
 - `operator_approvals` must be immutable and scoped to exact order draft version. Approval should not silently carry over if price, quantity, account, or legs change.
 
-### Migration Risks
+### Import And Migration Risks
 
-- Existing migrations are additive and should stay that way. Do not rewrite `SCHEMA_SQL` as the only migration path.
-- Historical OS and gate decisions use different semantics than v2 `ACCEPT/WATCH/REJECT`. Backfilling them into v2 without marking source/version would pollute evidence.
-- Current `cycle_layers` has some lifecycle concepts, but it is not sufficient for shared paper/live execution. It should either be deprecated behind a compatibility view or explicitly mapped to the new lifecycle.
-- Current `strategy_rule_catalog` exists but may not support rule classification, retirement, effective dating, or immutable snapshots. Extending it is safer than creating a parallel unlinked rule catalog.
+- Legacy migrations should remain untouched in the legacy runtime. The new project needs its own Alembic/PostgreSQL migration stream.
+- Historical OS and gate decisions use different semantics than new-runtime `ACCEPT/WATCH/REJECT/DATA_UNAVAILABLE`. Importing them without marking source/version would pollute evidence.
+- Current `cycle_layers` has some lifecycle concepts, but it is not sufficient for shared paper/live execution. It should be historical context only unless explicitly imported as benchmark evidence.
+- Current `strategy_rule_catalog` exists but may not support rule classification, retirement, effective dating, or immutable snapshots. Use it as seed context only; the new project should own its PostgreSQL rule tables.
 
 ## Workflow Risks
 
@@ -118,7 +118,7 @@ Architecture decision update: the refactor should use a new self-contained Postg
 - Live scan timing matters. Running outside market hours or with delayed data can materially change candidate quality.
 - Newsletter replication and live strike-selection are different products. Comparing them is valuable, but the decision engine must know which mode generated each candidate.
 - Re-running a scanner can create duplicate decisions or paper trades unless scan runs, selected candidates, trade intents, and order drafts have idempotency keys.
-- `DATA_UNAVAILABLE` is mentioned operationally but not in the decision status set. Add either a fourth decision status or a separate data status that blocks `ACCEPT`.
+- `DATA_UNAVAILABLE` is now a first-class decision status; implementation still needs a separate data availability status so provider failure does not look like strategy rejection.
 - Portfolio rules can change a symbol decision from acceptable to not actionable. The system should distinguish `strategy_decision` from `portfolio_actionability`.
 - Scenario attribution depends on monitoring and fills. It cannot be accurate if paper fills are unrealistic or marks are sparse.
 - Accepted-vs-rejected outcome comparison requires storing rejected candidates and their selected hypothetical legs through expiration. This must be designed at MVP time if confidence reporting is expected later.
@@ -230,8 +230,12 @@ The MVP should implement one vertical slice only:
 
 Engineering should start only after these artifacts exist and are approved:
 
+- New GitHub repository `bullstrangle-platform` is created or explicitly approved for creation.
+- Project identity is locked: product `BullStrangle Platform`, package `bullstrangle_platform`, CLI `bs-platform`, MCP server `bullstrangle_platform_mcp`, PostgreSQL schema `bullstrangle`.
+- Repository and folder layout are approved.
+- Agent/sub-agent scaffolding, write ownership, and MVP orchestration order are approved.
 - Provider interface specification.
-- V2 additive schema specification with migration/coexistence plan.
+- PostgreSQL target schema specification with one-way legacy import/coexistence plan.
 - Pricing policy specification.
 - Strike selection specification.
 - P/L formula specification.
@@ -249,11 +253,11 @@ Replace this acceptance criterion:
 
 With:
 
-- `Architect confirms the v2 lifecycle model supports paper, shadow, and live execution through additive schema evolution, without rewriting decision, intent, order draft, fill, lifecycle event, or outcome semantics.`
+- `Architect confirms the PostgreSQL lifecycle model supports paper, shadow, and live execution in the new self-contained project, without runtime dependency on legacy SQLite tables or legacy Python modules.`
 
 Add these acceptance criteria:
 
-- Every v2 decision links to immutable market data snapshot, rule version, pricing policy, P/L formula version, probability model version, and source newsletter candidate.
+- Every new-runtime decision links to immutable market data snapshot, rule version, pricing policy, P/L formula version, probability model version, and source newsletter candidate.
 - A repeated scan for the same newsletter symbol, mode, provider, expiration, and timestamp bucket cannot create duplicate paper trades without an explicit operator action.
 - Live order submission is structurally impossible in MVP and remains disabled by default in later phases.
 - Provider failures produce data-blocked decisions, not rejects and not silent skips.
@@ -263,4 +267,4 @@ Add these acceptance criteria:
 
 Proceed with Phase 0 architecture hardening before implementation. The PRD should be revised into a smaller engineering-ready MVP package plus a target architecture appendix. The target architecture is sound, but the implementation plan must be contract-first: provider contract, schema, pricing policy, formulas, probability model, rule versioning, and lifecycle states must be decided before code is written.
 
-The first implementation should be a thin, deterministic, replayable paper-trading spine. Do not build the multi-agent surface, live broker controls, full confidence layer, or full monitoring system until that spine is proven with one symbol and then the full newsletter watchlist.
+The first implementation should be a thin, deterministic, replayable paper-trading spine. Do not build the multi-agent surface, live broker controls, full confidence layer, or full monitoring system until that spine is proven with at least one live-data symbol from the current newsletter fixture and then the full newsletter watchlist.
