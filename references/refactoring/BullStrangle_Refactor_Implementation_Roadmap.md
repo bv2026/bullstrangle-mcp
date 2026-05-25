@@ -1,6 +1,6 @@
 # BullStrangle Refactor Implementation Roadmap
 
-Status: Draft Roadmap
+Status: Approved For Repo Creation And Phase 0 Scaffolding
 Date: 2026-05-25
 Scope: Implementation roadmap only. No runtime code, migrations, or MCP tools are implemented by this document.
 
@@ -11,6 +11,12 @@ Inputs:
 
 Progress tracker:
 - `BullStrangle_Refactor_Implementation_Checklist.md`
+
+Product Owner approval:
+- Approved at commit `a48b81d`.
+- Engineering may proceed with creating GitHub repo `bullstrangle-platform`.
+- Engineering may proceed with self-contained Phase 0 scaffolding.
+- Deferred decisions do not block repo creation or Phase 0: exact delta bands, protective put method, P/L thresholds, probability thresholds, liquidity thresholds, Large/Small sizing, confidence thresholds.
 
 ## 1. Superseding Guardrails
 

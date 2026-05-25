@@ -1,6 +1,6 @@
 # BullStrangle Refactor Implementation Checklist
 
-Status: Not Started
+Status: Approved For Repo Creation And Phase 0 Scaffolding
 Date: 2026-05-25
 Scope: Progress tracker for the new self-contained `bullstrangle-platform` implementation. This checklist does not authorize runtime changes by itself.
 
@@ -9,6 +9,12 @@ Source documents:
 - `BullStrangle_Target_Architecture_v4.md`
 - `BullStrangle_Target_Schema_v4.md`
 - `BullStrangle_Refactor_Implementation_Roadmap.md`
+
+Product Owner approval:
+- Approved at commit `a48b81d`.
+- Approved for creating GitHub repo `bullstrangle-platform`.
+- Approved for Phase 0 self-contained project scaffolding.
+- Deferred decisions: exact delta bands, protective put method, P/L thresholds, probability thresholds, liquidity thresholds, Large/Small sizing, confidence thresholds.
 
 ## Status Legend
 
@@ -20,41 +26,41 @@ Source documents:
 
 ## 1. Non-Negotiable Guardrails
 
-- [ ] Legacy `bullstrangle-mcp` runtime remains untouched.
+- [x] Legacy `bullstrangle-mcp` runtime remains untouched.
 - [ ] New implementation is created in a separate repository: `bullstrangle-platform`.
-- [ ] New package name is `bullstrangle_platform`.
-- [ ] New MCP server name is `bullstrangle_platform_mcp`.
-- [ ] New CLI namespace is `bs-platform`.
-- [ ] New runtime DB is PostgreSQL only.
-- [ ] SQLite is used only as optional legacy one-way import source.
+- [x] New package name is `bullstrangle_platform`.
+- [x] New MCP server name is `bullstrangle_platform_mcp`.
+- [x] New CLI namespace is `bs-platform`.
+- [x] New runtime DB is PostgreSQL only.
+- [x] SQLite is used only as optional legacy one-way import source.
 - [ ] New runtime has no imports from `src/bullstrangle_mcp`.
 - [ ] New runtime scanner/decision/P/L/probability/execution services do not read raw files directly after ingestion.
-- [ ] Live trading remains disabled until Product Owner live-readiness approval.
-- [ ] All shell commands during implementation use RTK.
+- [x] Live trading remains disabled until Product Owner live-readiness approval.
+- [x] All shell commands during implementation use RTK.
 
 ## 2. Pre-Implementation Decisions
 
-- [ ] Product Owner approves final project identity.
+- [x] Product Owner approves final project identity.
 - [ ] GitHub repository `bullstrangle-platform` is created.
-- [ ] Repository/folder layout is approved.
-- [ ] Lean `data/` layout is approved.
-- [ ] Temporary `data/inbox/current_fixture/` lifecycle is approved.
-- [ ] Agent/sub-agent scaffold is approved.
-- [ ] Agent write ownership boundaries are approved.
-- [ ] MVP orchestration order is approved.
-- [ ] PostgreSQL schema design is approved.
-- [ ] Alembic migration workflow is approved.
-- [ ] Local dev DB setup approach is approved.
-- [ ] Test DB setup approach is approved.
-- [ ] Seed/reference data strategy is approved.
-- [ ] Provider contract is approved.
-- [ ] Tradier provider strategy is approved.
-- [ ] Pricing policy is approved.
-- [ ] Strike-selection policy is approved.
-- [ ] P/L formula assumptions are approved.
-- [ ] Probability model assumptions are approved.
-- [ ] MCP-builder compliance checklist is approved.
-- [ ] Live disabled-by-default config names are approved.
+- [x] Repository/folder layout is approved.
+- [x] Lean `data/` layout is approved.
+- [x] Temporary `data/inbox/current_fixture/` lifecycle is approved.
+- [x] Agent/sub-agent scaffold is approved.
+- [x] Agent write ownership boundaries are approved.
+- [x] MVP orchestration order is approved.
+- [x] PostgreSQL schema design is approved.
+- [x] Alembic migration workflow is approved.
+- [x] Local dev DB setup approach is approved.
+- [x] Test DB setup approach is approved.
+- [x] Seed/reference data strategy is approved.
+- [x] Provider contract is approved.
+- [x] Tradier provider strategy is approved.
+- [x] Pricing policy is approved.
+- [D] Strike-selection policy final thresholds are deferred until scanner phase.
+- [D] P/L acceptance thresholds are deferred until decision phase.
+- [D] Probability thresholds are deferred until decision/confidence phase.
+- [x] MCP-builder compliance checklist is approved.
+- [x] Live disabled-by-default config names are approved.
 
 ## 3. Repository Scaffold
 
@@ -265,7 +271,8 @@ Source documents:
 | Area | Status | Notes |
 |---|---|---|
 | Product/architecture docs | [x] | Refactor docs exist in legacy repo. |
-| New GitHub repo | [ ] | `bullstrangle-platform` not created yet. |
+| Product Owner approval | [x] | Approved at commit `a48b81d` for repo creation and Phase 0 scaffolding. |
+| New GitHub repo | [ ] | `bullstrangle-platform` approved but not created yet. |
 | Runtime implementation | [ ] | Not started. |
 | PostgreSQL migrations | [ ] | Not started. |
 | Current fixture bootstrap | [ ] | Not started. |
