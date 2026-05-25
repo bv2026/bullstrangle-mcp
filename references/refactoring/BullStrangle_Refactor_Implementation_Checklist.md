@@ -4,6 +4,12 @@ Status: Approved For Repo Creation And Phase 0 Scaffolding
 Date: 2026-05-25
 Scope: Progress tracker for the new self-contained `bullstrangle-platform` implementation. This checklist does not authorize runtime changes by itself.
 
+Current tracking note:
+- Refactor implementation tracking has moved to the new repo `https://github.com/bv2026/bullstrangle-platform`.
+- Refactor planning docs were copied into `C:\work\bullstrangle-platform\docs\refactoring\` at platform commit `973a58d`.
+- All further implementation activity, checklist updates, and refactor status changes should be captured in the new platform repo.
+- This legacy repo remains the historical planning source and operational legacy runtime; do not use it for new platform implementation work.
+
 Source documents:
 - `BullStrangle_Product_Spec_Refactor_PRD.md`
 - `BullStrangle_Target_Architecture_v4.md`
@@ -274,7 +280,7 @@ Phase 0 scaffold:
 
 | Area | Status | Notes |
 |---|---|---|
-| Product/architecture docs | [x] | Refactor docs exist in legacy repo. |
+| Product/architecture docs | [x] | Refactor docs exist here historically; active copies and future updates now live in `bullstrangle-platform/docs/refactoring/`. |
 | Product Owner approval | [x] | Approved at commit `a48b81d` for repo creation and Phase 0 scaffolding. |
 | New GitHub repo | [x] | `bullstrangle-platform` created and pushed at commit `a80b993`. |
 | Phase 0 scaffold | [~] | Repo/package/data/agent file scaffold exists; typed contracts still not implemented. |
