@@ -137,6 +137,7 @@ Initial provider:
 
 - Tradier direct API is the preferred first implementation.
 - A live test with `AA` and expiration `2026-06-18` returned 86 option contracts with greeks and matched newsletter/OS prices closely.
+- That `AA` test is a frozen regression/benchmark fixture only. The operational MVP should use the current newsletter screenshot/table available at implementation time.
 
 Provider constraints:
 
@@ -443,16 +444,19 @@ Portfolio/confidence domain:
 
 ## 10. MVP Scope
 
-MVP shall prove one thin vertical slice:
+MVP shall prove one thin vertical slice from a current-newsletter table fixture:
 
-1. Select one newsletter symbol from a manual/single-symbol fixture.
-2. Pull live stock quote from Tradier.
-3. Pull live option chain from Tradier.
-4. Select live strikes using provisional delta rules.
-5. Calculate P/L and probability.
-6. Produce accept/watch/reject/data-unavailable decision.
-7. Create paper trade intent and simulated fill.
-8. Store enough data to replay and explain the decision.
+1. Capture the current newsletter watchlist table from screenshot/PDF/table input.
+2. Create a temporary/current newsletter fixture table from the captured rows.
+3. Process symbols sequentially using the newsletter expiration and published row values.
+4. Pull live stock quote from Tradier.
+5. Pull live option chain from Tradier.
+6. Try newsletter replication using published strikes.
+7. Optionally run live strike-selection mode using provisional delta rules.
+8. Calculate P/L and probability for symbols with sufficient data.
+9. Produce accept/watch/reject/data-unavailable decisions.
+10. Create paper trade intent and simulated fill for at least one valid symbol.
+11. Store enough data to replay and explain the decisions.
 
 MVP shall not include:
 
@@ -463,13 +467,14 @@ MVP shall not include:
 - Replacement of all current reports.
 - Full newsletter ingestion.
 - Legacy SQLite import as a prerequisite for MVP.
+- OCR-grade screenshot ingestion. Manual correction/table entry is acceptable for MVP.
 
 ## 11. Phased Roadmap
 
 Product milestones:
 
 1. Foundation and PostgreSQL schema.
-2. One-symbol MVP.
+2. Current-newsletter fixture MVP.
 3. Full watchlist paper run.
 4. Monitoring and outcomes.
 5. Confidence reporting.
@@ -487,8 +492,10 @@ Phase 0: Architecture hardening
 - Define P/L and probability formulas.
 - Define confidence scoring MVP.
 
-Phase 1: One-symbol vertical slice
+Phase 1: Current-newsletter fixture vertical slice
 
+- Current newsletter screenshot/table fixture capture with manual correction.
+- Sequential symbol scan with `DATA_UNAVAILABLE` skip-and-continue behavior.
 - Tradier quote and chain retrieval.
 - Live strike selection.
 - P/L and probability output.
@@ -544,8 +551,10 @@ Product acceptance:
 
 MVP acceptance:
 
-- For selected symbol `AA`, using a manual/single-symbol fixture, the system can reproduce the Tradier chain test manually observed by Product/Architecture.
-- The system can produce a complete decision record with market data, selected legs, P/L, probability, and explanation.
+- Given a current newsletter screenshot/table fixture, the system can scan symbols sequentially until at least one symbol completes live quote, option chain, selected legs, P/L, probability, decision, and paper lifecycle.
+- Symbols that cannot be evaluated due to missing/stale provider data are marked `DATA_UNAVAILABLE` with reason and do not block the rest of the run.
+- The frozen `AA` example may be retained as a regression/benchmark fixture, but it is not the operational MVP source.
+- The system can produce complete decision records with market data, selected legs, P/L, probability, and explanation.
 - The system can create a paper trade lifecycle record without live execution.
 - The system uses PostgreSQL as the runtime database.
 - The system has no runtime dependency on legacy modules, legacy SQLite, or Option Samurai Excel.
@@ -617,6 +626,7 @@ Requirement states:
 | BS-ART-003 | P0 | System shall extract Large and Small short-list membership independently. | Defined | Given a newsletter, symbols can be queried by portfolio type `large` or `small`. |
 | BS-ART-004 | P1 | System shall preserve source lineage for extracted fields including page or section reference. | Needs Architecture | Given any extracted fact, user can trace it back to source section/page. |
 | BS-ART-005 | P1 | System shall extract market thesis, risk posture, sector emphasis, cautions, and week-over-week changes. | Needs Architecture | Weekly report contains structured newsletter intelligence beyond watchlist rows. |
+| BS-ART-006 | P0 | MVP shall support a current-newsletter screenshot/table fixture path before full PDF ingestion. | Defined | Operator can enter or correct rows from the current newsletter screenshot/table and create a current fixture watchlist. |
 
 ### 16.2 Strategy Rule Requirements
 
@@ -633,8 +643,8 @@ Requirement states:
 | ID | Priority | Requirement | State | Acceptance Test |
 |---|---|---|---|---|
 | BS-MD-001 | P0 | System shall define a provider-neutral market data interface. | Needs Architecture | Scanner can call provider interface without importing a broker-specific client in core logic. |
-| BS-MD-002 | P0 | Provider shall return live stock quote with bid, ask, last, mark or mid, timestamp, and provider id. | Defined | For symbol `AA`, provider returns stock quote and timestamp. |
-| BS-MD-003 | P0 | Provider shall return option chain by symbol and expiration. | Defined | For `AA` and `2026-06-18`, provider returns option rows. |
+| BS-MD-002 | P0 | Provider shall return live stock quote with bid, ask, last, mark or mid, timestamp, and provider id. | Defined | For at least one current fixture symbol with live data, provider returns stock quote and timestamp. |
+| BS-MD-003 | P0 | Provider shall return option chain by symbol and expiration. | Defined | For at least one current fixture symbol and newsletter expiration, provider returns option rows. |
 | BS-MD-004 | P0 | Option chain row shall include right, strike, bid, ask, mid, delta, IV, volume, open interest, and quote timestamp where available. | Defined | Returned chain rows include required normalized fields or explicit nulls with provider metadata. |
 | BS-MD-005 | P1 | Provider shall report rate-limit, auth, freshness, and partial-data errors in normalized form. | Needs Architecture | Failed provider call returns typed error and does not crash the scan run. |
 | BS-MD-006 | P1 | System shall support OS as fallback/benchmark but not as primary live provider. | Defined | Scanner can run without OS workbook ingestion. |
@@ -643,12 +653,13 @@ Requirement states:
 
 | ID | Priority | Requirement | State | Acceptance Test |
 |---|---|---|---|---|
-| BS-SCAN-001 | P0 | Scanner shall support newsletter replication mode using published strikes and refreshed live prices/greeks. | Defined | For `AA`, published 74C/70P/64P can be refreshed from Tradier chain. |
-| BS-SCAN-002 | P0 | Scanner shall support live strike-selection mode using live stock price and option-chain greeks. | Defined | For one symbol, scanner selects call, short put, and long put from chain. |
-| BS-SCAN-003 | P0 | Scanner shall use four-week expiration as the default target. | Defined | Given a scan date, selected expiration is closest valid expiration around four weeks unless overridden. |
+| BS-SCAN-001 | P0 | Scanner shall support newsletter replication mode using published strikes and refreshed live prices/greeks. | Defined | For at least one current fixture row, published strikes can be refreshed from Tradier chain. |
+| BS-SCAN-002 | P0 | Scanner shall support live strike-selection mode using live stock price and option-chain greeks. | Defined | For at least one current fixture symbol, scanner selects call, short put, and long put from chain. |
+| BS-SCAN-003 | P0 | MVP shall use the newsletter-provided expiration from the current fixture table. | Defined | Scan uses fixture expiration and does not move the target date during validation. |
 | BS-SCAN-004 | P0 | Scanner shall persist selected legs, source provider, timestamp, pricing policy, and mode. | Needs Architecture | Live snapshot row can reproduce selected legs and price inputs. |
 | BS-SCAN-005 | P1 | Scanner shall filter or warn on insufficient liquidity. | Needs Rule Input | Candidate with low OI/volume or wide spread receives warning or rejection according to threshold. |
 | BS-SCAN-006 | P1 | Scanner shall compare newsletter replication output versus live strike-selection output. | Defined | Report shows published-strike trade and live-selected trade side by side. |
+| BS-SCAN-007 | P0 | Scanner shall continue to the next fixture symbol when one symbol is data-unavailable. | Defined | A symbol with missing chain/bid/ask is marked `DATA_UNAVAILABLE`, and the batch continues. |
 
 ### 16.5 Strike Selection Rule Requirements
 
@@ -696,7 +707,7 @@ Initial rule placeholders require strategy-owner confirmation.
 
 | ID | Priority | Requirement | State | Acceptance Test |
 |---|---|---|---|---|
-| BS-DEC-001 | P0 | System shall classify each candidate as ACCEPT, WATCH, REJECT, or DATA_UNAVAILABLE. | Defined | One-symbol MVP produces one of the four statuses. |
+| BS-DEC-001 | P0 | System shall classify each candidate as ACCEPT, WATCH, REJECT, or DATA_UNAVAILABLE. | Defined | Current fixture run produces one of the four statuses for every attempted symbol. |
 | BS-DEC-002 | P0 | Decision shall include human-readable explanation. | Defined | User can read why a candidate was accepted, watched, rejected, or marked data-unavailable. |
 | BS-DEC-003 | P0 | Decision shall link to market data snapshot, P/L evaluation, probability evaluation, and rules. | Needs Architecture | Decision can be replayed from stored references. |
 | BS-DEC-004 | P1 | Decision shall include component scorecard and confidence level. | Defined | Decision output includes freshness, liquidity, P/L, probability, rule, portfolio-fit scores. |
@@ -747,7 +758,7 @@ Initial rule placeholders require strategy-owner confirmation.
 
 | ID | Priority | Requirement | State | Acceptance Test |
 |---|---|---|---|---|
-| BS-RPT-001 | P0 | One-symbol MVP shall produce an explainable decision report. | Defined | Report includes quote, chain-selected legs, P/L, probability, and decision. |
+| BS-RPT-001 | P0 | MVP shall produce an explainable current-fixture decision report. | Defined | Report includes every attempted fixture symbol, quote/chain status, selected legs when available, P/L, probability, and decision. |
 | BS-RPT-002 | P1 | Weekly paper portfolio report shall show Large and Small books separately. | Defined | Report has distinct Large and Small sections. |
 | BS-RPT-003 | P1 | Report shall compare newsletter replication mode with live strike-selection mode. | Defined | Report displays both structures where available. |
 | BS-RPT-004 | P1 | Monitoring report shall show open trade status and scenario risk. | Defined | Report flags trades near strike or management trigger. |
@@ -775,6 +786,7 @@ Default mode shall be `paper` until confidence and approval requirements are exp
 Failure behavior:
 
 - Provider failure should mark affected candidates as `DATA_UNAVAILABLE`, not silently accept or reject them.
+- Symbol-level data failure should not stop the MVP run; the scanner should continue to the next current-fixture symbol.
 - Partial option-chain data should create warnings and exclude contracts with missing critical fields.
 - Stale data should block live execution and warn for paper/shadow execution.
 - Auth failures should create actionable operator messages.
@@ -791,7 +803,8 @@ These are not final rules. They are placeholders for strategy-owner and architec
 
 Expiration:
 
-- Default target is the listed expiration closest to four weeks from scan date.
+- MVP uses the newsletter expiration from the current fixture table so validation does not move while implementation is in progress.
+- Post-MVP default target is the listed expiration closest to four weeks from scan date.
 
 Pricing:
 
@@ -820,7 +833,7 @@ Portfolio:
 Confidence:
 
 - No live trading until paper history meets explicitly configured sample size and performance thresholds.
-- No shadow trading until one-symbol and full-watchlist paper runs are stable.
+- No shadow trading until current-fixture MVP and full-watchlist paper runs are stable.
 
 ## 19. Implementation-Ready Deliverables For Architect
 
@@ -844,8 +857,8 @@ Engineering should not begin full implementation until:
 
 - Provider contract is approved.
 - PostgreSQL target schema is approved.
-- One-symbol MVP scope is locked.
-- MVP symbol and manual/single-symbol fixture are approved.
+- Current-newsletter fixture MVP scope is locked.
+- Fixture capture path is approved: screenshot/table input with manual correction is acceptable; OCR-grade ingestion is deferred.
 - Initial strike-selection rules are confirmed.
 - Initial pricing policy is confirmed.
 - Initial P/L formulas are confirmed.
@@ -858,9 +871,11 @@ Engineering should not begin full implementation until:
 
 MVP is done when:
 
-- One selected newsletter symbol can be scanned with Tradier live data.
+- Current newsletter screenshot/table fixture can be captured into watchlist rows.
+- Scanner processes fixture symbols sequentially and continues past symbol-level `DATA_UNAVAILABLE` failures.
+- At least one current-fixture symbol can be scanned with Tradier live data.
 - Live option chain is normalized and persisted.
-- Live strikes are selected according to approved provisional rules.
+- Newsletter replication and/or live strikes are selected according to approved provisional rules.
 - P/L and probability outputs are calculated and persisted.
 - Entry decision is produced with explanation and supports `DATA_UNAVAILABLE`.
 - Paper trade intent, order draft, simulated fill, and lifecycle event are created.

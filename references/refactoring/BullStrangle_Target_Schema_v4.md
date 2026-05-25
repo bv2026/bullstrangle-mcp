@@ -180,6 +180,10 @@ CREATE TABLE bullstrangle.newsletters (
     entry_date date,
     market_outlook text,
     strategy_notes text,
+    fixture_source_type text CHECK (fixture_source_type IN ('pdf','screenshot','manual_table','legacy_import','api','test_fixture') OR fixture_source_type IS NULL),
+    fixture_source_ref text,
+    fixture_entered_by text,
+    fixture_entered_at timestamptz,
     raw_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     ingested_at timestamptz NOT NULL DEFAULT now(),
     ingestion_method text,
@@ -248,6 +252,9 @@ CREATE TABLE bullstrangle.watchlist_entries (
     published_return_pct numeric(10,6),
     is_favorite boolean NOT NULL DEFAULT false,
     source_page integer,
+    fixture_row_number integer,
+    fixture_validation_status text CHECK (fixture_validation_status IN ('valid','warning','error') OR fixture_validation_status IS NULL),
+    fixture_validation_notes text,
     raw_line text,
     raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -1353,7 +1360,8 @@ Local dev:
 - Database name example: `bullstrangle_dev`.
 - Schema: `bullstrangle`.
 - Run Alembic migrations from empty DB.
-- Seed minimal policy rows and one fixture newsletter for local scanner tests.
+- Seed minimal policy rows and support current-newsletter screenshot/table fixture rows for scanner tests.
+- Keep frozen `AA` fixture optional as a regression/benchmark, not the operational MVP source.
 
 Test DB:
 - Use separate database: `bullstrangle_test`.

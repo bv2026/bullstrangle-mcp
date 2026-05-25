@@ -25,6 +25,15 @@ Rationale:
 
 The refactor target is a deterministic live-watchlist scanner, not a replacement for Darren's watchlist.
 
+MVP source rule:
+
+- Use the current newsletter screenshot/table as the operational MVP source.
+- Create a current fixture watchlist from manually entered or manually corrected rows.
+- Scan fixture symbols sequentially.
+- If a symbol lacks sufficient live data, mark that symbol `DATA_UNAVAILABLE` with reason and continue to the next symbol.
+- MVP succeeds when at least one current-fixture symbol completes live quote, option chain, selected legs, P/L, probability, decision, and paper lifecycle.
+- Keep the earlier AA/2026-06-18 test only as a frozen regression/benchmark fixture.
+
 Target workflow:
 
 1. Ingest Darren's newsletter watchlist as the candidate universe.

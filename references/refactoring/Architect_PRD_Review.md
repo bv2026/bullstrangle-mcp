@@ -8,25 +8,34 @@ Reviewed artifacts:
 - `diagrams/bullstrangle_agents_architecture.svg`
 - `diagrams/bullstrangle_db_architecture.svg`
 
+Product Owner update after this review:
+
+- The operational MVP is no longer a hard-coded one-symbol AA flow.
+- The MVP source is a current-newsletter screenshot/table fixture with manual correction.
+- The scanner processes fixture symbols sequentially.
+- Symbol-level data failures become `DATA_UNAVAILABLE` and the scan continues.
+- MVP succeeds when at least one current-fixture symbol completes live quote, option chain, selected legs, P/L, probability, decision, and paper lifecycle.
+- The earlier AA/2026-06-18 example is retained only as a frozen regression/benchmark fixture.
+
 ## Executive Assessment
 
 The PRD is directionally sound. It correctly shifts BullStrangle from an artifact-centric newsletter and Option Samurai workflow into a strategy operating layer built around newsletter candidates, live option chains, internally calculated P/L and probability, paper trading, outcome attribution, and future live-trading readiness.
 
 The main architecture concern is scope compression. The PRD asks for a live scanner, provider abstraction, normalized market snapshots, P/L engine, probability engine, rule catalog, decision engine, portfolio layer, paper execution lifecycle, monitoring, scenario attribution, confidence scoring, and future live execution schema. That is the right target architecture, but engineering should not start until the first vertical slice is narrowed to a minimal contract and state model.
 
-Recommendation: approve the product direction, but do not approve implementation until the P0 decisions in this review are resolved. The MVP should be one-symbol, paper-only, Tradier-backed, additive-schema, and replayable. Everything else should hang off that spine.
+Recommendation: approve the product direction, but do not approve implementation until the P0 decisions in this review are resolved. With the Product Owner update above, the MVP should be current-fixture, paper-only, Tradier-backed, PostgreSQL-native, and replayable. Everything else should hang off that spine.
 
 ## Critical Architecture Findings
 
 | Area | Finding | Severity | Required Action |
 |---|---|---:|---|
-| Scope | MVP includes too many new domains unless bounded to one-symbol paper lifecycle only. | High | Lock MVP to quote, chain, selected legs, P/L, probability, decision, trade intent, order draft, simulated fill, replay report. |
+| Scope | MVP includes too many new domains unless bounded to the current-fixture paper lifecycle only. | High | Lock MVP to current fixture rows, sequential symbol scan, quote, chain, selected legs, P/L, probability, decision, trade intent, order draft, simulated fill, replay report. |
 | Schema | PRD lists many tables but not primary keys, foreign keys, uniqueness, state transitions, or event semantics. | High | Produce v2 ERD/table spec before coding. |
 | Execution safety | Live-trading guardrails are stated but not sufficient for broker integration. | High | Define disabled-by-default live mode, approval semantics, idempotency, kill switch, account allowlist, and stale-data blockers. |
 | Provider | Tradier is preferred, but provider contract lacks entitlement, rate-limit, stale quote, corporate-action, and greeks-null behavior. | High | Approve normalized provider contract and error model before scanner work. |
 | Pricing | P/L, probability, paper fill, and order draft pricing can diverge if pricing policy is not centralized. | High | Define one pricing policy object persisted on every scan/decision/fill. |
 | Rule ownership | Many P0 items are marked `Needs Rule Input`. Engineering cannot infer them safely. | High | Confirm strike delta bands, liquidity thresholds, P/L formulas, pricing, portfolio sizing, and probability assumptions. |
-| Existing system | Current DB has legacy OS/gate tables and migrations; PRD does not specify coexistence mapping. | Medium | Use additive v2 tables and compatibility views/adapters, not destructive migration. |
+| Existing system | Current DB has legacy OS/gate tables and migrations; PRD must avoid implying runtime coupling. | Medium | Use new self-contained PostgreSQL runtime tables; legacy data is context or explicit one-way import only. |
 | Agents | Multi-agent model is useful conceptually but can over-architect the implementation. | Medium | Implement modules/services first; expose agents later if needed. |
 
 ## Unclear, Conflicting, Missing, Or Over-Scoped Requirements
@@ -80,7 +89,7 @@ Current implementation already has core artifact tables (`newsletters`, `newslet
 
 Risk: introducing `entry_decisions_v2`, `paper_trades`, and execution tables without mapping current entities can create duplicate truths.
 
-Architecture decision: v2 should be additive. Current tables should remain source of truth for artifact ingestion. New v2 decision and execution tables should reference existing `newsletter_id`, `watchlist_entry_id`, and `short_list_entries` where possible. Legacy OS/gate tables should be read-only compatibility inputs during transition.
+Architecture decision update: the refactor should use a new self-contained PostgreSQL runtime schema. Legacy tables should not remain runtime source of truth and should not be referenced by new runtime foreign keys. Legacy data may be imported through explicit one-way import jobs that preserve source metadata.
 
 ### Table Design Risks
 
@@ -153,8 +162,8 @@ Additional live-trading concern: broker-synced positions becoming source of trut
 
 ### P0 Product And Strategy Decisions
 
-- Confirm MVP symbol selection process: manual selected newsletter symbol, latest short-list symbol, or configured input.
-- Confirm exact target expiration selection rule and acceptable DTE range.
+- Confirm current newsletter screenshot/table fixture path and manual correction workflow.
+- Confirm MVP uses newsletter fixture expiration so validation does not move while implementation is in progress.
 - Confirm delta bands/targets for short call, short put, and protective put.
 - Confirm protective put selection rule: delta, strike distance, premium ratio, max debit, or other.
 - Confirm default pricing policy for paper fills and P/L: conservative bid for shorts and ask for longs is recommended for MVP.
@@ -166,7 +175,7 @@ Additional live-trading concern: broker-synced positions becoming source of trut
 
 ### P0 Architecture Decisions
 
-- Use additive v2 schema coexisting with current artifact and OS/gate tables.
+- Use new self-contained PostgreSQL schema; legacy SQLite/code is context or one-way import only, not runtime dependency.
 - Define normalized market data provider interface and typed errors.
 - Define scan run, option chain snapshot, selected leg, P/L evaluation, probability evaluation, and decision table contracts.
 - Define immutable rule/policy/model versioning and evaluated snapshots.
@@ -184,7 +193,7 @@ Additional live-trading concern: broker-synced positions becoming source of trut
 - Monitoring cadence and mark price policy.
 - Scenario classification automation details.
 - Confidence scoring formula and thresholds.
-- Reporting formats beyond the one-symbol replay report.
+- Reporting formats beyond the current-fixture replay report.
 
 ## What Can Be Deferred
 
@@ -230,7 +239,7 @@ Engineering should start only after these artifacts exist and are approved:
 - Decision evidence contract.
 - Paper lifecycle state machine.
 - Live safety design, even if live implementation is out of scope.
-- One-symbol MVP acceptance fixture using `AA` or another selected newsletter symbol.
+- Current-newsletter fixture acceptance path, with frozen AA only as optional regression/benchmark.
 
 ## Acceptance Criteria Revisions
 

@@ -132,7 +132,7 @@ PostgreSQL runtime principles:
 - money/price/probability fields: PostgreSQL `numeric`
 - import lineage: legacy source table/key stored only for audit
 
-Legacy imports should be optional. The one-symbol MVP should use a manual/single-symbol fixture first and must not block on full legacy import.
+Legacy imports should be optional. The MVP should use a current-newsletter screenshot/table fixture first and must not block on full legacy import or OCR-grade ingestion.
 
 ### 5.2 Artifact Domain
 
@@ -578,13 +578,15 @@ scan_mode
 ```
 
 Expiration selection open decisions:
-- Default target is closest listed expiration to 28 calendar days from scan date.
+- MVP target expiration comes from the current newsletter fixture table so validation remains stable even if implementation spans multiple weeks.
+- Post-MVP default target is closest listed expiration to 28 calendar days from scan date.
 - Need approved min DTE and max DTE bounds.
 - Need policy for weekly vs monthly expirations.
 - Need behavior when no chain exists in the acceptable range.
 
 Recommended provisional behavior:
-- Choose listed expiration with smallest absolute distance from 28 calendar days.
+- For MVP, use fixture/newsletter expiration directly.
+- After MVP, choose listed expiration with smallest absolute distance from 28 calendar days.
 - Require 21 to 35 DTE unless explicitly overridden.
 - If no eligible expiration exists, return `DATA_UNAVAILABLE` or `NO_ELIGIBLE_EXPIRATION`, not `REJECT`.
 
@@ -968,7 +970,7 @@ Import/cutover steps:
 
 1. Create new PostgreSQL runtime schema and migrations.
 2. Seed policies/rules/formulas/probability models.
-3. Implement one-symbol paper-only slice using a manual/single-symbol fixture.
+3. Implement current-newsletter fixture paper-only slice using screenshot/table rows with manual correction.
 4. Optionally import legacy newsletters/watchlist rows into PostgreSQL.
 5. Generate replay report from PostgreSQL v4 tables.
 6. Run full watchlist paper scan while leaving v3 OS workflow intact.
@@ -992,9 +994,11 @@ Deliverables:
 
 Exit criteria: engineering-ready MVP package approved.
 
-### Phase 1: One-Symbol Vertical Slice
+### Phase 1: Current-Newsletter Fixture Vertical Slice
 
 Deliverables:
+- Current newsletter screenshot/table fixture capture with manual correction.
+- Sequential symbol scan with `DATA_UNAVAILABLE` skip-and-continue behavior.
 - Tradier quote and option chain retrieval.
 - Persisted market snapshots.
 - Live strike selection.
@@ -1100,9 +1104,11 @@ Tradeoff: less visible agent architecture early. Mitigation: module boundaries m
 ## 22. Open Questions
 
 P0 before engineering:
-- MVP symbol: `AA` from the latest non-ingested newsletter screenshot/manual fixture.
-- MVP source: manual/single-symbol fixture first; full newsletter import later.
-- Expiration rule: closest listed expiration to 28 calendar days, allowed DTE range 21-35.
+- MVP source: current newsletter screenshot/table fixture with manual correction allowed; full newsletter import and OCR-grade extraction later.
+- MVP run behavior: scan fixture symbols sequentially and continue after symbol-level `DATA_UNAVAILABLE`.
+- MVP success criterion: at least one current-fixture symbol completes live quote, option chain, selected legs, P/L, probability, decision, and paper lifecycle.
+- Frozen AA fixture: optional regression/benchmark only, not the operational MVP source.
+- Expiration rule: use newsletter fixture expiration for MVP; post-MVP use closest listed expiration to 28 calendar days with approved DTE bounds.
 - Initial strike rules: provisional call/put delta bands plus protective-put lower-delta or premium-ratio rule; record alternatives and selected reason.
 - Pricing policy: conservative executable pricing; short options at bid, long options at ask, stock ask for buy assumptions, stock bid for sell assumptions, mid shown for reference only.
 - P/L assumptions: exclude commissions in MVP and store `include_commissions=false`.
@@ -1143,13 +1149,15 @@ Engineering should not start the v4 MVP until these are approved:
 - Decision evidence schema.
 - Paper lifecycle state machine.
 - Live safety design, even with live out of scope.
-- One-symbol MVP acceptance fixture.
+- Current-newsletter fixture acceptance path.
 - Product Owner conditional-approval action items resolved.
 
 ## 24. MVP Acceptance Criteria
 
 MVP is complete when:
-- One selected newsletter symbol can be scanned with Tradier live data.
+- Current newsletter screenshot/table fixture can be captured into watchlist rows.
+- Fixture symbols are scanned sequentially and symbol-level data failures do not block the run.
+- At least one current-fixture symbol can be scanned with Tradier live data.
 - Live stock quote and option chain are normalized and persisted.
 - Selected legs are persisted with source option-chain rows and pricing policy.
 - P/L and probability outputs are calculated and persisted with versions and assumptions.
@@ -1160,11 +1168,11 @@ MVP is complete when:
 - Paper fill prices are no more favorable than policy prices.
 - No live order can be submitted.
 - OS Excel is not required for the MVP path.
-- MVP uses manual/single-symbol fixture first; full ingestion/import is deferred.
+- MVP uses current-newsletter screenshot/table fixture first; full ingestion/import and OCR-grade extraction are deferred.
 - Legacy SQLite and legacy modules are not runtime dependencies.
 
 ## 25. Summary
 
-v4 keeps the useful v3 foundation and replaces the brittle execution data plane. The refactor should be built around a narrow, replayable, paper-only vertical slice: newsletter candidate, Tradier quote/chain, live strike selection, conservative pricing, internal P/L, internal probability, explainable decision, and shared execution lifecycle records.
+v4 keeps the useful v3 foundation and replaces the brittle execution data plane. The refactor should be built around a narrow, replayable, paper-only vertical slice: current-newsletter table fixture, sequential symbol scan, Tradier quote/chain, selected legs, conservative pricing, internal P/L, internal probability, explainable decision, and shared execution lifecycle records.
 
 The architecture is intentionally live-ready but not live-enabled. Live trading is a later phase gated by paper evidence, explicit confidence thresholds, broker reconciliation, operator approval, and hard safety controls.

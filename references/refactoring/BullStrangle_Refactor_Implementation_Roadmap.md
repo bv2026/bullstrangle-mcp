@@ -26,13 +26,15 @@ Hard constraints:
 
 ## 2. Target Outcome
 
-The first usable system is a self-contained one-symbol MVP:
+The first usable system is a self-contained current-newsletter fixture MVP:
 
 ```text
-newsletter symbol
+current newsletter screenshot/table
+  -> manually corrected fixture rows
+  -> sequential symbol scan
   -> Tradier provider
   -> live option chain
-  -> live strike selection
+  -> newsletter replication and/or live strike selection
   -> P/L + probability
   -> explainable entry decision
   -> paper trade intent
@@ -42,14 +44,14 @@ newsletter symbol
   -> replay report
 ```
 
-The MVP must not require legacy runtime modules, legacy SQLite tables, Option Samurai Excel, or live broker submission.
+The MVP succeeds when at least one current-fixture symbol completes the end-to-end paper lifecycle. Symbols without sufficient live data are marked `DATA_UNAVAILABLE` with reason and the run continues. The MVP must not require legacy runtime modules, legacy SQLite tables, Option Samurai Excel, OCR-grade ingestion, or live broker submission.
 
 ## 2.1 Product Milestones
 
 Product-facing milestone grouping:
 
 1. Foundation and PostgreSQL schema.
-2. One-symbol MVP.
+2. Current-newsletter fixture MVP.
 3. Full watchlist paper run.
 4. Monitoring/outcomes.
 5. Confidence reporting.
@@ -62,16 +64,18 @@ Engineering phases below are intentionally more granular, but product reporting 
 
 The following Product Owner decisions are locked for initial planning unless explicitly revised:
 
-- MVP symbol: `AA` from the latest non-ingested newsletter screenshot/manual fixture.
-- MVP source: manual/single-symbol fixture first; legacy import later.
-- Expiration rule: closest listed expiration to 28 calendar days, allowed DTE range 21-35.
+- MVP source: current newsletter screenshot/table fixture with manual correction; legacy import and OCR-grade extraction later.
+- MVP symbol selection: scan fixture symbols sequentially; do not hard-code `AA`.
+- MVP success criterion: at least one current-fixture symbol completes live quote, option chain, selected legs, P/L, probability, decision, and paper lifecycle.
+- Frozen `AA` example: optional regression/benchmark fixture only, not the operational MVP source.
+- Expiration rule: use the newsletter fixture expiration for MVP validation; post-MVP policy can use closest listed expiration to 28 calendar days with approved DTE bounds.
 - Initial strike rules: provisional delta-band selection for short call and short put; protective put by lower put delta or premium-ratio rule; record alternatives and selected reason.
 - Pricing policy: conservative executable pricing; short options at bid, long options at ask, stock at ask for buy assumptions, stock at bid for sell assumptions, mid shown for reference only.
 - P/L assumptions: exclude commissions in MVP and store `include_commissions=false`.
 - Probability model: simple lognormal expiration model using selected IV, assumptions stored, no claim of matching OS.
 - Large/Small sizing: defer exact sizing to P1; MVP stores nullable portfolio type only.
 - Duplicate symbol policy: warn but allow during paper trading; revisit before live.
-- Shadow threshold: at least one full-watchlist paper cycle works end-to-end with clean replay and no critical data failures.
+- Shadow threshold: at least one current-fixture MVP and one full-watchlist paper cycle work end-to-end with clean replay and no critical data failures.
 - Live threshold: no numeric threshold yet; requires separate Product Owner approval after multiple paper/shadow cycles, broker reconciliation, broker fake tests, and explicit max-loss/order-size controls.
 
 ## 3. Proposed New Project Structure
@@ -290,11 +294,14 @@ Candidate read-only tools:
 - `bullstrangle_replay_decision`
 
 Candidate write/non-destructive creation tools:
+- `bullstrangle_create_current_fixture`
 - `bullstrangle_import_legacy_newsletter`
 - `bullstrangle_scan_symbol`
 - `bullstrangle_create_paper_trade`
 
 Guardrails:
+- `bullstrangle_create_current_fixture` writes manually entered/current-newsletter table rows to PostgreSQL and does not require legacy import.
+- `bullstrangle_scan_symbol` scans a selected fixture symbol.
 - `bullstrangle_scan_symbol` may call Tradier, so it is `openWorldHint=true`.
 - `bullstrangle_create_paper_trade` writes to PostgreSQL but is non-live and idempotent by key.
 - No broker submission tool in MVP.
@@ -408,17 +415,20 @@ Definition of Done:
 - Local dev/test DB instructions are complete.
 - Rollback plan is documented.
 
-## 11. Phase 2: One-Way Legacy Import Foundation
+## 11. Phase 2: Current Fixture And Optional Import Foundation
 
-Goal: optionally load starter newsletter/watchlist data without coupling to legacy runtime.
+Goal: load a current newsletter screenshot/table fixture without coupling to legacy runtime; optionally load legacy data later.
 
 Tasks:
+- Build current-fixture service for manual table entry or manually corrected screenshot/table extraction.
+- Persist current newsletter fixture rows as native PostgreSQL `newsletters` and `watchlist_entries`.
+- Store fixture source metadata, screenshot/table reference, entered_by, entered_at, and validation warnings where available.
 - Build import service that reads legacy SQLite by file path only.
 - Import newsletters, sections, watchlist entries, and short-list entries into PostgreSQL-native tables.
 - Record import batches, source hash, legacy table names, and legacy primary keys.
 - Add idempotency for re-imports.
 - Add import validation report.
-- Add fixtures for one-symbol MVP if import is unavailable.
+- Keep frozen `AA` fixture as optional regression/benchmark data only.
 
 Non-goals:
 - No runtime reads from legacy SQLite.
@@ -427,13 +437,15 @@ Non-goals:
 - No OS workbook dependency.
 
 Validation gates:
+- Current newsletter fixture can be created without legacy import.
+- Fixture contains enough symbols to scan sequentially and continue after `DATA_UNAVAILABLE`.
 - Import can run against copied read-only SQLite DB.
 - Imported data is queryable from PostgreSQL only.
 - Re-import is idempotent.
 - Legacy runtime remains operational and unchanged.
 
 Definition of Done:
-- New project has enough native PostgreSQL data to select one newsletter symbol.
+- New project has enough native PostgreSQL data to scan current fixture symbols.
 - Legacy import is optional and isolated.
 
 ## 12. Phase 3: Provider Abstraction And Tradier Read Path
@@ -462,7 +474,7 @@ Validation gates:
 - No provider-specific payload leaks into scanner/domain contracts except raw `jsonb`.
 
 Definition of Done:
-- One symbol quote and option chain can be normalized and persisted in PostgreSQL.
+- One current-fixture symbol quote and option chain can be normalized and persisted in PostgreSQL.
 - Provider abstraction can be mocked in tests.
 
 ## 13. Phase 4: Scanner, Strike Selection, P/L, Probability
@@ -470,7 +482,8 @@ Definition of Done:
 Goal: produce replayable candidate evaluations from live provider snapshots.
 
 Tasks:
-- Implement expiration selection based on approved DTE policy.
+- Use newsletter fixture expiration for MVP validation.
+- Implement post-MVP expiration selection based on approved DTE policy.
 - Implement newsletter replication mode.
 - Implement live strike-selection mode.
 - Implement liquidity filtering and deterministic tie-breakers.
@@ -479,7 +492,7 @@ Tasks:
 - Implement P/L engine and persist `pl_evaluations`.
 - Implement scenario table persistence where in scope.
 - Implement probability engine and persist `probability_evaluations`.
-- Add replay fixture for `AA` or approved MVP symbol.
+- Add frozen `AA` replay fixture as optional regression/benchmark only.
 
 Non-goals:
 - No portfolio optimization.
@@ -488,14 +501,16 @@ Non-goals:
 - No broker integration.
 
 Validation gates:
-- For one symbol, selected legs can be replayed from stored snapshots.
+- Current fixture symbols scan sequentially.
+- Symbol-level data failures produce `DATA_UNAVAILABLE` and the run continues.
+- At least one current-fixture symbol can complete selected legs from stored snapshots.
 - P/L outputs include formula version and assumptions.
 - Probability outputs include model version and assumptions.
 - Provider failure leads to `DATA_UNAVAILABLE`, not `REJECT`.
 - Paper pricing is no more favorable than the configured conservative policy.
 
 Definition of Done:
-- One-symbol scanner can produce complete persisted market, leg, P/L, and probability evidence.
+- Current-fixture scanner can produce complete persisted market, leg, P/L, and probability evidence for at least one symbol.
 
 ## 14. Phase 5: Entry Decision And Paper Lifecycle MVP
 
@@ -520,14 +535,14 @@ Non-goals:
 - No MCP tools until MCP review gate passes.
 
 Validation gates:
-- One-symbol MVP path runs end-to-end in paper mode.
+- Current-fixture MVP path runs end-to-end in paper mode for at least one symbol.
 - No live broker order table row is created in MVP path.
 - No code path can submit live order.
 - Replay report can explain source newsletter, provider snapshots, selected legs, P/L, probability, decision, and paper fill.
 - Legacy runtime remains untouched.
 
 Definition of Done:
-- The one-symbol MVP is complete.
+- The current-newsletter fixture MVP is complete.
 - OS Excel is not required.
 - PostgreSQL is the only runtime DB.
 
@@ -568,7 +583,7 @@ Definition of Done:
 
 ## 16. Phase 7: Full Watchlist Paper Run
 
-Goal: expand from one-symbol MVP to complete newsletter watchlist paper evaluation.
+Goal: expand from current-fixture MVP to complete newsletter watchlist paper evaluation.
 
 Tasks:
 - Implement batch scan orchestration with provider rate-limit handling.
@@ -763,7 +778,7 @@ Test layers:
 - migration tests: Alembic base to head.
 - provider tests with fixture provider.
 - optional live Tradier smoke tests behind env flag.
-- service tests for one-symbol MVP.
+- service tests for current-fixture MVP.
 - MCP tool tests with service fakes.
 - import tests with copied legacy SQLite fixture.
 - safety tests for live disabled, stale data blocked, duplicate order blocked.
@@ -792,7 +807,7 @@ No phase advances unless:
 - live trading remains disabled unless in approved live phase.
 
 MVP readiness gate:
-- one-symbol paper lifecycle completes.
+- current-fixture paper lifecycle completes for at least one symbol.
 - replay report is generated from PostgreSQL only.
 - provider data is persisted and replayable.
 - no legacy runtime dependency exists.
@@ -822,10 +837,10 @@ Provider fallback:
 |---|---|
 | 0 | Contracts, boundaries, and safety rules approved; no implementation. |
 | 1 | PostgreSQL schema/migrations/seed plan implemented and tested. |
-| 2 | Legacy import is one-way, idempotent, and optional. |
+| 2 | Current fixture works without legacy import; legacy import is one-way, idempotent, and optional. |
 | 3 | Tradier quote/chain normalized and persisted behind provider interface. |
-| 4 | One symbol can be scanned with persisted legs, P/L, and probability. |
-| 5 | One-symbol paper lifecycle is complete and replayable. |
+| 4 | Current fixture symbols can be scanned sequentially with persisted legs, P/L, and probability where data is available. |
+| 5 | At least one current-fixture paper lifecycle is complete and replayable; unavailable symbols are retained as DATA_UNAVAILABLE. |
 | 6 | Safe MCP MVP tools expose the paper MVP. |
 | 7 | Full watchlist paper run works for Large and Small books. |
 | 8 | Paper trades are monitored and outcomes classified. |
@@ -840,8 +855,8 @@ Before any implementation:
 - Confirm Python/MCP stack: FastMCP vs lower-level MCP Python SDK.
 - Confirm local PostgreSQL setup approach.
 - Confirm Alembic as migration tool.
-- Confirm MVP symbol and source newsletter.
-- Confirm manual/single-symbol fixture source for `AA`.
+- Confirm current newsletter screenshot/table fixture input path and manual correction workflow.
+- Confirm frozen `AA` fixture remains regression/benchmark only.
 - Confirm provisional strike-selection rule parameters.
 - Confirm conservative pricing policy values.
 - Confirm P/L formula assumptions with `include_commissions=false`.
