@@ -1,0 +1,194 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050">
+  <defs>
+    <style>
+      .bg { fill: #f7f8fb; }
+      .title { font: 700 34px Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 18px Arial, sans-serif; fill: #526071; }
+      .group-title { font: 700 19px Arial, sans-serif; fill: #243044; }
+      .table-title { font: 700 16px Arial, sans-serif; fill: #111827; }
+      .field { font: 400 12.5px Consolas, monospace; fill: #334155; }
+      .note { font: 400 13px Arial, sans-serif; fill: #64748b; }
+      .group { fill: #ffffff; stroke: #d7dce5; stroke-width: 1.5; }
+      .artifact { fill: #e8f4ff; stroke: #4f8fca; stroke-width: 2; }
+      .knowledge { fill: #fff7e6; stroke: #d08700; stroke-width: 2; }
+      .market { fill: #eef9f1; stroke: #2f855a; stroke-width: 2; }
+      .decision { fill: #f3efff; stroke: #6b46c1; stroke-width: 2; }
+      .portfolio { fill: #fef2f2; stroke: #c53030; stroke-width: 2; }
+      .table { rx: 8; }
+      .arrow { stroke: #334155; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .soft-arrow { stroke: #64748b; stroke-width: 1.6; fill: none; marker-end: url(#arrow-soft); stroke-dasharray: 7 5; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1050"/>
+  <text class="title" x="60" y="56">BullStrangle Target Data Architecture</text>
+  <text class="subtitle" x="60" y="86">From ingested artifacts to live snapshots, decisions, execution lifecycle, portfolios, and confidence metrics</text>
+
+  <rect class="group" x="40" y="125" width="300" height="780" rx="8"/>
+  <text class="group-title" x="62" y="158">Artifact Layer</text>
+
+  <rect class="artifact table" x="70" y="195" width="240" height="100"/>
+  <text class="table-title" x="90" y="225">newsletters</text>
+  <text class="field" x="90" y="250">newsletter_id</text>
+  <text class="field" x="90" y="270">publication_date</text>
+  <text class="field" x="90" y="290">target_expiration</text>
+
+  <rect class="artifact table" x="70" y="335" width="240" height="105"/>
+  <text class="table-title" x="90" y="365">newsletter_full_text</text>
+  <text class="field" x="90" y="390">newsletter_id</text>
+  <text class="field" x="90" y="410">section_type</text>
+  <text class="field" x="90" y="430">raw_text, page_span</text>
+
+  <rect class="artifact table" x="70" y="480" width="240" height="120"/>
+  <text class="table-title" x="90" y="510">watchlist_entries</text>
+  <text class="field" x="90" y="535">symbol, stock_price</text>
+  <text class="field" x="90" y="555">published strikes</text>
+  <text class="field" x="90" y="575">published premiums</text>
+  <text class="field" x="90" y="595">iv, earnings_date</text>
+
+  <rect class="artifact table" x="70" y="640" width="240" height="105"/>
+  <text class="table-title" x="90" y="670">short_list_entries</text>
+  <text class="field" x="90" y="695">portfolio_type</text>
+  <text class="field" x="90" y="715">rank, symbol</text>
+  <text class="field" x="90" y="735">large | small</text>
+
+  <rect class="artifact table" x="70" y="785" width="240" height="80"/>
+  <text class="table-title" x="90" y="815">os_evaluation_rows</text>
+  <text class="field" x="90" y="840">transition fallback only</text>
+  <text class="field" x="90" y="860">not strategic source</text>
+
+  <rect class="group" x="380" y="125" width="300" height="780" rx="8"/>
+  <text class="group-title" x="402" y="158">Knowledge Layer</text>
+
+  <rect class="knowledge table" x="410" y="205" width="240" height="110"/>
+  <text class="table-title" x="430" y="235">newsletter_intelligence</text>
+  <text class="field" x="430" y="260">market_thesis</text>
+  <text class="field" x="430" y="280">risk_posture</text>
+  <text class="field" x="430" y="300">sector_bias, cautions</text>
+
+  <rect class="knowledge table" x="410" y="360" width="240" height="110"/>
+  <text class="table-title" x="430" y="390">strategy_rule_catalog</text>
+  <text class="field" x="430" y="415">rule_id, version</text>
+  <text class="field" x="430" y="435">rule_area, threshold</text>
+  <text class="field" x="430" y="455">hard | soft | advisory</text>
+
+  <rect class="knowledge table" x="410" y="515" width="240" height="115"/>
+  <text class="table-title" x="430" y="545">trade_management_rules</text>
+  <text class="field" x="430" y="570">EARLY_CALL</text>
+  <text class="field" x="430" y="590">EARLY_ASSIGNMENT</text>
+  <text class="field" x="430" y="610">STOCK_CALLED_AWAY</text>
+
+  <rect class="knowledge table" x="410" y="675" width="240" height="105"/>
+  <text class="table-title" x="430" y="705">market_environment</text>
+  <text class="field" x="430" y="730">deployment status</text>
+  <text class="field" x="430" y="750">hybrid score</text>
+  <text class="field" x="430" y="770">commentary tags</text>
+
+  <rect class="group" x="720" y="125" width="300" height="780" rx="8"/>
+  <text class="group-title" x="742" y="158">Live Market Layer</text>
+
+  <rect class="market table" x="750" y="205" width="240" height="105"/>
+  <text class="table-title" x="770" y="235">market_data_runs</text>
+  <text class="field" x="770" y="260">provider</text>
+  <text class="field" x="770" y="280">started_at</text>
+  <text class="field" x="770" y="300">freshness/status</text>
+
+  <rect class="market table" x="750" y="350" width="240" height="120"/>
+  <text class="table-title" x="770" y="380">live_option_chains</text>
+  <text class="field" x="770" y="405">symbol, expiration</text>
+  <text class="field" x="770" y="425">right, strike</text>
+  <text class="field" x="770" y="445">bid, ask, mid</text>
+  <text class="field" x="770" y="465">delta, iv, oi, volume</text>
+
+  <rect class="market table" x="750" y="515" width="240" height="130"/>
+  <text class="table-title" x="770" y="545">live_watchlist_snapshots</text>
+  <text class="field" x="770" y="570">selected strikes</text>
+  <text class="field" x="770" y="590">selected deltas</text>
+  <text class="field" x="770" y="610">total_credit</text>
+  <text class="field" x="770" y="630">replication | live_select</text>
+
+  <rect class="market table" x="750" y="690" width="240" height="95"/>
+  <text class="table-title" x="770" y="720">provider_health</text>
+  <text class="field" x="770" y="745">rate limits</text>
+  <text class="field" x="770" y="765">errors, latency</text>
+
+  <rect class="group" x="1060" y="125" width="300" height="780" rx="8"/>
+  <text class="group-title" x="1082" y="158">Decision Layer</text>
+
+  <rect class="decision table" x="1090" y="205" width="240" height="125"/>
+  <text class="table-title" x="1110" y="235">pl_evaluations</text>
+  <text class="field" x="1110" y="260">capital_required</text>
+  <text class="field" x="1110" y="280">breakeven</text>
+  <text class="field" x="1110" y="300">called_away_profit</text>
+  <text class="field" x="1110" y="320">return_on_capital</text>
+
+  <rect class="decision table" x="1090" y="370" width="240" height="120"/>
+  <text class="table-title" x="1110" y="400">probability_evaluations</text>
+  <text class="field" x="1110" y="425">prob_profit</text>
+  <text class="field" x="1110" y="445">prob_between_strikes</text>
+  <text class="field" x="1110" y="465">model, inputs_json</text>
+
+  <rect class="decision table" x="1090" y="530" width="240" height="120"/>
+  <text class="table-title" x="1110" y="560">entry_decisions_v2</text>
+  <text class="field" x="1110" y="585">accept | watch | reject</text>
+  <text class="field" x="1110" y="605">rule evidence</text>
+  <text class="field" x="1110" y="625">confidence_level</text>
+
+  <rect class="decision table" x="1090" y="690" width="240" height="105"/>
+  <text class="table-title" x="1110" y="720">trade_scorecards</text>
+  <text class="field" x="1110" y="745">freshness, liquidity</text>
+  <text class="field" x="1110" y="765">P/L, probability</text>
+  <text class="field" x="1110" y="785">portfolio fit</text>
+
+  <rect class="group" x="1400" y="125" width="160" height="780" rx="8"/>
+  <text class="group-title" x="1422" y="158">Execution</text>
+
+  <rect class="portfolio table" x="1420" y="205" width="120" height="95"/>
+  <text class="table-title" x="1435" y="235">trade_intents</text>
+  <text class="field" x="1435" y="260">paper/live</text>
+  <text class="field" x="1435" y="280">large/small</text>
+
+  <rect class="portfolio table" x="1420" y="340" width="120" height="110"/>
+  <text class="table-title" x="1435" y="370">order_drafts</text>
+  <text class="field" x="1435" y="395">legs</text>
+  <text class="field" x="1435" y="415">limit</text>
+  <text class="field" x="1435" y="435">approval</text>
+
+  <rect class="portfolio table" x="1420" y="490" width="120" height="110"/>
+  <text class="table-title" x="1435" y="520">orders/fills</text>
+  <text class="field" x="1435" y="545">broker order</text>
+  <text class="field" x="1435" y="565">sim fill</text>
+  <text class="field" x="1435" y="585">live fill</text>
+
+  <rect class="portfolio table" x="1420" y="640" width="120" height="110"/>
+  <text class="table-title" x="1435" y="670">lifecycle</text>
+  <text class="field" x="1435" y="695">positions</text>
+  <text class="field" x="1435" y="715">assignment</text>
+  <text class="field" x="1435" y="735">outcome</text>
+
+  <rect class="portfolio table" x="1420" y="790" width="120" height="80"/>
+  <text class="table-title" x="1435" y="820">confidence</text>
+  <text class="field" x="1435" y="845">metrics</text>
+  <text class="field" x="1435" y="865">scoreboard</text>
+
+  <path class="arrow" d="M310 245 L410 260"/>
+  <path class="arrow" d="M310 540 L750 580"/>
+  <path class="arrow" d="M310 695 L1420 252"/>
+  <path class="arrow" d="M650 412 L750 410"/>
+  <path class="arrow" d="M650 570 L1090 590"/>
+  <path class="arrow" d="M990 575 L1090 267"/>
+  <path class="arrow" d="M990 575 L1090 430"/>
+  <path class="arrow" d="M1330 590 L1420 392"/>
+  <path class="arrow" d="M1480 450 L1480 490"/>
+  <path class="arrow" d="M1480 600 L1480 640"/>
+  <path class="arrow" d="M1480 750 L1480 790"/>
+  <path class="soft-arrow" d="M1420 830 C900 995 540 880 530 780"/>
+
+  <text class="note" x="60" y="965">Design note: paper and live execution share one lifecycle model. New v2 tables should preserve lineage to newsletter_id, provider, rule version, decision, approval, order, fill, and outcome.</text>
+</svg>

@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <style>
+      .bg { fill: #f7f8fb; }
+      .title { font: 700 34px Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 18px Arial, sans-serif; fill: #526071; }
+      .band-title { font: 700 18px Arial, sans-serif; fill: #243044; }
+      .box-title { font: 700 17px Arial, sans-serif; fill: #111827; }
+      .box-text { font: 400 13px Arial, sans-serif; fill: #4b5563; }
+      .small { font: 400 12px Arial, sans-serif; fill: #6b7280; }
+      .label { font: 700 13px Arial, sans-serif; fill: #374151; }
+      .band { fill: #ffffff; stroke: #d7dce5; stroke-width: 1.5; }
+      .source { fill: #e8f4ff; stroke: #4f8fca; stroke-width: 2; }
+      .agent { fill: #ffffff; stroke: #233a5e; stroke-width: 2; }
+      .compute { fill: #fff7e6; stroke: #d08700; stroke-width: 2; }
+      .portfolio { fill: #eef9f1; stroke: #2f855a; stroke-width: 2; }
+      .store { fill: #f3efff; stroke: #6b46c1; stroke-width: 2; }
+      .external { fill: #fef2f2; stroke: #c53030; stroke-width: 2; }
+      .arrow { stroke: #334155; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .soft-arrow { stroke: #64748b; stroke-width: 1.7; fill: none; marker-end: url(#arrow-soft); stroke-dasharray: 7 5; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1000"/>
+  <text class="title" x="60" y="56">BullStrangle Target Multi-Agent Architecture</text>
+  <text class="subtitle" x="60" y="86">Newsletter intelligence, live option-chain execution, P/L decisions, execution lifecycle, portfolios, and confidence learning</text>
+
+  <rect class="band" x="40" y="120" width="360" height="780" rx="8"/>
+  <text class="band-title" x="62" y="154">Inputs And Providers</text>
+
+  <rect class="source" x="70" y="190" width="290" height="95" rx="8"/>
+  <text class="box-title" x="92" y="222">Darren Newsletter PDFs</text>
+  <text class="box-text" x="92" y="248">Watchlist, Large/Small short lists</text>
+  <text class="box-text" x="92" y="268">Market commentary and trade thesis</text>
+
+  <rect class="source" x="70" y="325" width="290" height="95" rx="8"/>
+  <text class="box-title" x="92" y="357">Strategy References</text>
+  <text class="box-text" x="92" y="383">Master Strategy rules</text>
+  <text class="box-text" x="92" y="403">Trade-management scenarios</text>
+
+  <rect class="external" x="70" y="460" width="290" height="115" rx="8"/>
+  <text class="box-title" x="92" y="492">Market Data Provider</text>
+  <text class="box-text" x="92" y="518">First provider: Tradier direct API</text>
+  <text class="box-text" x="92" y="538">Live quotes, option chains, greeks</text>
+  <text class="small" x="92" y="560">Behind stable provider contract</text>
+
+  <rect class="external" x="70" y="615" width="290" height="95" rx="8"/>
+  <text class="box-title" x="92" y="647">Option Samurai Excel</text>
+  <text class="box-text" x="92" y="673">Temporary fallback and benchmark</text>
+  <text class="box-text" x="92" y="693">Not strategic workflow</text>
+
+  <rect class="band" x="440" y="120" width="700" height="780" rx="8"/>
+  <text class="band-title" x="462" y="154">Agent Pipeline</text>
+
+  <rect class="agent" x="480" y="190" width="260" height="90" rx="8"/>
+  <text class="box-title" x="502" y="222">Ingestion Agent</text>
+  <text class="box-text" x="502" y="248">Parse PDFs and artifacts</text>
+  <text class="box-text" x="502" y="268">Preserve source lineage</text>
+
+  <rect class="agent" x="820" y="190" width="260" height="90" rx="8"/>
+  <text class="box-title" x="842" y="222">Newsletter Intelligence Agent</text>
+  <text class="box-text" x="842" y="248">Market thesis, warnings, sectors</text>
+  <text class="box-text" x="842" y="268">Watchlist context and rationale</text>
+
+  <rect class="agent" x="480" y="325" width="260" height="90" rx="8"/>
+  <text class="box-title" x="502" y="357">Strategy Rule Agent</text>
+  <text class="box-text" x="502" y="383">Rule catalog and thresholds</text>
+  <text class="box-text" x="502" y="403">Gate 7 advisory in refactor</text>
+
+  <rect class="agent" x="820" y="325" width="260" height="90" rx="8"/>
+  <text class="box-title" x="842" y="357">Market Data Agent</text>
+  <text class="box-text" x="842" y="383">Normalize provider quotes/chains</text>
+  <text class="box-text" x="842" y="403">Freshness and provider errors</text>
+
+  <rect class="compute" x="480" y="470" width="260" height="105" rx="8"/>
+  <text class="box-title" x="502" y="502">Live Scanner Agent</text>
+  <text class="box-text" x="502" y="528">4-week expiration</text>
+  <text class="box-text" x="502" y="548">Live strike selection by rules</text>
+  <text class="box-text" x="502" y="568">Newsletter replication mode</text>
+
+  <rect class="compute" x="820" y="470" width="260" height="105" rx="8"/>
+  <text class="box-title" x="842" y="502">P/L + Probability Agent</text>
+  <text class="box-text" x="842" y="528">Credit, breakevens, return</text>
+  <text class="box-text" x="842" y="548">Scenario P/L table</text>
+  <text class="box-text" x="842" y="568">Internal probability model</text>
+
+  <rect class="compute" x="650" y="625" width="300" height="95" rx="8"/>
+  <text class="box-title" x="672" y="657">Entry Decision Agent</text>
+  <text class="box-text" x="672" y="683">Accept, watch, reject</text>
+  <text class="box-text" x="672" y="703">Rule evidence and confidence level</text>
+
+  <rect class="portfolio" x="480" y="770" width="260" height="90" rx="8"/>
+  <text class="box-title" x="502" y="802">Portfolio Manager Agent</text>
+  <text class="box-text" x="502" y="828">Large and Small books</text>
+  <text class="box-text" x="502" y="848">Sizing, exposure, capacity</text>
+
+  <rect class="portfolio" x="820" y="770" width="260" height="90" rx="8"/>
+  <text class="box-title" x="842" y="802">Execution + Confidence Agents</text>
+  <text class="box-text" x="842" y="828">Paper, shadow, live lifecycle</text>
+  <text class="box-text" x="842" y="848">Scenarios and realized learning</text>
+
+  <rect class="band" x="1180" y="120" width="360" height="780" rx="8"/>
+  <text class="band-title" x="1202" y="154">Persistent Knowledge</text>
+
+  <rect class="store" x="1210" y="205" width="290" height="105" rx="8"/>
+  <text class="box-title" x="1232" y="237">Artifact Store</text>
+  <text class="box-text" x="1232" y="263">Raw PDFs, full text, source spans</text>
+  <text class="box-text" x="1232" y="283">Workbook fallback snapshots</text>
+
+  <rect class="store" x="1210" y="360" width="290" height="105" rx="8"/>
+  <text class="box-title" x="1232" y="392">Strategy Knowledge Store</text>
+  <text class="box-text" x="1232" y="418">Rule catalog, newsletter intelligence</text>
+  <text class="box-text" x="1232" y="438">Scenario management rules</text>
+
+  <rect class="store" x="1210" y="515" width="290" height="115" rx="8"/>
+  <text class="box-title" x="1232" y="547">Decision Store</text>
+  <text class="box-text" x="1232" y="573">Live snapshots, scorecards</text>
+  <text class="box-text" x="1232" y="593">P/L and probability outputs</text>
+  <text class="box-text" x="1232" y="613">Entry and exit decisions</text>
+
+  <rect class="store" x="1210" y="680" width="290" height="115" rx="8"/>
+  <text class="box-title" x="1232" y="712">Portfolio Learning Store</text>
+  <text class="box-text" x="1232" y="738">Trade intents, orders, fills</text>
+  <text class="box-text" x="1232" y="758">Lifecycle events and scoreboard</text>
+  <text class="box-text" x="1232" y="778">System confidence metrics</text>
+
+  <path class="arrow" d="M360 237 L480 237"/>
+  <path class="arrow" d="M360 372 L480 372"/>
+  <path class="arrow" d="M360 517 L820 372"/>
+  <path class="soft-arrow" d="M360 662 L480 522"/>
+
+  <path class="arrow" d="M740 235 L820 235"/>
+  <path class="arrow" d="M950 280 L950 325"/>
+  <path class="arrow" d="M740 370 L820 370"/>
+  <path class="arrow" d="M610 415 L610 470"/>
+  <path class="arrow" d="M950 415 L950 470"/>
+  <path class="arrow" d="M740 522 L820 522"/>
+  <path class="arrow" d="M950 575 L850 625"/>
+  <path class="arrow" d="M650 575 L750 625"/>
+  <path class="arrow" d="M800 720 L650 770"/>
+  <path class="arrow" d="M800 720 L900 770"/>
+  <path class="soft-arrow" d="M950 770 C1030 700 1050 590 950 575"/>
+
+  <path class="arrow" d="M1080 235 L1210 257"/>
+  <path class="arrow" d="M1080 370 L1210 412"/>
+  <path class="arrow" d="M1080 522 L1210 572"/>
+  <path class="arrow" d="M1080 815 L1210 737"/>
+
+  <text class="label" x="1120" y="535">write decisions</text>
+  <text class="label" x="1110" y="750">learn outcomes</text>
+</svg>
