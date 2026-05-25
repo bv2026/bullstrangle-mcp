@@ -16,6 +16,10 @@ Product Owner approval:
 - Approved for Phase 0 self-contained project scaffolding.
 - Deferred decisions: exact delta bands, protective put method, P/L thresholds, probability thresholds, liquidity thresholds, Large/Small sizing, confidence thresholds.
 
+Phase 0 scaffold:
+- Planning approval recorded in legacy repo at commit `193007a`.
+- New repo scaffold pushed to `https://github.com/bv2026/bullstrangle-platform` at commit `a80b993`.
+
 ## Status Legend
 
 - `[ ]` Not started
@@ -27,21 +31,21 @@ Product Owner approval:
 ## 1. Non-Negotiable Guardrails
 
 - [x] Legacy `bullstrangle-mcp` runtime remains untouched.
-- [ ] New implementation is created in a separate repository: `bullstrangle-platform`.
+- [x] New implementation is created in a separate repository: `bullstrangle-platform`.
 - [x] New package name is `bullstrangle_platform`.
 - [x] New MCP server name is `bullstrangle_platform_mcp`.
 - [x] New CLI namespace is `bs-platform`.
 - [x] New runtime DB is PostgreSQL only.
 - [x] SQLite is used only as optional legacy one-way import source.
-- [ ] New runtime has no imports from `src/bullstrangle_mcp`.
-- [ ] New runtime scanner/decision/P/L/probability/execution services do not read raw files directly after ingestion.
+- [x] New runtime has no imports from `src/bullstrangle_mcp`.
+- [x] New runtime scanner/decision/P/L/probability/execution services do not read raw files directly after ingestion.
 - [x] Live trading remains disabled until Product Owner live-readiness approval.
 - [x] All shell commands during implementation use RTK.
 
 ## 2. Pre-Implementation Decisions
 
 - [x] Product Owner approves final project identity.
-- [ ] GitHub repository `bullstrangle-platform` is created.
+- [x] GitHub repository `bullstrangle-platform` is created.
 - [x] Repository/folder layout is approved.
 - [x] Lean `data/` layout is approved.
 - [x] Temporary `data/inbox/current_fixture/` lifecycle is approved.
@@ -64,61 +68,61 @@ Product Owner approval:
 
 ## 3. Repository Scaffold
 
-- [ ] Create `bullstrangle-platform` GitHub repository.
-- [ ] Add `README.md`.
-- [ ] Add `AGENTS.md` with RTK, PostgreSQL-only, no-legacy-import, and live-disabled rules.
-- [ ] Add `pyproject.toml`.
-- [ ] Add `alembic.ini`.
-- [ ] Add `migrations/env.py`.
-- [ ] Add `migrations/versions/`.
-- [ ] Add `data/README.md`.
-- [ ] Add `data/.gitignore`.
-- [ ] Add `data/inbox/newsletters/`.
-- [ ] Add temporary `data/inbox/current_fixture/`.
-- [ ] Add `data/fixtures/regression/`.
-- [ ] Add `data/fixtures/provider_payloads/`.
-- [ ] Add `data/imports/legacy/`.
-- [ ] Add `data/benchmarks/os/`.
-- [ ] Add `data/reports/replay/`.
-- [ ] Confirm no `data/bullstrangle.db` exists in the new repo.
-- [ ] Confirm no top-level `data/backups/` exists in the normal repo scaffold.
-- [ ] Confirm no top-level `data/os_uploads/` exists in the normal repo scaffold.
-- [ ] Confirm no top-level `data/positions/` exists in P0 scaffold.
+- [x] Create `bullstrangle-platform` GitHub repository.
+- [x] Add `README.md`.
+- [x] Add `AGENTS.md` with RTK, PostgreSQL-only, no-legacy-import, and live-disabled rules.
+- [x] Add `pyproject.toml`.
+- [x] Add `alembic.ini`.
+- [x] Add `migrations/env.py`.
+- [x] Add `migrations/versions/`.
+- [x] Add `data/README.md`.
+- [x] Add `data/.gitignore`.
+- [x] Add `data/inbox/newsletters/`.
+- [x] Add temporary `data/inbox/current_fixture/`.
+- [x] Add `data/fixtures/regression/`.
+- [x] Add `data/fixtures/provider_payloads/`.
+- [x] Add `data/imports/legacy/`.
+- [x] Add `data/benchmarks/os/`.
+- [x] Add `data/reports/replay/`.
+- [x] Confirm no `data/bullstrangle.db` exists in the new repo.
+- [x] Confirm no top-level `data/backups/` exists in the normal repo scaffold.
+- [x] Confirm no top-level `data/os_uploads/` exists in the normal repo scaffold.
+- [x] Confirm no top-level `data/positions/` exists in P0 scaffold.
 
 ## 4. Package Scaffold
 
-- [ ] Add `src/bullstrangle_platform/__init__.py`.
-- [ ] Add `src/bullstrangle_platform/config.py`.
-- [ ] Add `src/bullstrangle_platform/logging.py`.
-- [ ] Add `src/bullstrangle_platform/db/`.
-- [ ] Add `src/bullstrangle_platform/domain/`.
-- [ ] Add `src/bullstrangle_platform/agents/`.
-- [ ] Add `src/bullstrangle_platform/providers/`.
-- [ ] Add `src/bullstrangle_platform/services/`.
-- [ ] Add `src/bullstrangle_platform/mcp/`.
-- [ ] Add `src/bullstrangle_platform/cli/`.
-- [ ] Add `src/bullstrangle_platform/reports/`.
-- [ ] Add `src/bullstrangle_platform/safety/`.
-- [ ] Add `tests/`.
-- [ ] Add `tests/fixtures/`.
+- [x] Add `src/bullstrangle_platform/__init__.py`.
+- [x] Add `src/bullstrangle_platform/config.py`.
+- [x] Add `src/bullstrangle_platform/logging.py`.
+- [x] Add `src/bullstrangle_platform/db/`.
+- [x] Add `src/bullstrangle_platform/domain/`.
+- [x] Add `src/bullstrangle_platform/agents/`.
+- [x] Add `src/bullstrangle_platform/providers/`.
+- [x] Add `src/bullstrangle_platform/services/`.
+- [x] Add `src/bullstrangle_platform/mcp/`.
+- [x] Add `src/bullstrangle_platform/cli/`.
+- [x] Add `src/bullstrangle_platform/reports/`.
+- [x] Add `src/bullstrangle_platform/safety/`.
+- [x] Add `tests/`.
+- [x] Add `tests/fixtures/`.
 
 ## 5. Agent Scaffold
 
-- [ ] Add `agents/base.py`.
-- [ ] Add `agents/ingestion_agent.py`.
-- [ ] Add `agents/rule_policy_agent.py`.
-- [ ] Add `agents/market_data_agent.py`.
-- [ ] Add `agents/scanner_agent.py`.
-- [ ] Add `agents/pl_agent.py`.
-- [ ] Add `agents/probability_agent.py`.
-- [ ] Add `agents/decision_agent.py`.
-- [ ] Add `agents/portfolio_agent.py`.
-- [ ] Add `agents/paper_trading_agent.py`.
-- [ ] Add `agents/execution_agent.py`.
-- [ ] Add `agents/monitoring_agent.py`.
-- [ ] Add `agents/outcome_agent.py`.
-- [ ] Add `agents/confidence_agent.py`.
-- [ ] Add `agents/reporting_agent.py`.
+- [x] Add `agents/base.py`.
+- [x] Add `agents/ingestion_agent.py`.
+- [x] Add `agents/rule_policy_agent.py`.
+- [x] Add `agents/market_data_agent.py`.
+- [x] Add `agents/scanner_agent.py`.
+- [x] Add `agents/pl_agent.py`.
+- [x] Add `agents/probability_agent.py`.
+- [x] Add `agents/decision_agent.py`.
+- [x] Add `agents/portfolio_agent.py`.
+- [x] Add `agents/paper_trading_agent.py`.
+- [x] Add `agents/execution_agent.py`.
+- [x] Add `agents/monitoring_agent.py`.
+- [x] Add `agents/outcome_agent.py`.
+- [x] Add `agents/confidence_agent.py`.
+- [x] Add `agents/reporting_agent.py`.
 - [ ] Define `AgentInput`.
 - [ ] Define `AgentResult`.
 - [ ] Define `UnitOfWork` port.
@@ -272,8 +276,9 @@ Product Owner approval:
 |---|---|---|
 | Product/architecture docs | [x] | Refactor docs exist in legacy repo. |
 | Product Owner approval | [x] | Approved at commit `a48b81d` for repo creation and Phase 0 scaffolding. |
-| New GitHub repo | [ ] | `bullstrangle-platform` approved but not created yet. |
-| Runtime implementation | [ ] | Not started. |
+| New GitHub repo | [x] | `bullstrangle-platform` created and pushed at commit `a80b993`. |
+| Phase 0 scaffold | [~] | Repo/package/data/agent file scaffold exists; typed contracts still not implemented. |
+| Runtime implementation | [ ] | Not started beyond placeholders. |
 | PostgreSQL migrations | [ ] | Not started. |
 | Current fixture bootstrap | [ ] | Not started. |
 | Tradier provider | [ ] | Not started. |
